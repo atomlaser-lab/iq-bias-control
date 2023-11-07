@@ -277,7 +277,7 @@ begin
     startAXI <= '0';
     wait for 10 us;
     --
-    -- Change DDS frequency
+    -- Change filter rate
     --
     wait until rising_edge(sysclk);
     axi_addr_single <= X"0000_0008";
@@ -286,6 +286,18 @@ begin
     wait until bus_s.resp(0) = '1';
     start_single_i <= "00";
     wait for 500 ns;
+    --
+    -- Change demodulation phase for 2x freq
+    --
+    wait for 50 us;
+    wait until rising_edge(sysclk);
+    axi_addr_single <= X"0000_0028";
+    axi_data_single <= std_logic_vector(shift_left(to_unsigned(1,32),30));
+    start_single_i <= "01";
+    wait until bus_s.resp(0) = '1';
+    start_single_i <= "00";
+    wait for 500 ns;
+    
 
     wait;
 end process; 

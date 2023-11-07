@@ -63,47 +63,7 @@ COMPONENT DDS1
   );
 END COMPONENT;
 
-COMPONENT DDS2
-  PORT (
-    aclk : IN STD_LOGIC;
-    aresetn : IN STD_LOGIC;
-    s_axis_phase_tvalid : IN STD_LOGIC;
-    s_axis_phase_tdata : IN STD_LOGIC_VECTOR(63 DOWNTO 0);
-    m_axis_data_tvalid : OUT STD_LOGIC;
-    m_axis_data_tdata : OUT STD_LOGIC_VECTOR(31 DOWNTO 0) 
-  );
-END COMPONENT;
-
-COMPONENT DDS3
-  PORT (
-    aclk : IN STD_LOGIC;
-    aresetn : IN STD_LOGIC;
-    s_axis_phase_tvalid : IN STD_LOGIC;
-    s_axis_phase_tdata : IN STD_LOGIC_VECTOR(63 DOWNTO 0);
-    m_axis_data_tvalid : OUT STD_LOGIC;
-    m_axis_data_tdata : OUT STD_LOGIC_VECTOR(31 DOWNTO 0) 
-  );
-END COMPONENT;
-
 COMPONENT Multiplier1
-  PORT (
-    CLK : IN STD_LOGIC;
-    A : IN STD_LOGIC_VECTOR(13 DOWNTO 0);
-    B : IN STD_LOGIC_VECTOR(9 DOWNTO 0);
-    P : OUT STD_LOGIC_VECTOR(23 DOWNTO 0) 
-  );
-END COMPONENT;
-
-COMPONENT Multiplier2
-  PORT (
-    CLK : IN STD_LOGIC;
-    A : IN STD_LOGIC_VECTOR(13 DOWNTO 0);
-    B : IN STD_LOGIC_VECTOR(9 DOWNTO 0);
-    P : OUT STD_LOGIC_VECTOR(23 DOWNTO 0) 
-  );
-END COMPONENT;
-
-COMPONENT Multiplier3
   PORT (
     CLK : IN STD_LOGIC;
     A : IN STD_LOGIC_VECTOR(13 DOWNTO 0);
@@ -126,6 +86,21 @@ COMPONENT CICfilter
     m_axis_data_tvalid : OUT STD_LOGIC 
   );
 END COMPONENT;
+
+component FIFOHandler is
+    port(
+        wr_clk      :   in  std_logic;
+        rd_clk      :   in  std_logic;
+        aresetn     :   in  std_logic;
+        
+        data_i      :   in  std_logic_vector(FIFO_WIDTH-1 downto 0);
+        valid_i     :   in  std_logic;
+        
+        fifoReset   :   in  std_logic;
+        bus_m       :   in  t_fifo_bus_master;
+        bus_s       :   out t_fifo_bus_slave
+    );
+end component;
 
 --
 -- AXI communication signals
@@ -184,7 +159,6 @@ signal cicShift                         : natural;
 signal setShift                         : unsigned(3 downto 0);
 signal filterConfig, filterConfig_old  : std_logic_vector(15 downto 0);
 signal Mult1_o, Mult2_o, Mult3_o        : std_logic_vector(23 downto 0);
-signal filtconfig                       : std_logic_vector(15 downto 0);
 signal filter_valid                       : std_logic;
 signal filtMult1_i, filtMult2_i, filtMult3_i        : std_logic_vector(23 downto 0);
 signal filtMult1_o, filtMult2_o, filtMult3_o        : std_logic_vector(63 downto 0);
@@ -198,6 +172,16 @@ signal wea          :   std_logic_vector(0 downto 0);
 signal addra        :   std_logic_vector(7 downto 0);
 signal dina, douta  :   std_logic_vector(31 downto 0);
 signal memDelay     :   unsigned(1 downto 0);
+--
+-- FIFO signals
+--
+signal fifoReg      :   t_param_reg;
+signal fifoReset    :   std_logic;
+signal fifo_m       :   t_fifo_bus_master;
+signal fifo_s       :   t_fifo_bus_slave;
+signal fifo_i       :   std_logic_vector(FIFO_WIDTH - 1 downto 0);
+signal valid_fifo_i  :   std_logic;
+signal enableSlow   :   std_logic;
 
 begin
 
@@ -356,7 +340,7 @@ dac_o(15 downto 0) <= std_logic_vector(shift_left(resize(signed(dds_cos),16),4))
 dac_o(31 downto 16) <= std_logic_vector(shift_left(resize(signed(dds_sin),16),4));
 -- DDS2 
 dds2_phase_inc <= dds_phase_inc_reg;
-dds2_phase_offset <= dds3_phase_off_reg;
+dds2_phase_offset <= dds2_phase_off_reg;
 dds2_phase_i <= dds2_phase_offset & dds2_phase_inc;
 dds2_cos     <= dds2_o(9 downto 0);
 dds2_sin     <= dds2_o(25 downto 16);
@@ -370,11 +354,25 @@ dds3_phase_i <= dds3_phase_offset & dds3_phase_inc;
 dds3_cos     <= dds3_o(9 downto 0);
 dds3_sin     <= dds3_o(25 downto 16);
 
--- Filtered signals
+--
+-- Save data into FIFO
+--
+--fifo_i          <= std_logic_vector(resize(filterData(0),32));
+--fifoReset       <= fifoReg(1);
+--valid_fifo_i    <=    Mult3_o_valid;
+--SlowFIFO: FIFOHandler
+--port map(
+--    wr_clk      =>  adcClk,
+--    rd_clk      =>  sysClk,
+--    aresetn     =>  aresetn,
+--    data_i      =>  fifo_i,
+--    valid_i     =>  valid_fifo_i,
+--    fifoReset   =>  fifoReset,
+--    bus_m       =>  fifo_m,
+--    bus_s       =>  fifo_s
+--);
 
 
---dac_o(15 downto 0) <= std_logic_vector(shift_left(resize(signed(dds3_cos),16),4));
---dac_o(31 downto 16) <= std_logic_vector(shift_left(resize(signed(dds3_sin),16),4));
 -- AXI communication routing - connects bus objects to std_logic signals
 
 bus_m.addr <= addr_i;
@@ -391,6 +389,7 @@ begin
         bus_s <= INIT_AXI_BUS_SLAVE;
         triggers <= (others => '0');
         outputReg <= (others => '0');
+        filterReg <= X"0000000a";
         --dac_o <= (others => '0');
         dds_phase_off_reg <= (others => '0');
         dds_phase_inc_reg <= std_logic_vector(to_unsigned(34359738, 32)); -- 1 MHz with 32 bit DDS and 125 MHz clk freq
