@@ -42,16 +42,6 @@ ATTRIBUTE X_INTERFACE_PARAMETER : STRING;
 ATTRIBUTE X_INTERFACE_PARAMETER of m_axis_tdata: SIGNAL is "CLK_DOMAIN system_AXIS_Red_Pitaya_ADC_0_0_adc_clk,FREQ_HZ 125000000";
 ATTRIBUTE X_INTERFACE_PARAMETER of m_axis_tvalid: SIGNAL is "CLK_DOMAIN system_AXIS_Red_Pitaya_ADC_0_0_adc_clk,FREQ_HZ 125000000";
 
-COMPONENT BlockMemory
-  PORT (
-    clka : IN STD_LOGIC;
-    wea : IN STD_LOGIC_VECTOR(0 DOWNTO 0);
-    addra : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
-    dina : IN STD_LOGIC_VECTOR(31 DOWNTO 0);
-    douta : OUT STD_LOGIC_VECTOR(31 DOWNTO 0)
-  );
-END COMPONENT;
-
 COMPONENT DDS1
   PORT (
     aclk : IN STD_LOGIC;
@@ -114,7 +104,6 @@ signal reset                :   std_logic;
 --
 signal triggers             :   t_param_reg                     :=  (others => '0');
 signal outputReg            :   t_param_reg                     :=  (others => '0');
-signal dac_o                :   t_param_reg;
 signal filterReg            :   t_param_reg;
 -- we can add a new register 
 -- signal new_register         :   t_param_reg; -- dds2 
@@ -166,12 +155,6 @@ signal Mult1_o_valid, Mult2_o_valid, Mult3_o_valid  : std_logic;
 
 signal filterData   :   t_adc_Array(2 downto 0);
 
--- Block memory signals
---
-signal wea          :   std_logic_vector(0 downto 0);
-signal addra        :   std_logic_vector(7 downto 0);
-signal dina, douta  :   std_logic_vector(31 downto 0);
-signal memDelay     :   unsigned(1 downto 0);
 --
 -- FIFO signals
 --
@@ -203,19 +186,7 @@ led_o <= outputReg(15 downto 8);
 
 adc1        <=    resize(signed(adcData_i(15 downto 0)), 14);
 adc1_slv    <=    std_logic_vector(adc1);
--- assigning signals for DDS2
---new_signal_1 <= unsigned(new_register(7 downto 0)); -- dds2
---new_signal_2 <= signed(new_register(23 downto 8)); -- dds2
--- Block memory
---
-BM : BlockMemory
-PORT MAP (
-    clka    => sysClk,
-    wea     => wea,
-    addra   => addra,
-    dina    => dina,
-    douta   => douta
-);
+
 -- 
 -- DDS
 DDS_inst : DDS1
@@ -350,8 +321,6 @@ dds2_phase_i <= dds2_phase_offset & dds2_phase_inc;
 dds2_cos     <= dds2_o(9 downto 0);
 dds2_sin     <= dds2_o(25 downto 16);
 
---dac_o(15 downto 0) <= std_logic_vector(shift_left(resize(signed(dds2_cos),16),4));
---dac_o(31 downto 16) <= std_logic_vector(shift_left(resize(signed(dds2_sin),16),4));
 -- DDS3 
 dds3_phase_inc <= std_logic_vector(shift_left(unsigned(dds_phase_inc_reg),1));
 dds3_phase_offset <= dds3_phase_off_reg;
@@ -361,9 +330,6 @@ dds3_sin     <= dds3_o(25 downto 16);
 
 --
 -- FIFO buffering for long data sets
---
---
--- Generate FIFO buffers.
 --
 enableFIFO <= fifoReg(0);
 fifoReset <= fifoReg(1);
@@ -465,34 +431,6 @@ begin
                                 comState <= finishing;
                                 bus_s.resp <= "11";
                         end case;
-                        
-                    --
-                    -- Read from/write to memory
-                    --
-                    when X"01" =>
-                        addra <= std_logic_vector(bus_m.addr(addra'length + 1 downto 2));
-                        if bus_m.valid(1) = '0' then
-                            --
-                            -- If writing data, route input address and data to memory
-                            --
-                            comState <= finishing;
-                            dina <= bus_m.data;
-                            wea <= "1";
-                            bus_s.resp <= "01";
-                        else
-                            --
-                            -- If reading from memory, we need an extra 2 wait cycles
-                            --
-                            if memDelay = "00" then
-                                memDelay <= "11";
-                            elsif memDelay > "01" then
-                                memDelay <= memDelay - 1;
-                            else
-                                bus_s.data <= douta;
-                                bus_s.resp <= "01";
-                                comState <= finishing;
-                            end if;
-                        end if;
                     
                     when others => 
                         comState <= finishing;

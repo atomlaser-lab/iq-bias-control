@@ -1,11 +1,12 @@
 classdef DeviceControl < handle
     properties
         jumpers
+        t
+        data
     end
     
     properties(SetAccess = immutable)
         conn
-       % dac
         ext_o
         adc
         ext_i
@@ -27,7 +28,6 @@ classdef DeviceControl < handle
         outputReg
         inputReg
         filterReg
-       % dacReg
         adcReg
         ddsPhaseOffsetReg %  added for dds 
         ddsPhaseIncReg  % added for dds
@@ -219,6 +219,27 @@ classdef DeviceControl < handle
             end
             r = x/c;
         end
+
+        function self = getDemodulatedData(self,numSamples,saveType)
+            %GETDEMODULATEDDATA Fetches demodulated data from the device
+            %
+            %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of demodulated data
+            %
+            %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
+            %   users only: see the readme
+            
+            if nargin < 3
+                saveType = 1;
+            end
+            
+            self.conn.write(0,'mode','command','cmd',...
+                {'./saveData','-n',sprintf('%d',round(numSamples)),'-t',sprintf('%d',saveType),'-b'},...
+                'return_mode','file');
+            raw = typecast(self.conn.recvMessage,'uint8');
+            d = self.convertData(raw);
+            self.data = d;
+            self.t = 1/self.CLK*2^self.cicRate.value*(0:(numSamples-1));
+        end
         
         function disp(self)
             strwidth = 20;
@@ -257,6 +278,21 @@ classdef DeviceControl < handle
         end
         
         
+    end
+
+    methods(Static)
+        function d = convertData(raw)
+            raw = raw(:);
+            Nraw = numel(raw);
+            numStreams = 3;
+            d = zeros(Nraw/(numStreams*4),numStreams,'int32');
+            
+            raw = reshape(raw,4*numStreams,Nraw/(4*numStreams));
+            for nn = 1:numStreams
+                d(:,nn) = typecast(uint8(reshape(raw((nn-1)*4 + (1:4),:),4*size(d,1),1)),'int32');
+            end
+            d = double(d);
+        end
     end
     
 end
