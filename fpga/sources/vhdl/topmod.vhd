@@ -175,13 +175,18 @@ signal memDelay     :   unsigned(1 downto 0);
 --
 -- FIFO signals
 --
+constant NUM_FIFOS  :   natural :=  3;
+type t_fifo_data_array is array(natural range <>) of std_logic_vector(FIFO_WIDTH-1 downto 0);
+signal fifoData     :   t_fifo_data_array(NUM_FIFOS-1 downto 0);
+signal fifoValid    :   std_logic_vector(NUM_FIFOS-1 downto 0);
+signal fifo_bus     :   t_fifo_bus_array(NUM_FIFOS-1 downto 0)  :=  (others => INIT_FIFO_BUS);
 signal fifoReg      :   t_param_reg;
-signal fifoReset    :   std_logic;
-signal fifo_m       :   t_fifo_bus_master;
-signal fifo_s       :   t_fifo_bus_slave;
-signal fifo_i       :   std_logic_vector(FIFO_WIDTH - 1 downto 0);
-signal valid_fifo_i  :   std_logic;
-signal enableSlow   :   std_logic;
+signal enableFIFO   :   std_logic;
+signal debugCount   :   unsigned(7 downto 0);
+
+signal resetExtended:   std_logic;
+signal resetCount   :   unsigned(7 downto 0);
+
 
 begin
 
@@ -355,26 +360,32 @@ dds3_cos     <= dds3_o(9 downto 0);
 dds3_sin     <= dds3_o(25 downto 16);
 
 --
--- Save data into FIFO
+-- FIFO buffering for long data sets
 --
---fifo_i          <= std_logic_vector(resize(filterData(0),32));
---fifoReset       <= fifoReg(1);
---valid_fifo_i    <=    Mult3_o_valid;
---SlowFIFO: FIFOHandler
---port map(
---    wr_clk      =>  adcClk,
---    rd_clk      =>  sysClk,
---    aresetn     =>  aresetn,
---    data_i      =>  fifo_i,
---    valid_i     =>  valid_fifo_i,
---    fifoReset   =>  fifoReset,
---    bus_m       =>  fifo_m,
---    bus_s       =>  fifo_s
---);
+--
+-- Generate FIFO buffers.
+--
+enableFIFO <= fifoReg(0);
+fifoReset <= fifoReg(1);
+FIFO_GEN: for I in 0 to NUM_FIFOS-1 generate
+    fifoData(I) <= std_logic_vector(resize(filterData(I),FIFO_WIDTH));
+    fifoValid(I) <= Mult3_o_valid and enableFIFO;
+    PhaseMeas_FIFO_NORMAL_X: FIFOHandler
+    port map(
+        wr_clk      =>  adcClk,
+        rd_clk      =>  sysClk,
+        aresetn     =>  aresetn,
+        data_i      =>  fifoData(I),
+        valid_i     =>  fifoValid(I),
+        fifoReset   =>  fifoReset,
+        bus_m       =>  fifo_bus(I).m,
+        bus_s       =>  fifo_bus(I).s
+  );
+end generate FIFO_GEN;
 
-
+--
 -- AXI communication routing - connects bus objects to std_logic signals
-
+--
 bus_m.addr <= addr_i;
 bus_m.valid <= dataValid_i;
 bus_m.data <= writeData_i;
@@ -400,6 +411,13 @@ begin
         dds3_phase_off_reg <= (others => '0');
         dds3_phase_inc_reg <= std_logic_vector(to_unsigned(34359738, 32)); 
        -- new_register <= (others => '0'); -- dds2
+        --
+        -- FIFO registers
+        --
+        fifoReg <= (others => '0');
+        fifo_bus(0).m.status <= idle;
+        fifo_bus(1).m.status <= idle;
+        fifo_bus(2).m.status <= idle;
         addra <= (others => '0');
         dina <= (others => '0');
         memDelay <= (others => '0');
@@ -434,6 +452,14 @@ begin
                             when X"000020" => rw(bus_m,bus_s,comState,dds2_phase_off_reg);
                             when X"000024" => rw(bus_m,bus_s,comState,dds3_phase_inc_reg);
                             when X"000028" => rw(bus_m,bus_s,comState,dds3_phase_off_reg);
+
+                            --
+                            -- FIFO control and data retrieval
+                            --
+                            when X"000084" => rw(bus_m,bus_s,comState,fifoReg);
+                            when X"000088" => fifoRead(bus_m,bus_s,comState,fifo_bus(0).m,fifo_bus(0).s);
+                            when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
+                            when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
                            
                             when others => 
                                 comState <= finishing;
