@@ -10,6 +10,7 @@ classdef DeviceControl < handle
         adc
         ext_i
         led_o
+        filterData
         phase_offset % added for DDS
         phase_inc  % added for DDS
         dds2_phase_offset % added for DDS2
@@ -25,6 +26,7 @@ classdef DeviceControl < handle
         trigReg
         outputReg
         inputReg
+        filterReg
        % dacReg
         adcReg
         ddsPhaseOffsetReg %  added for dds 
@@ -61,13 +63,16 @@ classdef DeviceControl < handle
             % R/W registers
             self.trigReg = DeviceRegister('0',self.conn);
             self.outputReg = DeviceRegister('4',self.conn);
-           % self.dacReg = DeviceRegister('8',self.conn);
+            %self.dacReg = DeviceRegister('8',self.conn);
+            self.filterReg = DeviceRegister('8',self.conn);
             self.adcReg = DeviceRegister('C',self.conn);
             self.inputReg = DeviceRegister('10',self.conn);
-            self.ddsPhaseOffsetReg = DeviceRegister('18',self.conn);
             self.ddsPhaseIncReg = DeviceRegister('14',self.conn);
-            self.ddsPhaseIncReg = DeviceRegister('1C',self.conn);
+            self.ddsPhaseOffsetReg = DeviceRegister('18',self.conn);
+            self.dds2PhaseIncReg = DeviceRegister('1C',self.conn);
             self.dds2PhaseOffsetReg = DeviceRegister('20',self.conn);
+            self.dds3PhaseIncReg = DeviceRegister('24',self.conn);
+            self.dds3PhaseOffsetReg = DeviceRegister('28',self.conn);
             
            % self.new_register = DeviceRegister('1C',self.conn); % added this new register
             
@@ -91,6 +96,16 @@ classdef DeviceControl < handle
                 .setFunctions('to',@(x) self.convert2int(x),'from',@(x) self.convert2volts(x));
             
             self.ext_i = DeviceParameter([0,7],self.inputReg);
+           
+            self.filterData = DeviceParameter([0,15],self.filterReg,'int16')...
+                 .setLimits('lower',0,'upper', 50e6)...
+                 .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
+            self.filterData(2) = DeviceParameter([0,15],self.filterReg,'int16')...
+                 .setLimits('lower',0,'upper', 50e6)...
+                 .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
+            self.filterData(3) = DeviceParameter([0,15],self.filterReg,'int16')...
+                 .setLimits('lower',0,'upper', 50e6)...
+                 .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
 
             self.phase_inc = DeviceParameter([0,31],self.ddsPhaseIncReg,'uint32')...
                  .setLimits('lower',0,'upper', 50e6)...
@@ -107,29 +122,33 @@ classdef DeviceControl < handle
             self.dds2_phase_offset = DeviceParameter([0,31],self.dds2PhaseOffsetReg,'uint32')...
                  .setLimits('lower',-360,'upper', 360)...
                  .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
-
-            %  self.new_signal = DeviceParameter([0,7],self.new_register,'uint32')...
-            %     .setLimits('lower',0,'upper',1)...
-            %     .setFunctions('to',@(x) x*(2^8 -1),'from',@(x) x/(2^8 -1));
-            % 
-            % self.new_signal(2) = DeviceParameter([8,23],self.new_register,'int16')...
-            %      .setLimits('lower',-1,'upper',1)...
-            %      .setFunctions('to',@(x) x*(2^(16 - 1) -1),'from',@(x) x/(2^(16 -1) -1));
+             %% new signals for dds3
+              self.dds3_phase_inc = DeviceParameter([0,31],self.dds3PhaseIncReg,'uint32')...
+                 .setLimits('lower',0,'upper', 50e6)...
+                 .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
+            
+            self.dds3_phase_offset = DeviceParameter([0,31],self.dds3PhaseOffsetReg,'uint32')...
+                 .setLimits('lower',-360,'upper', 360)...
+                 .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
+          
 
         end
         
         function self = setDefaults(self,varargin)
            % self.dac(1).set(0);
             %self.dac(2).set(0);
-            self.ext_o.set(0);
-            self.led_o.set(0);
-             self.phase_inc.set(1e6); % added for dds 
-             self.phase_offset.set(0); % added for dds
-
+             self.ext_o.set(0);
+             self.led_o.set(0);
+             self.filterData(1).set(1e6);
+             self.filterData(2).set(1e6);
+             self.filterData(3).set(1e6);
+             self.phase_inc.set(1e6); % added for dds1 
+             self.phase_offset.set(0); % added for dds1
              self.dds2_phase_inc.set(1e6); % added for dds2 
              self.dds2_phase_offset.set(0); % added for dds2
-            % self.new_signal(1).set(0); % add default for new signal dds2
-             %self.new_signal(2).set(0); % add default for new signal dds2
+             self.dds3_phase_inc.set(1e6); % added for dds3 
+             self.dds3_phase_offset.set(0); % added for dds3
+             
         end
         
         function self = check(self)
@@ -137,56 +156,49 @@ classdef DeviceControl < handle
         end
         
         function self = upload(self)
-            self.check;
-            self.outputReg.write;
-           % self.dacReg.write;
+             self.check;
+             self.outputReg.write;
+             self.filterReg.write;
              self.ddsPhaseIncReg.write; % added for dds
              self.ddsPhaseOffsetReg.write; % added for dds
-
              self.dds2PhaseIncReg.write; % added for dds2
              self.dds2PhaseOffsetReg.write; % added for dds2
-
-             %self.new_register.write; % added for dds2
+             self.dds3PhaseIncReg.write; % added for dds3
+             self.dds3PhaseOffsetReg.write; % added for dds3
         end
         
         function self = fetch(self)
             %Read registers
             self.outputReg.read;
-           % self.dacReg.read;
             self.inputReg.read;
+            self.filterReg.read;
             self.adcReg.read;
             self.ddsPhaseIncReg.read;
             self.ddsPhaseOffsetReg.read;
-
             self.dds2PhaseIncReg.read; % dds2
             self.dds2PhaseOffsetReg.read; % dds2
-            %self.new_register.read; % added line for dds2
-
+            self.dds3PhaseIncReg.read; % dds2
+            self.dds3PhaseOffsetReg.read; % dds2
 
             self.ext_o.get;
             self.led_o.get;
-            self.ext_i.get;
-           
-            % for nn = 1:numel(self.dac)
-            %     self.dac(nn).get;
-            % end
+            self.ext_i.get
             
             for nn = 1:numel(self.adc)
                 self.adc(nn).get;
             end
-
-            %for nn = 1:numel(self.phase_inc)
-             %    self.phase_inc(nn).get;
-            %end
-            self.phase_offset.get; % added for dds
-            self.phase_inc.get;   % added for dds
-
+            self.phase_offset.get; % added for dds1
+            self.phase_inc.get;   % added for dds1
             self.dds2_phase_offset.get; % added for dds2
             self.dds2_phase_inc.get;   % added for dds2
+            self.dds3_phase_offset.get; % added for dds3
+            self.dds3_phase_inc.get;   % added for dds3
 
-             % for nn = 1:numel(self.new_signal)
-             %    self.new_signal(nn).get;
-             % end
+            for nn = 1:numel(self.filterData)
+                 self.filterData(nn).get;
+            end
+
+            
         
         end
         
@@ -213,30 +225,35 @@ classdef DeviceControl < handle
             fprintf(1,'DeviceControl object with properties:\n');
             fprintf(1,'\t Registers\n');
             self.outputReg.print('outputReg',strwidth);
-            %self.dacReg.print('dacReg',strwidth);
             self.inputReg.print('inputReg',strwidth);
+            self.filterReg.print('filterReg',strwidth);
             self.adcReg.print('adcReg',strwidth);
             self.ddsPhaseIncReg.print('phaseIncReg',strwidth);
             self.ddsPhaseOffsetReg.print('phaseOffsetReg',strwidth);
-            self.dds2PhaseIncReg.print('phaseIncReg',strwidth);
-            self.dds2PhaseOffsetReg.print('phaseOffsetReg',strwidth);
+            self.dds2PhaseIncReg.print('dds2phaseIncReg',strwidth);
+            self.dds2PhaseOffsetReg.print('dds2phaseOffsetReg',strwidth);
+            self.dds3PhaseIncReg.print('dds3phaseIncReg',strwidth);
+            self.dds3PhaseOffsetReg.print('dds3phaseOffsetReg',strwidth);
            % self.new_register.print('new_register',strwidth);
 
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Parameters\n');
-            self.led_o.print('LEDs',strwidth,'%02x');
-            self.ext_o.print('External output',strwidth,'%02x');
-            self.ext_i.print('External input',strwidth,'%02x');
-           % self.dac(1).print('DAC 1',strwidth,'%.3f');
-            %self.dac(2).print('DAC 2',strwidth,'%.3f');
-            self.adc(1).print('ADC 1',strwidth,'%.3f');
-            self.adc(2).print('ADC 2',strwidth,'%.3f');
+             self.led_o.print('LEDs',strwidth,'%02x');
+             self.ext_o.print('External output',strwidth,'%02x');
+             self.ext_i.print('External input',strwidth,'%02x');
+             %self.dac(1).print('DAC 1',strwidth,'%.3f');
+             %self.dac(2).print('DAC 2',strwidth,'%.3f');
+             self.adc(1).print('ADC 1',strwidth,'%.3f');
+             self.adc(2).print('ADC 2',strwidth,'%.3f');
              self.phase_inc.print('Phase Increment',strwidth,'%.3e');
              self.phase_offset.print('Phase Offset',strwidth,'%.3f');
-             self.dds2_phase_inc.print('Phase Increment',strwidth,'%.3e');
-             self.dds2_phase_offset.print('Phase Offset',strwidth,'%.3f');
-            % self.new_signal(1).print('new_signal 1',strwidth,'%.3f');
-            % self.new_signal(2).print('new_signal 2',strwidth,'%.3f');
+             self.dds2_phase_inc.print('dds2 Phase Increment',strwidth,'%.3e');
+             self.dds2_phase_offset.print('dds2 Phase Offset',strwidth,'%.3f');
+             self.dds3_phase_inc.print('dds3 Phase Increment',strwidth,'%.3e');
+             self.dds3_phase_offset.print('dds3 Phase Offset',strwidth,'%.3f');
+             self.filterData(1).print('filterData 1',strwidth,'%.3f');
+             self.filterData(2).print('filterData 2',strwidth,'%.3f');
+             self.filterData(3).print('filterData 3',strwidth,'%.3f');
         end
         
         
