@@ -16,6 +16,7 @@ type t_param_reg_array is array(natural range <>) of t_param_reg;
 --
 -- Define ADC data types
 --
+constant ADC_ACTUAL_WIDTH   :   natural :=  14;
 constant ADC_WIDTH          :   natural :=  16;
 constant NUM_ADCS           :   natural :=  2;
 subtype t_adc is signed(ADC_WIDTH-1 downto 0);
@@ -23,14 +24,21 @@ type t_adc_array is array(natural range <>) of t_adc;
 --
 -- Define DAC data types
 --
+constant DAC_ACTUAL_WIDTH   :   natural :=  14;
 constant DAC_WIDTH          :   natural :=  16;
 constant NUM_DACS           :   natural :=  2;
 subtype t_dac is signed(DAC_WIDTH-1 downto 0);
-type t_dac_array is array(NUM_DACS - 1 downto 0) of t_dac;
+type t_dac_array is array(natural range <>) of t_dac;
 --
 -- Defines PID gain types
 --
 constant PID_WIDTH          :   natural :=  8;
+--
+-- Defines DDS-related types
+--
+constant DDS_PHASE_WIDTH    :   natural :=  32;
+subtype t_phase is unsigned(DDS_PHASE_WIDTH - 1 downto 0);
+type t_phase_array is array(natural range <>) of t_phase;
 
 --
 -- Defines AXI address and data widths

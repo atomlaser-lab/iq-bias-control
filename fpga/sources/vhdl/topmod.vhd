@@ -117,8 +117,6 @@ signal dds2_phase_off_reg     : t_param_reg; -- dds2
 signal dds3_phase_inc_reg     : t_param_reg; -- dds2
 signal dds3_phase_off_reg     : t_param_reg; -- dds2
 -- we can add some costom signals for DDS2
---signal new_signal_1         : unsigned(7 downto 0); -- dds2
---signal new_signal_2         : signed (15 downto 0); -- dds2
 
 -- add DDS signals
 signal phase_offset       : std_logic_vector(31 downto 0);
@@ -126,6 +124,7 @@ signal phase_inc          : std_logic_vector(31 downto 0);
 signal dds_phase_i        : std_logic_vector(63 downto 0);
 signal dds_o              : std_logic_vector(31 downto 0);
 signal dds_cos, dds_sin   : std_logic_vector(9 downto 0);
+signal dac_o              : t_dac_array(1 downto 0);
 -- DDS2 signals
 signal dds2_phase_offset       : std_logic_vector(31 downto 0);
 signal dds2_phase_inc          : std_logic_vector(31 downto 0);
@@ -165,10 +164,7 @@ signal fifoValid    :   std_logic_vector(NUM_FIFOS-1 downto 0);
 signal fifo_bus     :   t_fifo_bus_array(NUM_FIFOS-1 downto 0)  :=  (others => INIT_FIFO_BUS);
 signal fifoReg      :   t_param_reg;
 signal enableFIFO   :   std_logic;
-signal debugCount   :   unsigned(7 downto 0);
-
-signal resetExtended:   std_logic;
-signal resetCount   :   unsigned(7 downto 0);
+signal fifoReset    :   std_logic;
 
 
 begin
@@ -176,7 +172,7 @@ begin
 --
 -- DAC Outputs
 --
-m_axis_tdata <= dac_o;
+m_axis_tdata <= std_logic_vector(dac_o(1)) & std_logic_vector(dac_o(0));
 m_axis_tvalid <= '1';
 -- now we can assign the new signals to the new register
 -- Digital outputs
@@ -312,8 +308,8 @@ dds_phase_i <= phase_offset & phase_inc;
 dds_cos     <= dds_o(9 downto 0);
 dds_sin     <= dds_o(25 downto 16);
 
-dac_o(15 downto 0) <= std_logic_vector(shift_left(resize(signed(dds_cos),16),4));
-dac_o(31 downto 16) <= std_logic_vector(shift_left(resize(signed(dds_sin),16),4));
+dac_o(0) <= shift_left(resize(signed(dds_cos),16),4);
+dac_o(1) <= shift_left(resize(signed(dds_sin),16),4);
 -- DDS2 
 dds2_phase_inc <= dds_phase_inc_reg;
 dds2_phase_offset <= dds2_phase_off_reg;
@@ -384,17 +380,12 @@ begin
         fifo_bus(0).m.status <= idle;
         fifo_bus(1).m.status <= idle;
         fifo_bus(2).m.status <= idle;
-        addra <= (others => '0');
-        dina <= (others => '0');
-        memDelay <= (others => '0');
-        wea <= "0";
     elsif rising_edge(sysClk) then
         FSM: case(comState) is
             when idle =>
                 triggers <= (others => '0');
                 reset <= '0';
                 bus_s.resp <= "00";
-                memDelay <= "00";
                 if bus_m.valid(0) = '1' then
                     comState <= processing;
                 end if;
@@ -437,7 +428,6 @@ begin
                         bus_s.resp <= "11";
                 end case;
             when finishing =>
-                wea <= "0";
                 comState <= idle;
 
             when others => comState <= idle;
