@@ -11,13 +11,14 @@ classdef DeviceControl < handle
         adc
         ext_i
         led_o
-        filterData
         phase_offset % added for DDS
         phase_inc  % added for DDS
         dds2_phase_offset % added for DDS2
         dds2_phase_inc  % added for DDS2
         dds3_phase_offset % added for DDS3
         dds3_phase_inc  % added for DDS3
+        log2_rate
+        cic_shift
        % new_signal % new signal added here for dds2
 
     end
@@ -97,16 +98,6 @@ classdef DeviceControl < handle
             
             self.ext_i = DeviceParameter([0,7],self.inputReg);
            
-            self.filterData = DeviceParameter([0,15],self.filterReg,'int16')...
-                 .setLimits('lower',0,'upper', 50e6)...
-                 .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
-            self.filterData(2) = DeviceParameter([0,15],self.filterReg,'int16')...
-                 .setLimits('lower',0,'upper', 50e6)...
-                 .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
-            self.filterData(3) = DeviceParameter([0,15],self.filterReg,'int16')...
-                 .setLimits('lower',0,'upper', 50e6)...
-                 .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
-
             self.phase_inc = DeviceParameter([0,31],self.ddsPhaseIncReg,'uint32')...
                  .setLimits('lower',0,'upper', 50e6)...
                  .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
@@ -131,7 +122,11 @@ classdef DeviceControl < handle
                  .setLimits('lower',-360,'upper', 360)...
                  .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
           
+            self.log2_rate = DeviceParameter([0,3],self.filterReg,'uint32')...
+                .setLimits('lower',2,'upper',13);
 
+            self.cic_shift = DeviceParameter([4,7],self.filterReg,'uint32')...
+                .setLimits('lower',0,'upper',15);
         end
         
         function self = setDefaults(self,varargin)
@@ -139,16 +134,14 @@ classdef DeviceControl < handle
             %self.dac(2).set(0);
              self.ext_o.set(0);
              self.led_o.set(0);
-             self.filterData(1).set(1e6);
-             self.filterData(2).set(1e6);
-             self.filterData(3).set(1e6);
              self.phase_inc.set(1e6); % added for dds1 
              self.phase_offset.set(0); % added for dds1
              self.dds2_phase_inc.set(1e6); % added for dds2 
              self.dds2_phase_offset.set(0); % added for dds2
              self.dds3_phase_inc.set(1e6); % added for dds3 
              self.dds3_phase_offset.set(0); % added for dds3
-             
+             self.log2_rate.set(10);
+             self.cic_shift.set(0);
         end
         
         function self = check(self)
@@ -194,12 +187,8 @@ classdef DeviceControl < handle
             self.dds3_phase_offset.get; % added for dds3
             self.dds3_phase_inc.get;   % added for dds3
 
-            for nn = 1:numel(self.filterData)
-                 self.filterData(nn).get;
-            end
-
-            
-        
+            self.log2_rate.get;
+            self.cic_shift.get;
         end
         
         function r = convert2volts(self,x)
@@ -233,12 +222,12 @@ classdef DeviceControl < handle
             end
             
             self.conn.write(0,'mode','command','cmd',...
-                {'./saveData','-n',sprintf('%d',round(numSamples)),'-t',sprintf('%d',saveType),'-b'},...
+                {'./saveData','-n',sprintf('%d',round(numSamples)),'-t',sprintf('%d',saveType)},...
                 'return_mode','file');
             raw = typecast(self.conn.recvMessage,'uint8');
             d = self.convertData(raw);
             self.data = d;
-            self.t = 1/self.CLK*2^self.cicRate.value*(0:(numSamples-1));
+            self.t = 1/self.CLK*2^self.log2_rate.value*(0:(numSamples-1));
         end
         
         function disp(self)
@@ -272,9 +261,8 @@ classdef DeviceControl < handle
              self.dds2_phase_offset.print('dds2 Phase Offset',strwidth,'%.3f');
              self.dds3_phase_inc.print('dds3 Phase Increment',strwidth,'%.3e');
              self.dds3_phase_offset.print('dds3 Phase Offset',strwidth,'%.3f');
-             self.filterData(1).print('filterData 1',strwidth,'%.3f');
-             self.filterData(2).print('filterData 2',strwidth,'%.3f');
-             self.filterData(3).print('filterData 3',strwidth,'%.3f');
+             self.log2_rate.print('Log2 Rate',strwidth,'%.0f');
+             self.cic_shift.print('CIC shift',strwidth,'%.0f');
         end
         
         

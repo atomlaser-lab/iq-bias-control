@@ -152,7 +152,7 @@ signal filtMult1_i, filtMult2_i, filtMult3_i        : std_logic_vector(23 downto
 signal filtMult1_o, filtMult2_o, filtMult3_o        : std_logic_vector(63 downto 0);
 signal Mult1_o_valid, Mult2_o_valid, Mult3_o_valid  : std_logic;
 
-signal filterData   :   t_adc_Array(2 downto 0);
+signal filterData   :   t_meas_array(2 downto 0);
 
 --
 -- FIFO signals
@@ -297,9 +297,9 @@ Filt3 : CICfilter
     m_axis_data_tvalid => Mult3_o_valid
   );
   
-filterData(0) <= resize(shift_right(signed(filtMult1_o),cicShift + to_integer(setShift)),t_adc'length);
-filterData(1) <= resize(shift_right(signed(filtMult2_o),cicShift + to_integer(setShift)),t_adc'length);
-filterData(2) <= resize(shift_right(signed(filtMult3_o),cicShift + to_integer(setShift)),t_adc'length);
+filterData(0) <= resize(shift_right(signed(filtMult1_o),cicShift + to_integer(setShift)),t_meas'length);
+filterData(1) <= resize(shift_right(signed(filtMult2_o),cicShift + to_integer(setShift)),t_meas'length);
+filterData(2) <= resize(shift_right(signed(filtMult3_o),cicShift + to_integer(setShift)),t_meas'length);
 
 -- 
 phase_inc <= dds_phase_inc_reg;

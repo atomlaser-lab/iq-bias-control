@@ -26,6 +26,7 @@ int main(int argc, char **argv)
 
   uint32_t i, incr = 0;
   uint8_t saveType = 2;
+  uint32_t saveFactor = 3;
   uint32_t tmp;
   uint32_t *data;
   uint8_t debugFlag = 0;
@@ -64,7 +65,7 @@ int main(int argc, char **argv)
     }
   }
 
-  dataSize = 3*numSamples;
+  dataSize = saveFactor*numSamples;
 
   if (saveType == 2) {
     ptr = fopen("SavedData.bin","wb");

@@ -39,7 +39,11 @@ constant PID_WIDTH          :   natural :=  8;
 constant DDS_PHASE_WIDTH    :   natural :=  32;
 subtype t_phase is unsigned(DDS_PHASE_WIDTH - 1 downto 0);
 type t_phase_array is array(natural range <>) of t_phase;
-
+--
+-- Defines filter related types
+--
+subtype t_meas is signed(23 downto 0);
+type t_meas_array is array(natural range <>) of t_meas;
 --
 -- Defines AXI address and data widths
 --

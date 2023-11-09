@@ -22,7 +22,7 @@ end FIFOHandler;
 
 architecture Behavioral of FIFOHandler is
 
-COMPONENT FIFO_Continuous
+COMPONENT FIFO
   PORT (
     rst : IN STD_LOGIC;
     wr_clk : IN STD_LOGIC;
@@ -87,7 +87,7 @@ begin
     end if;    
 end process;
 
-FIFO: FIFO_Continuous
+FIFO_inst: FIFO
 port map(
     wr_clk      =>  wr_clk,
     rd_clk      =>  rd_clk,
