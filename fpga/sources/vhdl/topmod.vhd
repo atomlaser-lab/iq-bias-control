@@ -92,6 +92,8 @@ component FIFOHandler is
     );
 end component;
 
+
+
 --
 -- AXI communication signals
 --
@@ -166,6 +168,11 @@ signal fifoReg      :   t_param_reg;
 signal enableFIFO   :   std_logic;
 signal fifoReset    :   std_logic;
 
+-- PID signals
+signal enable, polarity, valid_i        : std_logic;
+signal control, measurement    : signed(15 downto 0);
+signal pidvalid_o              : std_logic;
+signal pid_o                   : signed(15 downto 0);
 
 begin
 
