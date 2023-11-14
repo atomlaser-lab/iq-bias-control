@@ -215,18 +215,18 @@ classdef DeviceControl < handle
         
         function r = convert2volts(self,x)
             if strcmpi(self.jumpers,'hv')
-                c = self.CONV_HV;
+                c = self.CONV_ADC_HV;
             elseif strcmpi(self.jumpers,'lv')
-                c = self.CONV_LV;
+                c = self.CONV_ADC_LV;
             end
             r = x*c;
         end
         
         function r = convert2int(self,x)
             if strcmpi(self.jumpers,'hv')
-                c = self.CONV_HV;
+                c = self.CONV_ADC_HV;
             elseif strcmpi(self.jumpers,'lv')
-                c = self.CONV_LV;
+                c = self.CONV_ADC_LV;
             end
             r = x/c;
         end
@@ -266,6 +266,7 @@ classdef DeviceControl < handle
 %                 self.conn.keepAlive = false;
 %                 numSamples = self.lastSample(1).value;
 %             end
+            self.numSamples.set(numSamples).write;
             self.trigReg.set(1,[0,0]).write;
             self.trigReg.set(0,[0,0]);
             
