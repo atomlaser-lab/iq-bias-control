@@ -193,6 +193,13 @@ signal mem_bus      :   t_mem_bus;
 signal mem_bus_m    :   t_mem_bus_master;
 signal mem_bus_s    :   t_mem_bus_slave;
 signal memTrig      :   std_logic;
+--
+-- PID signals
+--
+signal enable, polarity, valid_i        : std_logic;
+signal control, measurement    : signed(15 downto 0);
+signal pidvalid_o              : std_logic;
+signal pid_o                   : signed(15 downto 0);
 
 begin
 
