@@ -7,6 +7,7 @@ classdef DeviceControl < handle
     
     properties(SetAccess = immutable)
         conn
+        triggers
         ext_o
         adc
         ext_i
@@ -19,6 +20,7 @@ classdef DeviceControl < handle
         dds3_phase_inc  % added for DDS3
         log2_rate
         cic_shift
+        numSamples
        % new_signal % new signal added here for dds2
 
     end
@@ -36,6 +38,8 @@ classdef DeviceControl < handle
         dds2PhaseIncReg  % added for dds2
         dds3PhaseOffsetReg % added for dds3
         dds3PhaseIncReg % ------- dds3
+        numSamplesReg
+        auxReg
         %new_register % new register added here for dds2
     end
     
@@ -46,8 +50,8 @@ classdef DeviceControl < handle
         DAC_WIDTH = 14;
         ADC_WIDTH = 14;
         DDS_WIDTH = 32;
-        CONV_LV = 1.1851/2^(DeviceControl.ADC_WIDTH - 1);
-        CONV_HV = 29.3570/2^(DeviceControl.ADC_WIDTH - 1);
+        CONV_ADC_LV = 1.1851/2^(DeviceControl.ADC_WIDTH - 1);
+        CONV_ADC_HV = 29.3570/2^(DeviceControl.ADC_WIDTH - 1);
         
     end
     
@@ -74,6 +78,8 @@ classdef DeviceControl < handle
             self.dds2PhaseOffsetReg = DeviceRegister('20',self.conn);
             self.dds3PhaseIncReg = DeviceRegister('24',self.conn);
             self.dds3PhaseOffsetReg = DeviceRegister('28',self.conn);
+            self.numSamplesReg = DeviceRegister('100000',self.conn);
+            self.auxReg = DeviceRegister('100004',self.conn);
             
            % self.new_register = DeviceRegister('1C',self.conn); % added this new register
             
@@ -85,6 +91,7 @@ classdef DeviceControl < handle
             %     .setLimits('lower',-1,'upper',1)...
             %     .setFunctions('to',@(x) x*(2^(self.DAC_WIDTH - 1) - 1),'from',@(x) x/(2^(self.DAC_WIDTH - 1) - 1));
             % 
+
             self.ext_o = DeviceParameter([0,7],self.outputReg)...
                 .setLimits('lower',0,'upper',255);
             self.led_o = DeviceParameter([8,15],self.outputReg)...
@@ -127,6 +134,9 @@ classdef DeviceControl < handle
 
             self.cic_shift = DeviceParameter([4,7],self.filterReg,'uint32')...
                 .setLimits('lower',0,'upper',15);
+
+            self.numSamples = DeviceParameter([0,11],self.numSamplesReg,'uint32')...
+                .setLimits('lower',0,'upper',2^12);
         end
         
         function self = setDefaults(self,varargin)
@@ -142,6 +152,7 @@ classdef DeviceControl < handle
              self.dds3_phase_offset.set(0); % added for dds3
              self.log2_rate.set(10);
              self.cic_shift.set(0);
+             self.numSamples.set(16000);
         end
         
         function self = check(self)
@@ -158,6 +169,8 @@ classdef DeviceControl < handle
              self.dds2PhaseOffsetReg.write; % added for dds2
              self.dds3PhaseIncReg.write; % added for dds3
              self.dds3PhaseOffsetReg.write; % added for dds3
+
+             self.numSamplesReg.write;
         end
         
         function self = fetch(self)
@@ -172,6 +185,7 @@ classdef DeviceControl < handle
             self.dds2PhaseOffsetReg.read; % dds2
             self.dds3PhaseIncReg.read; % dds2
             self.dds3PhaseOffsetReg.read; % dds2
+            self.numSamplesReg.read;
 
             self.ext_o.get;
             self.led_o.get;
@@ -189,6 +203,14 @@ classdef DeviceControl < handle
 
             self.log2_rate.get;
             self.cic_shift.get;
+
+            self.numSamples.get;
+        end
+
+        function self = memoryReset(self)
+            %MEMORYRESET Resets the two block memories
+            
+            self.auxReg.write;
         end
         
         function r = convert2volts(self,x)
@@ -228,6 +250,38 @@ classdef DeviceControl < handle
             d = self.convertData(raw);
             self.data = d;
             self.t = 1/self.CLK*2^self.log2_rate.value*(0:(numSamples-1));
+        end
+
+        function self = getRAM(self,numSamples)
+            %GETRAM Fetches recorded in block memory from the device
+            %
+            %   SELF = GETRAM(SELF) Retrieves current number of recorded
+            %   samples from the device SELF
+            %
+            %   SELF = GETRAM(SELF,N) Retrieves N samples from device
+            
+%             if nargin < 2
+%                 self.conn.keepAlive = true;
+%                 self.lastSample(1).read;
+%                 self.conn.keepAlive = false;
+%                 numSamples = self.lastSample(1).value;
+%             end
+            self.trigReg.set(1,[0,0]).write;
+            self.trigReg.set(0,[0,0]);
+            
+            self.conn.write(0,'mode','command','cmd',...
+                {'./fetchRAM',sprintf('%d',round(numSamples))},...
+                'return_mode','file');
+            raw = typecast(self.conn.recvMessage,'uint8');
+            if strcmpi(self.jumpers,'hv')
+                c = self.CONV_ADC_HV;
+            elseif strcmpi(self.jumpers,'lv')
+                c = self.CONV_ADC_LV;
+            end
+            d = self.convertADCData(raw,c);
+            self.data = d;
+            dt = self.CLK^-1;
+            self.t = dt*(0:(size(self.data,1)-1));
         end
         
         function disp(self)
@@ -280,6 +334,32 @@ classdef DeviceControl < handle
                 d(:,nn) = typecast(uint8(reshape(raw((nn-1)*4 + (1:4),:),4*size(d,1),1)),'int32');
             end
             d = double(d);
+        end
+
+        function v = convertADCData(raw,c)
+            %CONVERTADCDATA Converts raw ADC data into proper int16/double format
+            %
+            %   V = CONVERTADCDATA(RAW) Unpacks raw data from uint8 values to
+            %   a pair of double values for each measurement
+            %
+            %   V = CONVERTADCDATA(RAW,C) uses conversion factor C in the
+            %   conversion
+            
+            if nargin < 2
+                c = 1;
+            end
+            
+            Nraw = numel(raw);
+            d = zeros(Nraw/4,2,'int16');
+            
+            mm = 1;
+            for nn = 1:4:Nraw
+                d(mm,1) = typecast(uint8(raw(nn + (0:1))),'int16');
+                d(mm,2) = typecast(uint8(raw(nn + (2:3))),'int16');
+                mm = mm + 1;
+            end
+            
+            v = double(d)*c;
         end
     end
     

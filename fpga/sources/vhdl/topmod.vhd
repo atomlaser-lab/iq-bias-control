@@ -92,6 +92,25 @@ component FIFOHandler is
     );
 end component;
 
+component SaveADCData is
+    port(
+        readClk     :   in  std_logic;          --Clock for reading data
+        writeClk    :   in  std_logic;          --Clock for writing data
+        aresetn     :   in  std_logic;          --Asynchronous reset
+        
+        data_i      :   in  std_logic_vector;   --Input data, maximum length of 32 bits
+        valid_i     :   in  std_logic;          --High for one clock cycle when data_i is valid
+        
+        trigEdge    :   in  std_logic;          --'0' for falling edge, '1' for rising edge
+        delay       :   in  unsigned;           --Acquisition delay
+        numSamples  :   in  t_mem_addr;         --Number of samples to save
+        trig_i      :   in  std_logic;          --Start trigger
+        
+        bus_m       :   in  t_mem_bus_master;   --Master memory bus
+        bus_s       :   out t_mem_bus_slave     --Slave memory bus
+    );
+end component;
+
 --
 -- AXI communication signals
 --
@@ -165,7 +184,15 @@ signal fifo_bus     :   t_fifo_bus_array(NUM_FIFOS-1 downto 0)  :=  (others => I
 signal fifoReg      :   t_param_reg;
 signal enableFIFO   :   std_logic;
 signal fifoReset    :   std_logic;
-
+--
+-- Memory signals
+--
+signal delay        :   unsigned(3 downto 0);
+signal numSamples   :   t_mem_addr;
+signal mem_bus      :   t_mem_bus;
+signal mem_bus_m    :   t_mem_bus_master;
+signal mem_bus_s    :   t_mem_bus_slave;
+signal memTrig      :   std_logic;
 
 begin
 
@@ -344,7 +371,25 @@ FIFO_GEN: for I in 0 to NUM_FIFOS-1 generate
         bus_s       =>  fifo_bus(I).s
   );
 end generate FIFO_GEN;
-
+--
+-- Save ADC data for debugging purposes
+--
+delay     <= (others => '0');
+memTrig   <= triggers(0);
+SaveData: SaveADCData
+port map(
+    readClk     =>  sysClk,
+    writeClk    =>  adcClk,
+    aresetn     =>  aresetn,
+    data_i      =>  adcData_i,
+    valid_i     =>  '1',
+    trigEdge    =>  '1',
+    delay       =>  delay,
+    numSamples  =>  numSamples,
+    trig_i      =>  memTrig,
+    bus_m       =>  mem_bus.m,
+    bus_s       =>  mem_bus.s
+);
 --
 -- AXI communication routing - connects bus objects to std_logic signals
 --
@@ -380,12 +425,19 @@ begin
         fifo_bus(0).m.status <= idle;
         fifo_bus(1).m.status <= idle;
         fifo_bus(2).m.status <= idle;
+        --
+        -- Memory signals
+        --
+        numSamples <= to_unsigned(4000,numSamples'length);
+        mem_bus.m <= INIT_MEM_BUS_MASTER; 
+
     elsif rising_edge(sysClk) then
         FSM: case(comState) is
             when idle =>
                 triggers <= (others => '0');
                 reset <= '0';
                 bus_s.resp <= "00";
+                mem_bus.m.reset <= '0';
                 if bus_m.valid(0) = '1' then
                     comState <= processing;
                 end if;
@@ -417,11 +469,42 @@ begin
                             when X"000088" => fifoRead(bus_m,bus_s,comState,fifo_bus(0).m,fifo_bus(0).s);
                             when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
                             when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
+                            --
+                            -- Memory signals
+                            --
+                            when X"100000" => rw(bus_m,bus_s,comState,numSamples);
+                            when X"100004" =>
+                                bus_s.resp <= "01";
+                                comState <= finishing;
+                                mem_bus.m.reset <= '1';
                            
                             when others => 
                                 comState <= finishing;
                                 bus_s.resp <= "11";
                         end case;
+
+                      --
+                    -- Memory reading of normal memory
+                    --
+                    when X"01" =>  
+                      if bus_m.valid(1) = '0' then
+                          bus_s.resp <= "11";
+                          comState <= finishing;
+                          mem_bus.m.trig <= '0';
+                          mem_bus.m.status <= idle;
+                      elsif mem_bus.s.valid = '1' then
+                          bus_s.data <= mem_bus.s.data;
+                          comState <= finishing;
+                          bus_s.resp <= "01";
+                          mem_bus.m.status <= idle;
+                          mem_bus.m.trig <= '0';
+                      elsif mem_bus.s.status = idle then
+                          mem_bus.m.addr <= bus_m.addr(MEM_ADDR_WIDTH+1 downto 2);
+                          mem_bus.m.status <= waiting;
+                          mem_bus.m.trig <= '1';
+                      else
+                          mem_bus.m.trig <= '0';
+                      end if;
                     
                     when others => 
                         comState <= finishing;
