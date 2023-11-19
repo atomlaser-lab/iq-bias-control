@@ -1244,6 +1244,9 @@
               "PCW_INCLUDE_ACP_TRANS_CHECK": {
                 "value": "0"
               },
+              "PCW_IRQ_F2P_MODE": {
+                "value": "DIRECT"
+              },
               "PCW_MIO_0_IOTYPE": {
                 "value": "LVCMOS 3.3V"
               },
