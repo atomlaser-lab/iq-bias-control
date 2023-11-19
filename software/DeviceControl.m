@@ -21,6 +21,7 @@ classdef DeviceControl < handle
         log2_rate
         cic_shift
         numSamples
+        pwm
        % new_signal % new signal added here for dds2
 
     end
@@ -39,6 +40,7 @@ classdef DeviceControl < handle
         dds3PhaseOffsetReg % added for dds3
         dds3PhaseIncReg % ------- dds3
         numSamplesReg
+        pwmReg
         auxReg
         %new_register % new register added here for dds2
     end
@@ -78,6 +80,7 @@ classdef DeviceControl < handle
             self.dds2PhaseOffsetReg = DeviceRegister('20',self.conn);
             self.dds3PhaseIncReg = DeviceRegister('24',self.conn);
             self.dds3PhaseOffsetReg = DeviceRegister('28',self.conn);
+            self.pwmReg = DeviceRegister('2C',self.conn);
             self.numSamplesReg = DeviceRegister('100000',self.conn);
             self.auxReg = DeviceRegister('100004',self.conn);
             
@@ -128,6 +131,13 @@ classdef DeviceControl < handle
             self.dds3_phase_offset = DeviceParameter([0,31],self.dds3PhaseOffsetReg,'uint32')...
                  .setLimits('lower',-360,'upper', 360)...
                  .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
+
+            self.pwm = DeviceParameter.empty;
+            for nn = 1:4
+                self.pwm(nn) = DeviceParameter(8*(nn - 1) + [0,7],self.pwmReg)...
+                    .setLimits('lower',0,'upper',1.62)...
+                    .setFunctions('to',@(x) x/1.62*255,'from',@(x) x/255*1.62);
+            end
           
             self.log2_rate = DeviceParameter([0,3],self.filterReg,'uint32')...
                 .setLimits('lower',2,'upper',13);
@@ -150,6 +160,9 @@ classdef DeviceControl < handle
              self.dds2_phase_offset.set(0); % added for dds2
              self.dds3_phase_inc.set(1e6); % added for dds3 
              self.dds3_phase_offset.set(0); % added for dds3
+            for nn = 1:numel(self.pwm)
+                self.pwm(nn).set(0);
+            end
              self.log2_rate.set(10);
              self.cic_shift.set(0);
              self.numSamples.set(16000);
@@ -169,6 +182,7 @@ classdef DeviceControl < handle
              self.dds2PhaseOffsetReg.write; % added for dds2
              self.dds3PhaseIncReg.write; % added for dds3
              self.dds3PhaseOffsetReg.write; % added for dds3
+             self.pwmReg.write;
 
              self.numSamplesReg.write;
         end
@@ -185,6 +199,7 @@ classdef DeviceControl < handle
             self.dds2PhaseOffsetReg.read; % dds2
             self.dds3PhaseIncReg.read; % dds2
             self.dds3PhaseOffsetReg.read; % dds2
+            self.pwmReg.read;
             self.numSamplesReg.read;
 
             self.ext_o.get;
@@ -200,6 +215,10 @@ classdef DeviceControl < handle
             self.dds2_phase_inc.get;   % added for dds2
             self.dds3_phase_offset.get; % added for dds3
             self.dds3_phase_inc.get;   % added for dds3
+
+            for nn = 1:numel(self.pwm)
+                self.pwm(nn).get;
+            end
 
             self.log2_rate.get;
             self.cic_shift.get;
@@ -299,6 +318,7 @@ classdef DeviceControl < handle
             self.dds2PhaseOffsetReg.print('dds2phaseOffsetReg',strwidth);
             self.dds3PhaseIncReg.print('dds3phaseIncReg',strwidth);
             self.dds3PhaseOffsetReg.print('dds3phaseOffsetReg',strwidth);
+            self.pwmReg.print('pwmReg',strwidth);
            % self.new_register.print('new_register',strwidth);
 
             fprintf(1,'\t ----------------------------------\n');
@@ -316,6 +336,9 @@ classdef DeviceControl < handle
              self.dds2_phase_offset.print('dds2 Phase Offset',strwidth,'%.3f');
              self.dds3_phase_inc.print('dds3 Phase Increment',strwidth,'%.3e');
              self.dds3_phase_offset.print('dds3 Phase Offset',strwidth,'%.3f');
+             for nn = 1:numel(self.pwm)
+                self.pwm(nn).print(sprintf('PWM %d',nn),strwidth,'%.3f');
+             end
              self.log2_rate.print('Log2 Rate',strwidth,'%.0f');
              self.cic_shift.print('CIC shift',strwidth,'%.0f');
         end

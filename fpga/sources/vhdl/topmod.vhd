@@ -22,8 +22,10 @@ entity topmod is
         
         ext_o           :   out std_logic_vector(7 downto 0);
         led_o           :   out std_logic_vector(7 downto 0);
+        pwm_o           :   out std_logic_vector(3 downto 0);
         
         adcClk          :   in  std_logic;
+        adcClkx2        :   in  std_logic;
         adcData_i       :   in  std_logic_vector(31 downto 0);
        
         m_axis_tdata    :   out std_logic_vector(31 downto 0);
@@ -111,6 +113,21 @@ component SaveADCData is
     );
 end component;
 
+component PWM_Generator is
+  port(
+      --
+      -- Clocking
+      --
+      clk         :   in  std_logic;
+      aresetn     :   in  std_logic;
+      --
+      -- Input/outputs
+      --
+      data_i      :   in  t_pwm_array;
+      pwm_o       :   out std_logic_vector   
+  );
+end component;
+
 --
 -- AXI communication signals
 --
@@ -135,6 +152,8 @@ signal dds2_phase_off_reg     : t_param_reg; -- dds2
 -- DDS3
 signal dds3_phase_inc_reg     : t_param_reg; -- dds2
 signal dds3_phase_off_reg     : t_param_reg; -- dds2
+
+signal pwmReg                : t_param_reg;
 -- we can add some costom signals for DDS2
 
 -- add DDS signals
@@ -200,7 +219,10 @@ signal enable, polarity, valid_i        : std_logic;
 signal control, measurement    : signed(15 downto 0);
 signal pidvalid_o              : std_logic;
 signal pid_o                   : signed(15 downto 0);
-
+--
+-- PWM signals
+--
+signal pwm_data     : t_pwm_array(3 downto 0);
 begin
 
 --
@@ -208,7 +230,21 @@ begin
 --
 m_axis_tdata <= std_logic_vector(dac_o(1)) & std_logic_vector(dac_o(0));
 m_axis_tvalid <= '1';
--- now we can assign the new signals to the new register
+--
+-- PWM outputs
+--
+pwm_data(0) <= unsigned(pwmReg(7 downto 0));
+pwm_data(1) <= unsigned(pwmReg(15 downto 8));
+pwm_data(2) <= unsigned(pwmReg(23 downto 16));
+pwm_data(3) <= unsigned(pwmReg(31 downto 24));
+PWM1: PWM_Generator
+port map(
+  clk     =>  adcClkx2,
+  aresetn =>  aresetn,
+  data_i  =>  pwm_data,
+  pwm_o   =>  pwm_o
+);
+-- 
 -- Digital outputs
 --
 ext_o <= outputReg(7 downto 0);
@@ -219,6 +255,7 @@ adc1_slv    <=    std_logic_vector(adc1);
 
 -- 
 -- DDS
+--
 DDS_inst : DDS1
   PORT MAP (
     aclk                     => adcClk,
@@ -424,6 +461,7 @@ begin
         -- DDS3
         dds3_phase_off_reg <= (others => '0');
         dds3_phase_inc_reg <= std_logic_vector(to_unsigned(34359738, 32)); 
+        pwmReg <= (others => '0');
        -- new_register <= (others => '0'); -- dds2
         --
         -- FIFO registers
@@ -468,6 +506,7 @@ begin
                             when X"000020" => rw(bus_m,bus_s,comState,dds2_phase_off_reg);
                             when X"000024" => rw(bus_m,bus_s,comState,dds3_phase_inc_reg);
                             when X"000028" => rw(bus_m,bus_s,comState,dds3_phase_off_reg);
+                            when X"00002C" => rw(bus_m,bus_s,comState,pwmReg);
 
                             --
                             -- FIFO control and data retrieval

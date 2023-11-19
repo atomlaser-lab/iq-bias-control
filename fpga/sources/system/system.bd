@@ -21,10 +21,10 @@
         "axi_protocol_convert_0": ""
       },
       "DAC_Output": {
-        "AXIS_Red_Pitaya_DAC_0": "",
-        "clk_wiz_0": ""
+        "AXIS_Red_Pitaya_DAC_0": ""
       },
       "AXIS_Red_Pitaya_ADC_0": "",
+      "clk_wiz_0": "",
       "topmod_0": ""
     },
     "interface_ports": {
@@ -1243,9 +1243,6 @@
               },
               "PCW_INCLUDE_ACP_TRANS_CHECK": {
                 "value": "0"
-              },
-              "PCW_IRQ_F2P_MODE": {
-                "value": "DIRECT"
               },
               "PCW_MIO_0_IOTYPE": {
                 "value": "LVCMOS 3.3V"
@@ -2740,6 +2737,13 @@
           "clk_in1": {
             "type": "clk",
             "direction": "I"
+          },
+          "locked": {
+            "direction": "I"
+          },
+          "ddr_clk": {
+            "type": "clk",
+            "direction": "I"
           }
         },
         "components": {
@@ -2883,41 +2887,6 @@
                 "direction": "O"
               }
             }
-          },
-          "clk_wiz_0": {
-            "vlnv": "xilinx.com:ip:clk_wiz:6.0",
-            "xci_name": "system_clk_wiz_0_0",
-            "xci_path": "ip\\system_clk_wiz_0_0\\system_clk_wiz_0_0.xci",
-            "inst_hier_path": "DAC_Output/clk_wiz_0",
-            "parameters": {
-              "CLKIN1_JITTER_PS": {
-                "value": "80.0"
-              },
-              "CLKOUT1_JITTER": {
-                "value": "104.759"
-              },
-              "CLKOUT1_PHASE_ERROR": {
-                "value": "96.948"
-              },
-              "CLKOUT1_REQUESTED_OUT_FREQ": {
-                "value": "250"
-              },
-              "MMCM_CLKFBOUT_MULT_F": {
-                "value": "8.000"
-              },
-              "MMCM_CLKIN1_PERIOD": {
-                "value": "8.000"
-              },
-              "MMCM_CLKOUT0_DIVIDE_F": {
-                "value": "4.000"
-              },
-              "PRIM_IN_FREQ": {
-                "value": "125"
-              },
-              "USE_RESET": {
-                "value": "false"
-              }
-            }
           }
         },
         "interface_nets": {
@@ -2962,19 +2931,18 @@
           "clk_in1_1": {
             "ports": [
               "clk_in1",
-              "AXIS_Red_Pitaya_DAC_0/aclk",
-              "clk_wiz_0/clk_in1"
+              "AXIS_Red_Pitaya_DAC_0/aclk"
             ]
           },
-          "clk_wiz_0_clk_out1": {
+          "ddr_clk_1": {
             "ports": [
-              "clk_wiz_0/clk_out1",
+              "ddr_clk",
               "AXIS_Red_Pitaya_DAC_0/ddr_clk"
             ]
           },
-          "clk_wiz_0_locked": {
+          "locked_1": {
             "ports": [
-              "clk_wiz_0/locked",
+              "locked",
               "AXIS_Red_Pitaya_DAC_0/locked"
             ]
           }
@@ -3079,6 +3047,44 @@
           },
           "adc_csn": {
             "direction": "O"
+          }
+        }
+      },
+      "clk_wiz_0": {
+        "vlnv": "xilinx.com:ip:clk_wiz:6.0",
+        "xci_name": "system_clk_wiz_0_0",
+        "xci_path": "ip\\system_clk_wiz_0_0\\system_clk_wiz_0_0.xci",
+        "inst_hier_path": "clk_wiz_0",
+        "parameters": {
+          "CLKIN1_JITTER_PS": {
+            "value": "80.0"
+          },
+          "CLKOUT1_JITTER": {
+            "value": "104.759"
+          },
+          "CLKOUT1_PHASE_ERROR": {
+            "value": "96.948"
+          },
+          "CLKOUT1_REQUESTED_OUT_FREQ": {
+            "value": "250"
+          },
+          "CLK_OUT1_PORT": {
+            "value": "clk_x2_out"
+          },
+          "MMCM_CLKFBOUT_MULT_F": {
+            "value": "8.000"
+          },
+          "MMCM_CLKIN1_PERIOD": {
+            "value": "8.000"
+          },
+          "MMCM_CLKOUT0_DIVIDE_F": {
+            "value": "4.000"
+          },
+          "PRIM_IN_FREQ": {
+            "value": "125"
+          },
+          "USE_RESET": {
+            "value": "false"
           }
         }
       },
@@ -3207,7 +3213,15 @@
             "left": "7",
             "right": "0"
           },
+          "pwm_o": {
+            "direction": "O",
+            "left": "3",
+            "right": "0"
+          },
           "adcClk": {
+            "direction": "I"
+          },
+          "adcClkx2": {
             "direction": "I"
           },
           "adcData_i": {
@@ -3243,6 +3257,7 @@
         "ports": [
           "AXIS_Red_Pitaya_ADC_0/adc_clk",
           "DAC_Output/clk_in1",
+          "clk_wiz_0/clk_in1",
           "topmod_0/adcClk"
         ]
       },
@@ -3348,6 +3363,19 @@
           "AXIS_Red_Pitaya_ADC_0/adc_data_b"
         ]
       },
+      "clk_wiz_0_clk_x2_out": {
+        "ports": [
+          "clk_wiz_0/clk_x2_out",
+          "DAC_Output/ddr_clk",
+          "topmod_0/adcClkx2"
+        ]
+      },
+      "clk_wiz_0_locked": {
+        "ports": [
+          "clk_wiz_0/locked",
+          "DAC_Output/locked"
+        ]
+      },
       "daisy_n_i_1": {
         "ports": [
           "daisy_n_i",
@@ -3376,6 +3404,12 @@
         "ports": [
           "topmod_0/led_o",
           "led_o"
+        ]
+      },
+      "topmod_0_pwm_o": {
+        "ports": [
+          "topmod_0/pwm_o",
+          "dac_pwm_o"
         ]
       },
       "topmod_0_readData_o": {
