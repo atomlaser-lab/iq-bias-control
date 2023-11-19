@@ -30,6 +30,12 @@ constant NUM_DACS           :   natural :=  2;
 subtype t_dac is signed(DAC_WIDTH-1 downto 0);
 type t_dac_array is array(natural range <>) of t_dac;
 --
+-- Define PWM types
+--
+constant PWM_DATA_WIDTH     :   natural :=  8;
+subtype t_pwm is unsigned(PWM_DATA_WIDTH - 1 downto 0);
+type t_pwm_array is array(natural range <>) of t_pwm;
+--
 -- Defines PID gain types
 --
 constant PID_WIDTH          :   natural :=  8;
