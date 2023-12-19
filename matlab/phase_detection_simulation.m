@@ -9,18 +9,21 @@ arguments
     NamedArgs.phP = 90;
 end
 
-% if ~isfield(NamedArgs,'phA')
-%     NamedArgs.phA = 180;
+% if mod(nargin,2) ~= 0
+%     error('Arguments must occur in name/value pairs!');
+% else
+%     for nn = 1:2:nargin
+%         v = varargin{nn + 1};
+%         switch lower(varargin{nn})
+%             case 'pha'
+%                 NamedArgs.phA = v;
+%             case 'phb'
+%                 NamedArgs.phB = v;
+%             case 'php'
+%                 NamedArgs.phP = v;
+%         end
+%     end
 % end
-% 
-% if ~isfield(NamedArgs,'phB')
-%     NamedArgs.phB = 180;
-% end
-% 
-% if ~isfield(NamedArgs,'phP')
-%     NamedArgs.phP = 90;
-% end
-
 
 mod_depth = 0.1;        %radians
 mod_freq = 2*pi*1e6;    %1/s

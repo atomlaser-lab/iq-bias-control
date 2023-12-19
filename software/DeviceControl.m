@@ -303,6 +303,34 @@ classdef DeviceControl < handle
             dt = self.CLK^-1;
             self.t = dt*(0:(size(self.data,1)-1));
         end
+
+        function D = getCharacterisationData(self,numVoltages,numAvgs)
+            %GETCHARACTERISATIONDATA Acquires data characterising the
+            %response of the system to bias voltages
+            %
+            %   SELF = GETCHARACTERISATIONDATA(SELF) Acquires 10 voltages
+            %   for each bias by averaging 100 samples per voltage
+            %
+            %   SELF = GETCHARACTERISATIONDATA(__,NV) Acquires NV voltages
+            %
+            %   SELF = GETCHARACTERISATIONDATA(__,NA) Averages NA samples per
+            %   voltage
+            if nargin == 1
+                numVoltages = 10;
+                numAvgs = 100;
+            elseif nargin == 2
+                numAvgs = 100;
+            end
+            self.conn.write(0,'mode','command','cmd',...
+                {'./analyze_biases','-n',sprintf('%d',round(numVoltages)),'-a',sprintf('%d',numAvgs)},...
+                'return_mode','file');
+            raw = typecast(self.conn.recvMessage,'int32');
+            D = zeros([numVoltages*[1,1,1],3]);
+            for nn = size(D,4)
+                tmp = raw((nn - 1)*numVoltages^3 + (1:(numVoltages^3)));
+                D(:,:,:,nn) = reshape(double(tmp),numVoltages*[1,1,1]);
+            end
+        end
         
         function disp(self)
             strwidth = 20;
