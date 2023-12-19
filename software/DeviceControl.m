@@ -165,7 +165,7 @@ classdef DeviceControl < handle
             end
              self.log2_rate.set(10);
              self.cic_shift.set(0);
-             self.numSamples.set(16000);
+             self.numSamples.set(4000);
         end
         
         function self = check(self)
@@ -204,7 +204,7 @@ classdef DeviceControl < handle
 
             self.ext_o.get;
             self.led_o.get;
-            self.ext_i.get
+            self.ext_i.get;
             
             for nn = 1:numel(self.adc)
                 self.adc(nn).get;
