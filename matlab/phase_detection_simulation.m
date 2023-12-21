@@ -7,6 +7,7 @@ arguments
     NamedArgs.phA = 180;
     NamedArgs.phB = 180;
     NamedArgs.phP = 90;
+    NamedArgs.mode = 'diff';
 end
 
 % if mod(nargin,2) ~= 0
@@ -33,12 +34,23 @@ dt = 8e-9;
 T = 100e-6;
 t = (0:dt:T)';
 
-ph1 = 0;
-ph2 = ph1 + NamedArgs.phA*pi/180;
-ph3 = pi/2;
-ph4 = ph3 + NamedArgs.phB*pi/180;
-phA = 0;
-phB = phA + NamedArgs.phP*pi/180;
+if strcmpi(NamedArgs.mode,'')
+    ph1 = 0;
+    ph2 = ph1 + NamedArgs.phA*pi/180;
+    ph3 = pi/2;
+    ph4 = ph3 + NamedArgs.phB*pi/180;
+    phA = 0;
+    phB = phA + NamedArgs.phP*pi/180;
+elseif strcmpi(NamedArgs.mode,'diff')
+    ph1 = -0.5*NamedArgs.phA*pi/180;
+    ph2 = 0.5*NamedArgs.phA*pi/180;
+    ph3 = pi/2 - 0.5*NamedArgs.phB*pi/180;
+    ph4 = pi/2 + 0.5*NamedArgs.phB*pi/180;
+    phA = -0.5*NamedArgs.phP*pi/180;
+    phB = 0.5*NamedArgs.phP*pi/180;
+else
+    error('Unrecognized mode options');
+end
 
 E1 = 0.5*exp(1i*mod_depth*sin(mod_freq*t) + 1i*ph1);
 E2 = 0.5*exp(1i*mod_depth*sin(mod_freq*t + pi) + 1i*ph2);
