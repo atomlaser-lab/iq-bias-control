@@ -304,7 +304,7 @@ classdef DeviceControl < handle
             self.t = dt*(0:(size(self.data,1)-1));
         end
 
-        function D = getCharacterisationData(self,numVoltages,numAvgs)
+        function D = getCharacterisationData(self,numVoltages,numAvgs,maxVoltage)
             %GETCHARACTERISATIONDATA Acquires data characterising the
             %response of the system to bias voltages
             %
@@ -318,11 +318,17 @@ classdef DeviceControl < handle
             if nargin == 1
                 numVoltages = 10;
                 numAvgs = 100;
+                maxVoltage = 1;
             elseif nargin == 2
                 numAvgs = 100;
+                maxVoltage = 1;
+            elseif nargin == 3
+                maxVoltage = 1;
             end
+            
+            maxVoltageInt = round(self.pwm(1).toIntegerFunction(maxVoltage),-1);
             self.conn.write(0,'mode','command','cmd',...
-                {'./analyze_biases','-n',sprintf('%d',round(numVoltages)),'-a',sprintf('%d',numAvgs)},...
+                {'./analyze_biases','-n',sprintf('%d',round(numVoltages)),'-a',sprintf('%d',numAvgs),'-m',sprintf('%d',maxVoltageInt)},...
                 'return_mode','file');
             raw = typecast(self.conn.recvMessage,'int32');
             D = zeros([numVoltages*[1,1,1],3]);

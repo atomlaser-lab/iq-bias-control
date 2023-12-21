@@ -46,6 +46,7 @@ int main(int argc, char **argv)
   int numAvgs;          //Number of averages to use
   void *cfg;		    //A pointer to a memory location.  The * indicates that it is a pointer - it points to a location in memory
   char *name = "/dev/mem";	//Name of the memory resource
+  uint8_t Vmax = 160;
 
   uint32_t i, incr = 0;
   uint8_t saveType = 2;
@@ -62,13 +63,16 @@ int main(int argc, char **argv)
    * Parse the input arguments
    */
   int c;
-  while ((c = getopt(argc,argv,"n:a:f")) != -1) {
+  while ((c = getopt(argc,argv,"n:a:m:f")) != -1) {
     switch (c) {
       case 'n':
         numVoltages = atoi(optarg);
         break;
       case 'a':
         numAvgs = atoi(optarg);
+        break;
+      case 'm':
+        Vmax = atoi(optarg);
         break;
       case 'f':
         debugFlag = 1;
@@ -120,11 +124,11 @@ int main(int argc, char **argv)
   int offset_index = (int) pow((double) numVoltages,3);
   uint8_t Vx, Vy, Vz;
   for (int xx = 0;xx < numVoltages; xx++) {
-    Vx = xx*(255/numVoltages);
+    Vx = xx*(Vmax/numVoltages);
     for (int yy = 0;yy < numVoltages; yy++) {
-      Vy = yy*(255/numVoltages);
+      Vy = yy*(Vmax/numVoltages);
       for (int zz = 0;zz < numVoltages; zz++) {
-        Vz = zz*(255/numVoltages);
+        Vz = zz*(Vmax/numVoltages);
         // Set PWM values
         write_to_pwm(cfg,Vx,Vy,Vz,0);
         usleep(100);
