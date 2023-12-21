@@ -326,7 +326,7 @@ classdef DeviceControl < handle
                 'return_mode','file');
             raw = typecast(self.conn.recvMessage,'int32');
             D = zeros([numVoltages*[1,1,1],3]);
-            for nn = size(D,4)
+            for nn = 1:size(D,4)
                 tmp = raw((nn - 1)*numVoltages^3 + (1:(numVoltages^3)));
                 D(:,:,:,nn) = reshape(double(tmp),numVoltages*[1,1,1]);
             end
@@ -412,6 +412,29 @@ classdef DeviceControl < handle
             end
             
             v = double(d)*c;
+        end
+        
+        function D = load_bias_analysis_file(filename,numVoltages)
+            if isempty(filename)
+                filename = 'SavedData.bin';
+            end
+            
+            %Load data
+            fid = fopen(filename,'r');
+            fseek(fid,0,'eof');
+            fsize = ftell(fid);
+            frewind(fid);
+            x = fread(fid,fsize/4,'int32');
+            fclose(fid);
+            
+            %Process data
+%             raw = typecast(x,'int32');
+            raw = x;
+            D = zeros([numVoltages*[1,1,1],3]);
+            for nn = 1:size(D,4)
+                tmp = raw((nn - 1)*numVoltages^3 + (1:(numVoltages^3)));
+                D(:,:,:,nn) = reshape(double(tmp),numVoltages*[1,1,1]);
+            end
         end
     end
     

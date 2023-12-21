@@ -17,7 +17,7 @@
 #define FIFO_LOC  0x00000084
 #define PWM_LOC   0x0000002C
 
-int start_fifo(cfg) {
+int start_fifo(void *cfg) {
   //Disable FIFO
   *((uint32_t *)(cfg + FIFO_LOC)) = 0;
   //Reset FIFO
@@ -28,12 +28,12 @@ int start_fifo(cfg) {
   return 0;
 }
 
-int stop_fifo(cfg) {
+int stop_fifo(void *cfg) {
   *((uint32_t *)(cfg + FIFO_LOC)) = 0;
   return 0;
 }
 
-int write_to_pwm(cfg,V1,V2,V3,V4) {
+int write_to_pwm(void *cfg,uint8_t V1,uint8_t V2,uint8_t V3,uint8_t V4) {
   uint32_t data = V1 + V2*(1 << 8) + V3*(1 << 16) + V4*(1 << 24);
   *((uint32_t *)(cfg + PWM_LOC)) = data;
   return 0;
@@ -44,7 +44,6 @@ int main(int argc, char **argv)
   int fd;		        //File identifier
   int numVoltages;	    //Number of voltages to scan over
   int numAvgs;          //Number of averages to use
-  int data_size;         //Size of actual data array
   void *cfg;		    //A pointer to a memory location.  The * indicates that it is a pointer - it points to a location in memory
   char *name = "/dev/mem";	//Name of the memory resource
 
@@ -118,6 +117,7 @@ int main(int argc, char **argv)
    * Start looping through voltage values
    */
   int linear_index = 0;
+  int offset_index = (int) pow((double) numVoltages,3);
   uint8_t Vx, Vy, Vz;
   for (int xx = 0;xx < numVoltages; xx++) {
     Vx = xx*(255/numVoltages);
@@ -140,16 +140,16 @@ int main(int argc, char **argv)
         // Average raw data
         linear_index = xx + yy*numVoltages + zz*numVoltages*numVoltages;
         *(data + linear_index) = 0;
-        *(data + linear_index + numVoltages*numVoltages) = 0;
-        *(data + linear_index + 2*numVoltages*numVoltages) = 0;
+        *(data + linear_index + offset_index) = 0;
+        *(data + linear_index + 2*offset_index) = 0;
         for (i = 0;i < raw_data_size;i += saveFactor) {
           *(data + linear_index) += (int) *(raw_data + i);
-          *(data + linear_index) += (int) *(raw_data + i + 1);
-          *(data + linear_index) += (int) *(raw_data + i + 2);
+          *(data + linear_index + offset_index) += (int) *(raw_data + i + 1);
+          *(data + linear_index + 2*offset_index) += (int) *(raw_data + i + 2);
         }
         *(data + linear_index) /= numAvgs;
-        *(data + linear_index + 1) /= numAvgs;
-        *(data + linear_index + 2) /= numAvgs;
+        *(data + linear_index + offset_index) /= numAvgs;
+        *(data + linear_index + 2*offset_index) /= numAvgs;
       }
     }
   }
