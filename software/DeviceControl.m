@@ -3,6 +3,7 @@ classdef DeviceControl < handle
         jumpers
         t
         data
+        auto_retry
     end
     
     properties(SetAccess = immutable)
@@ -166,6 +167,17 @@ classdef DeviceControl < handle
              self.log2_rate.set(10);
              self.cic_shift.set(0);
              self.numSamples.set(4000);
+
+             self.auto_retry = true;
+        end
+
+        function r = dt(self)
+            %DT Returns the current sampling time based on the filter
+            %settings
+            %
+            %   R = DT(SELF) returns sampling time R for LASERSERVO object
+            %   SELF
+            r = 2^(self.log2_rate.value)/self.CLK;
         end
         
         function self = check(self)
@@ -173,35 +185,68 @@ classdef DeviceControl < handle
         end
         
         function self = upload(self)
-             self.check;
-             self.outputReg.write;
-             self.filterReg.write;
-             self.ddsPhaseIncReg.write; % added for dds
-             self.ddsPhaseOffsetReg.write; % added for dds
-             self.dds2PhaseIncReg.write; % added for dds2
-             self.dds2PhaseOffsetReg.write; % added for dds2
-             self.dds3PhaseIncReg.write; % added for dds3
-             self.dds3PhaseOffsetReg.write; % added for dds3
-             self.pwmReg.write;
-
-             self.numSamplesReg.write;
+            %UPLOAD Uploads register values to the device
+            %
+            %   SELF = UPLOAD(SELF) uploads register values associated with
+            %   object SELF
+            
+            %
+            % Check parameters first
+            %
+            self.check;
+            %
+            % Get all write data
+            %
+            d = [self.outputReg.getWriteData;
+              self.filterReg.getWriteData;
+              self.ddsPhaseIncReg.getWriteData;
+              self.dds2PhaseOffsetReg.getWriteData;
+              self.dds3PhaseOffsetReg.getWriteData;
+              self.pwmReg.getWriteData;
+              self.numSamplesReg.getWriteData];
+            d = d';
+            d = d(:);
+            %
+            % Write every register using the same connection
+            %
+            self.conn.write(d,'mode','write');
         end
         
         function self = fetch(self)
-            %Read registers
-            self.outputReg.read;
-            self.inputReg.read;
-            self.filterReg.read;
-            self.adcReg.read;
-            self.ddsPhaseIncReg.read;
-            self.ddsPhaseOffsetReg.read;
-            self.dds2PhaseIncReg.read; % dds2
-            self.dds2PhaseOffsetReg.read; % dds2
-            self.dds3PhaseIncReg.read; % dds2
-            self.dds3PhaseOffsetReg.read; % dds2
-            self.pwmReg.read;
-            self.numSamplesReg.read;
-
+            %FETCH Retrieves parameter values from the device
+            %
+            %   SELF = FETCH(SELF) retrieves values and stores them in
+            %   object SELF
+            
+            %
+            % Get addresses to read from for each register and get data
+            % from device
+            %
+            d = [self.outputReg.getReadData;
+                 self.inputReg.getReadData;
+                 self.filterReg.getReadData;
+                 self.ddsPhaseIncReg.getReadData;
+                 self.dds2PhaseOffsetReg.getReadData;
+                 self.dds3PhaseOffsetReg.getReadData;
+                 self.pwmReg.getReadData;
+                 self.numSamplesReg.getReadData];
+            self.conn.write(d,'mode','read');
+            value = self.conn.recvMessage;
+            %
+            % Parse the received data in the same order as the addresses
+            % were written
+            %
+            self.outputReg.value = value(1);
+            self.inputReg.value = value(2);
+            self.filterReg.value = value(3);
+            self.ddsPhaseIncReg.value = value(4);
+            self.dds2PhaseOffsetReg.value = value(5);
+            self.dds3PhaseOffsetReg.value = value(6);
+            self.pwmReg.value = value(7);
+            self.numSamplesReg.value = value(8);
+            %
+            % Read parameters from registers
+            %
             self.ext_o.get;
             self.led_o.get;
             self.ext_i.get;
@@ -261,14 +306,32 @@ classdef DeviceControl < handle
             if nargin < 3
                 saveType = 1;
             end
-            
-            self.conn.write(0,'mode','command','cmd',...
-                {'./saveData','-n',sprintf('%d',round(numSamples)),'-t',sprintf('%d',saveType)},...
-                'return_mode','file');
-            raw = typecast(self.conn.recvMessage,'uint8');
-            d = self.convertData(raw);
-            self.data = d;
-            self.t = 1/self.CLK*2^self.log2_rate.value*(0:(numSamples-1));
+            if self.auto_retry
+                for jj = 1:10
+                    try
+                        self.conn.write(0,'mode','command','cmd',...
+                            {'./saveData','-n',sprintf('%d',round(numSamples)),'-t',sprintf('%d',saveType)},...
+                            'return_mode','file');
+                        raw = typecast(self.conn.recvMessage,'uint8');
+                        d = self.convertData(raw);
+                        self.data = d;
+                        self.t = self.dt()*(0:(numSamples-1));
+                        break;
+                    catch e
+                        if jj == 10
+                            rethrow(e);
+                        end
+                    end
+                end
+            else
+                self.conn.write(0,'mode','command','cmd',...
+                    {'./saveData','-n',sprintf('%d',round(numSamples)),'-t',sprintf('%d',saveType)},...
+                    'return_mode','file');
+                raw = typecast(self.conn.recvMessage,'uint8');
+                d = self.convertData(raw);
+                self.data = d;
+                self.t = self.dt()*(0:(numSamples-1));
+            end
         end
 
         function self = getRAM(self,numSamples)
