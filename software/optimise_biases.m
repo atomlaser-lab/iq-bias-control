@@ -83,7 +83,7 @@ plot(ph,range(data4(:,:,1),1),'o-');
 hold on
 plot(ph,range(data4(:,:,2),1),'sq-');
 xlabel('f demodulation phase [deg]');
-% [~,idx] = max(range(data(:,:,3),1));
+[~,idx] = max(range(data4(:,:,3),1));
 % nlf = nonlinfit(ph,range(data(:,:,3),1));
 % nlf.setFitFunc(@(A,ph0,x) A*abs(cosd(x - ph0)));
 % nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[-360,360,ph(idx)]);
@@ -119,6 +119,23 @@ xlabel('DC1');ylabel('DC2');
 subplot(1,3,3);
 surf(V,V,data3(:,:,3));
 xlabel('DC1');ylabel('DC2');
+
+%% Use voltage scan to find minima in 1f components
+M = zeros(size(D,1),size(D,2),3);
+[D3min,idx] = deal(zeros(size(D,1),size(D,2)));
+for row = 1:size(D,1)
+    for col = 1:size(D,2)
+        [D3min(row,col),idx(row,col)] = min(D(row,col,:,3).^2);
+        M(row,col,:) = D(row,col,idx(row,col),:);
+    end
+end
+
+figure(855017);clf;
+subplot(1,2,1);
+surf(ph,ph,log10(M(:,:,1).^2 + M(:,:,2).^2));
+subplot(1,2,2);
+surf(ph,ph,log10(M(:,:,3).^2));
+
 
 %%
 function r = get_data_auto_retry(d,N)
