@@ -7,8 +7,8 @@ ph = 0:10:360;
 
 
 d.log2_rate.set(13).write;
-d.pwm(1).set(0.5).write;
-d.pwm(2).set(0.5).write;
+d.pwm(1).set(0.0).write;
+d.pwm(2).set(0.0).write;
 
 %% Scan over 2f demodulation phase and DC3 bias
 data = zeros(numel(V),numel(ph),3);
@@ -30,7 +30,7 @@ xlabel('2f demodulation phase [deg]');
 [~,idx] = max(range(data(:,:,3),1));
 nlf = nonlinfit(ph,range(data(:,:,3),1));
 nlf.setFitFunc(@(A,ph0,x) A*abs(cosd(x - ph0)));
-nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[-360,360,ph(idx)]);
+nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[0,180,ph(idx)]);
 nlf.fit;
 hold on
 plot(nlf.x,nlf.f(nlf.x),'--');
