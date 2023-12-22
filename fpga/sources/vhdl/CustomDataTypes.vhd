@@ -30,6 +30,12 @@ constant NUM_DACS           :   natural :=  2;
 subtype t_dac is signed(DAC_WIDTH-1 downto 0);
 type t_dac_array is array(natural range <>) of t_dac;
 --
+-- Define PWM types
+--
+constant PWM_DATA_WIDTH     :   natural :=  8;
+subtype t_pwm is unsigned(PWM_DATA_WIDTH - 1 downto 0);
+type t_pwm_array is array(natural range <>) of t_pwm;
+--
 -- Defines PID gain types
 --
 constant PID_WIDTH          :   natural :=  8;
@@ -47,7 +53,7 @@ type t_meas_array is array(natural range <>) of t_meas;
 --
 -- Defines AXI address and data widths
 --
-constant MEM_ADDR_WIDTH :   natural :=  14;
+constant MEM_ADDR_WIDTH :   natural :=  12;
 constant MEM_DATA_WIDTH :   natural :=  32;
 --
 -- Defines MEM address and data signals
@@ -82,6 +88,7 @@ end record t_mem_bus;
 
 type t_mem_bus_master_array is array(natural range <>) of t_mem_bus_master;
 type t_mem_bus_slave_array is array(natural range <>) of t_mem_bus_slave;
+type t_mem_bus_array is array(natural range <>) of t_mem_bus;
 
 --
 -- Define initial values
@@ -163,6 +170,12 @@ constant INIT_MODULE_STATUS     :   t_module_status :=  (started    =>  '0',
 function to_slv_u(ARG   :   integer; SZ :   natural) return std_logic_vector;
 function to_slv_s(ARG   :   integer; SZ :   natural) return std_logic_vector;
 
+procedure signal_sync(
+    signal clk_i   :   in       std_logic;
+    signal aresetn :   in       std_logic;
+    signal trig_i  :   in       std_logic;
+    signal trig_o  :   inout    std_logic_vector(1 downto 0));
+
 end CustomDataTypes;
 
 --------------------------------------------------------------------------------------------------
@@ -182,5 +195,18 @@ begin
     RESULT  :=  std_logic_vector(to_signed(ARG,SZ));
     return RESULT;
 end to_slv_s;  
+
+procedure signal_sync(
+    signal clk_i   :   in       std_logic;
+    signal aresetn :   in       std_logic;
+    signal trig_i  :   in       std_logic;
+    signal trig_o  :   inout    std_logic_vector(1 downto 0)) is
+begin
+    if aresetn = '0' then
+        trig_o <= (others => trig_i);
+    elsif rising_edge(clk_i) then
+        trig_o <= trig_o(0) & trig_i;
+    end if;
+end signal_sync; 
 
 end CustomDataTypes;

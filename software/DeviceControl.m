@@ -7,6 +7,7 @@ classdef DeviceControl < handle
     
     properties(SetAccess = immutable)
         conn
+        triggers
         ext_o
         adc
         ext_i
@@ -19,6 +20,8 @@ classdef DeviceControl < handle
         dds3_phase_inc  % added for DDS3
         log2_rate
         cic_shift
+        numSamples
+        pwm
        % new_signal % new signal added here for dds2
 
     end
@@ -36,6 +39,9 @@ classdef DeviceControl < handle
         dds2PhaseIncReg  % added for dds2
         dds3PhaseOffsetReg % added for dds3
         dds3PhaseIncReg % ------- dds3
+        numSamplesReg
+        pwmReg
+        auxReg
         %new_register % new register added here for dds2
     end
     
@@ -46,8 +52,8 @@ classdef DeviceControl < handle
         DAC_WIDTH = 14;
         ADC_WIDTH = 14;
         DDS_WIDTH = 32;
-        CONV_LV = 1.1851/2^(DeviceControl.ADC_WIDTH - 1);
-        CONV_HV = 29.3570/2^(DeviceControl.ADC_WIDTH - 1);
+        CONV_ADC_LV = 1.1851/2^(DeviceControl.ADC_WIDTH - 1);
+        CONV_ADC_HV = 29.3570/2^(DeviceControl.ADC_WIDTH - 1);
         
     end
     
@@ -74,6 +80,9 @@ classdef DeviceControl < handle
             self.dds2PhaseOffsetReg = DeviceRegister('20',self.conn);
             self.dds3PhaseIncReg = DeviceRegister('24',self.conn);
             self.dds3PhaseOffsetReg = DeviceRegister('28',self.conn);
+            self.pwmReg = DeviceRegister('2C',self.conn);
+            self.numSamplesReg = DeviceRegister('100000',self.conn);
+            self.auxReg = DeviceRegister('100004',self.conn);
             
            % self.new_register = DeviceRegister('1C',self.conn); % added this new register
             
@@ -85,6 +94,7 @@ classdef DeviceControl < handle
             %     .setLimits('lower',-1,'upper',1)...
             %     .setFunctions('to',@(x) x*(2^(self.DAC_WIDTH - 1) - 1),'from',@(x) x/(2^(self.DAC_WIDTH - 1) - 1));
             % 
+
             self.ext_o = DeviceParameter([0,7],self.outputReg)...
                 .setLimits('lower',0,'upper',255);
             self.led_o = DeviceParameter([8,15],self.outputReg)...
@@ -121,12 +131,22 @@ classdef DeviceControl < handle
             self.dds3_phase_offset = DeviceParameter([0,31],self.dds3PhaseOffsetReg,'uint32')...
                  .setLimits('lower',-360,'upper', 360)...
                  .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
+
+            self.pwm = DeviceParameter.empty;
+            for nn = 1:4
+                self.pwm(nn) = DeviceParameter(8*(nn - 1) + [0,7],self.pwmReg)...
+                    .setLimits('lower',0,'upper',1.62)...
+                    .setFunctions('to',@(x) x/1.62*255,'from',@(x) x/255*1.62);
+            end
           
             self.log2_rate = DeviceParameter([0,3],self.filterReg,'uint32')...
                 .setLimits('lower',2,'upper',13);
 
             self.cic_shift = DeviceParameter([4,7],self.filterReg,'uint32')...
                 .setLimits('lower',0,'upper',15);
+
+            self.numSamples = DeviceParameter([0,11],self.numSamplesReg,'uint32')...
+                .setLimits('lower',0,'upper',2^12);
         end
         
         function self = setDefaults(self,varargin)
@@ -140,8 +160,12 @@ classdef DeviceControl < handle
              self.dds2_phase_offset.set(0); % added for dds2
              self.dds3_phase_inc.set(1e6); % added for dds3 
              self.dds3_phase_offset.set(0); % added for dds3
+            for nn = 1:numel(self.pwm)
+                self.pwm(nn).set(0);
+            end
              self.log2_rate.set(10);
              self.cic_shift.set(0);
+             self.numSamples.set(4000);
         end
         
         function self = check(self)
@@ -158,6 +182,9 @@ classdef DeviceControl < handle
              self.dds2PhaseOffsetReg.write; % added for dds2
              self.dds3PhaseIncReg.write; % added for dds3
              self.dds3PhaseOffsetReg.write; % added for dds3
+             self.pwmReg.write;
+
+             self.numSamplesReg.write;
         end
         
         function self = fetch(self)
@@ -172,10 +199,12 @@ classdef DeviceControl < handle
             self.dds2PhaseOffsetReg.read; % dds2
             self.dds3PhaseIncReg.read; % dds2
             self.dds3PhaseOffsetReg.read; % dds2
+            self.pwmReg.read;
+            self.numSamplesReg.read;
 
             self.ext_o.get;
             self.led_o.get;
-            self.ext_i.get
+            self.ext_i.get;
             
             for nn = 1:numel(self.adc)
                 self.adc(nn).get;
@@ -187,24 +216,36 @@ classdef DeviceControl < handle
             self.dds3_phase_offset.get; % added for dds3
             self.dds3_phase_inc.get;   % added for dds3
 
+            for nn = 1:numel(self.pwm)
+                self.pwm(nn).get;
+            end
+
             self.log2_rate.get;
             self.cic_shift.get;
+
+            self.numSamples.get;
+        end
+
+        function self = memoryReset(self)
+            %MEMORYRESET Resets the two block memories
+            
+            self.auxReg.write;
         end
         
         function r = convert2volts(self,x)
             if strcmpi(self.jumpers,'hv')
-                c = self.CONV_HV;
+                c = self.CONV_ADC_HV;
             elseif strcmpi(self.jumpers,'lv')
-                c = self.CONV_LV;
+                c = self.CONV_ADC_LV;
             end
             r = x*c;
         end
         
         function r = convert2int(self,x)
             if strcmpi(self.jumpers,'hv')
-                c = self.CONV_HV;
+                c = self.CONV_ADC_HV;
             elseif strcmpi(self.jumpers,'lv')
-                c = self.CONV_LV;
+                c = self.CONV_ADC_LV;
             end
             r = x/c;
         end
@@ -229,6 +270,73 @@ classdef DeviceControl < handle
             self.data = d;
             self.t = 1/self.CLK*2^self.log2_rate.value*(0:(numSamples-1));
         end
+
+        function self = getRAM(self,numSamples)
+            %GETRAM Fetches recorded in block memory from the device
+            %
+            %   SELF = GETRAM(SELF) Retrieves current number of recorded
+            %   samples from the device SELF
+            %
+            %   SELF = GETRAM(SELF,N) Retrieves N samples from device
+            
+%             if nargin < 2
+%                 self.conn.keepAlive = true;
+%                 self.lastSample(1).read;
+%                 self.conn.keepAlive = false;
+%                 numSamples = self.lastSample(1).value;
+%             end
+            self.numSamples.set(numSamples).write;
+            self.trigReg.set(1,[0,0]).write;
+            self.trigReg.set(0,[0,0]);
+            
+            self.conn.write(0,'mode','command','cmd',...
+                {'./fetchRAM',sprintf('%d',round(numSamples))},...
+                'return_mode','file');
+            raw = typecast(self.conn.recvMessage,'uint8');
+            if strcmpi(self.jumpers,'hv')
+                c = self.CONV_ADC_HV;
+            elseif strcmpi(self.jumpers,'lv')
+                c = self.CONV_ADC_LV;
+            end
+            d = self.convertADCData(raw,c);
+            self.data = d;
+            dt = self.CLK^-1;
+            self.t = dt*(0:(size(self.data,1)-1));
+        end
+
+        function D = getCharacterisationData(self,numVoltages,numAvgs,maxVoltage)
+            %GETCHARACTERISATIONDATA Acquires data characterising the
+            %response of the system to bias voltages
+            %
+            %   SELF = GETCHARACTERISATIONDATA(SELF) Acquires 10 voltages
+            %   for each bias by averaging 100 samples per voltage
+            %
+            %   SELF = GETCHARACTERISATIONDATA(__,NV) Acquires NV voltages
+            %
+            %   SELF = GETCHARACTERISATIONDATA(__,NA) Averages NA samples per
+            %   voltage
+            if nargin == 1
+                numVoltages = 10;
+                numAvgs = 100;
+                maxVoltage = 1;
+            elseif nargin == 2
+                numAvgs = 100;
+                maxVoltage = 1;
+            elseif nargin == 3
+                maxVoltage = 1;
+            end
+            
+            maxVoltageInt = round(self.pwm(1).toIntegerFunction(maxVoltage),-1);
+            self.conn.write(0,'mode','command','cmd',...
+                {'./analyze_biases','-n',sprintf('%d',round(numVoltages)),'-a',sprintf('%d',numAvgs),'-m',sprintf('%d',maxVoltageInt)},...
+                'return_mode','file');
+            raw = typecast(self.conn.recvMessage,'int32');
+            D = zeros([numVoltages*[1,1,1],3]);
+            for nn = 1:size(D,4)
+                tmp = raw((nn - 1)*numVoltages^3 + (1:(numVoltages^3)));
+                D(:,:,:,nn) = reshape(double(tmp),numVoltages*[1,1,1]);
+            end
+        end
         
         function disp(self)
             strwidth = 20;
@@ -244,6 +352,7 @@ classdef DeviceControl < handle
             self.dds2PhaseOffsetReg.print('dds2phaseOffsetReg',strwidth);
             self.dds3PhaseIncReg.print('dds3phaseIncReg',strwidth);
             self.dds3PhaseOffsetReg.print('dds3phaseOffsetReg',strwidth);
+            self.pwmReg.print('pwmReg',strwidth);
            % self.new_register.print('new_register',strwidth);
 
             fprintf(1,'\t ----------------------------------\n');
@@ -261,6 +370,9 @@ classdef DeviceControl < handle
              self.dds2_phase_offset.print('dds2 Phase Offset',strwidth,'%.3f');
              self.dds3_phase_inc.print('dds3 Phase Increment',strwidth,'%.3e');
              self.dds3_phase_offset.print('dds3 Phase Offset',strwidth,'%.3f');
+             for nn = 1:numel(self.pwm)
+                self.pwm(nn).print(sprintf('PWM %d',nn),strwidth,'%.3f');
+             end
              self.log2_rate.print('Log2 Rate',strwidth,'%.0f');
              self.cic_shift.print('CIC shift',strwidth,'%.0f');
         end
@@ -280,6 +392,55 @@ classdef DeviceControl < handle
                 d(:,nn) = typecast(uint8(reshape(raw((nn-1)*4 + (1:4),:),4*size(d,1),1)),'int32');
             end
             d = double(d);
+        end
+
+        function v = convertADCData(raw,c)
+            %CONVERTADCDATA Converts raw ADC data into proper int16/double format
+            %
+            %   V = CONVERTADCDATA(RAW) Unpacks raw data from uint8 values to
+            %   a pair of double values for each measurement
+            %
+            %   V = CONVERTADCDATA(RAW,C) uses conversion factor C in the
+            %   conversion
+            
+            if nargin < 2
+                c = 1;
+            end
+            
+            Nraw = numel(raw);
+            d = zeros(Nraw/4,2,'int16');
+            
+            mm = 1;
+            for nn = 1:4:Nraw
+                d(mm,1) = typecast(uint8(raw(nn + (0:1))),'int16');
+                d(mm,2) = typecast(uint8(raw(nn + (2:3))),'int16');
+                mm = mm + 1;
+            end
+            
+            v = double(d)*c;
+        end
+        
+        function D = load_bias_analysis_file(filename,numVoltages)
+            if isempty(filename)
+                filename = 'SavedData.bin';
+            end
+            
+            %Load data
+            fid = fopen(filename,'r');
+            fseek(fid,0,'eof');
+            fsize = ftell(fid);
+            frewind(fid);
+            x = fread(fid,fsize/4,'int32');
+            fclose(fid);
+            
+            %Process data
+%             raw = typecast(x,'int32');
+            raw = x;
+            D = zeros([numVoltages*[1,1,1],3]);
+            for nn = 1:size(D,4)
+                tmp = raw((nn - 1)*numVoltages^3 + (1:(numVoltages^3)));
+                D(:,:,:,nn) = reshape(double(tmp),numVoltages*[1,1,1]);
+            end
         end
     end
     
