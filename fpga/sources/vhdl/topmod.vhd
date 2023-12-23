@@ -64,6 +64,15 @@ COMPONENT Multiplier1
   );
 END COMPONENT;
 
+COMPONENT Output_Scaling_Multiplier
+  PORT (
+    CLK : IN STD_LOGIC;
+    A : IN STD_LOGIC_VECTOR(9 DOWNTO 0);
+    B : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+    P : OUT STD_LOGIC_VECTOR(17 DOWNTO 0) 
+  );
+END COMPONENT;
+
 COMPONENT CICfilter
   PORT (
     aclk : IN STD_LOGIC;
@@ -162,6 +171,9 @@ signal phase_inc          : std_logic_vector(31 downto 0);
 signal dds_phase_i        : std_logic_vector(63 downto 0);
 signal dds_o              : std_logic_vector(31 downto 0);
 signal dds_cos, dds_sin   : std_logic_vector(9 downto 0);
+signal dds_cos_mult       :  std_logic_vector(17 downto 0);
+signal dds_sin_mult       :  std_logic_vector(17 downto 0);
+signal dds_output_scale     :   std_logic_vector(7 downto 0);
 signal dac_o              : t_dac_array(1 downto 0);
 -- DDS2 signals
 signal dds2_phase_offset       : std_logic_vector(31 downto 0);
@@ -228,6 +240,25 @@ begin
 --
 -- DAC Outputs
 --
+dds_output_scale <= filterReg(23 downto 16);
+OutputMultiplierCos : Output_Scaling_Multiplier
+port map(
+    clk     =>  adcClk,
+    A       =>  dds_cos,
+    B       =>  dds_output_scale,
+    P       =>  dds_cos_mult
+);
+OutputMultiplierSin : Output_Scaling_Multiplier
+port map(
+    clk     =>  adcClk,
+    A       =>  dds_sin,
+    B       =>  dds_output_scale,
+    P       =>  dds_sin_mult
+);
+dac_o(0) <= resize(shift_right(signed(dds_cos_mult),4),16);
+dac_o(1) <= resize(shift_right(signed(dds_cos_mult),4),16);
+--dac_o(0) <= shift_left(resize(signed(dds_cos),16),4);
+--dac_o(1) <= shift_left(resize(signed(dds_sin),16),4);
 m_axis_tdata <= std_logic_vector(dac_o(1)) & std_logic_vector(dac_o(0));
 m_axis_tvalid <= '1';
 --
@@ -379,8 +410,7 @@ dds_phase_i <= phase_offset & phase_inc;
 dds_cos     <= dds_o(9 downto 0);
 dds_sin     <= dds_o(25 downto 16);
 
-dac_o(0) <= shift_left(resize(signed(dds_cos),16),4);
-dac_o(1) <= shift_left(resize(signed(dds_sin),16),4);
+
 -- DDS2 
 dds2_phase_inc <= dds_phase_inc_reg;
 dds2_phase_offset <= dds2_phase_off_reg;

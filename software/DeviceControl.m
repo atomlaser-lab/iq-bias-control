@@ -22,6 +22,7 @@ classdef DeviceControl < handle
         log2_rate
         cic_shift
         numSamples
+        output_scale
         pwm
        % new_signal % new signal added here for dds2
 
@@ -145,6 +146,9 @@ classdef DeviceControl < handle
 
             self.cic_shift = DeviceParameter([4,7],self.filterReg,'uint32')...
                 .setLimits('lower',0,'upper',15);
+            self.output_scale = DeviceParameter([16,23],self.filterReg,'uint32')...
+                .setLimits('lower',0,'upper',1)...
+                .setFunctions('to',@(x) x*(2^8 - 1),'from',@(x) x/(2^8 - 1));
 
             self.numSamples = DeviceParameter([0,11],self.numSamplesReg,'uint32')...
                 .setLimits('lower',0,'upper',2^12);
@@ -166,8 +170,9 @@ classdef DeviceControl < handle
             end
              self.log2_rate.set(10);
              self.cic_shift.set(0);
+             self.output_scale.set(1);
              self.numSamples.set(4000);
-
+            
              self.auto_retry = true;
         end
 
@@ -267,7 +272,7 @@ classdef DeviceControl < handle
 
             self.log2_rate.get;
             self.cic_shift.get;
-
+            self.output_scale.get;
             self.numSamples.get;
         end
 
@@ -438,6 +443,7 @@ classdef DeviceControl < handle
              end
              self.log2_rate.print('Log2 Rate',strwidth,'%.0f');
              self.cic_shift.print('CIC shift',strwidth,'%.0f');
+             self.output_scale.print('Output scale',strwidth,'%.3f');
         end
         
         
