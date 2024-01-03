@@ -49,6 +49,15 @@ PORT (
 );
 END COMPONENT;
 
+COMPONENT Output_Scaling_Multiplier
+  PORT (
+    CLK : IN STD_LOGIC;
+    A : IN STD_LOGIC_VECTOR(9 DOWNTO 0);
+    B : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+    P : OUT STD_LOGIC_VECTOR(17 DOWNTO 0) 
+  );
+END COMPONENT;
+
 COMPONENT CICfilter
 PORT (
     aclk : IN STD_LOGIC;
@@ -94,6 +103,7 @@ signal phase_offsets                    :   t_phase_array(1 downto 0);
 signal dds_phase_i                      :   t_dds_phase_combined_slv_array(2 downto 0);
 signal dds_o                            :   t_dds_o_slv_array(2 downto 0);
 signal dds_cos, dds_sin                 :   t_dds_array(2 downto 0);
+signal dds_cos_scale, dds_sin_scale     :   std_logic_vector(17 downto 0);
 --
 -- Multiplier signals
 --
@@ -109,12 +119,16 @@ signal filterConfig, filterConfig_old   :   std_logic_vector(15 downto 0);
 signal valid_config                     :   std_logic;
 signal filter_o                         :   t_cic_o_array(2 downto 0);
 signal valid_filter_o                   :   std_logic_vector(2 downto 0);
-signal scale_factor                     :   std_logic_vector(7 downto 0);
+signal dds_output_scale                 :   std_logic_vector(7 downto 0);
 
 begin
 --
 -- Parse registers
 --
+cicLog2Rate <= unsigned(filter_reg_i(3 downto 0));
+setShift <= unsigned(filter_reg_i(7 downto 4));
+dds_output_scale <= filter_reg_i(23 downto 16);
+
 modulation_freq <= unsigned(dds_regs_i(0));
 phase_offsets(0) <= unsigned(dds_regs_i(1));
 phase_offsets(1) <= unsigned(dds_regs_i(2));
@@ -139,9 +153,26 @@ DDS_GEN: for I in 0 to 2 generate
     dds_sin(I) <= signed(dds_o(I)(16 + DDS_OUTPUT_WIDTH - 1 downto 16));
 end generate DDS_GEN;
 
--- dds_cos(0) and dds_sin(0) get sent to the output and thence to the IQ modulator
-dac_o(0) <= resize(shift_left(dds_cos(0),DAC_ACTUAL_WIDTH - DDS_OUTPUT_WIDTH),DAC_WIDTH);
-dac_o(1) <= resize(shift_left(dds_sin(0),DAC_ACTUAL_WIDTH - DDS_OUTPUT_WIDTH),DAC_WIDTH);
+--
+-- DAC outputs are scaled: these are dds_cos(0) and dds_sin(0)
+--
+OutputMultiplierCos : Output_Scaling_Multiplier
+port map(
+    clk     =>  clk,
+    A       =>  dds_cos(0),
+    B       =>  dds_output_scale,
+    P       =>  dds_cos_scale
+);
+OutputMultiplierSin : Output_Scaling_Multiplier
+port map(
+    clk     =>  clk,
+    A       =>  dds_sin(0),
+    B       =>  dds_output_scale,
+    P       =>  dds_sin_scale
+);
+-- Re-scale the outputs so that a scale factor of 255 gives full-scale output
+dac_o(0) <= resize(shift_right(signed(dds_cos_scale),dds_cos_scale'length - DAC_ACTUAL_WIDTH),DAC_WIDTH);
+dac_o(1) <= resize(shift_right(signed(dds_sin_scale),dds_sin_scale'length - DAC_ACTUAL_WIDTH),DAC_WIDTH);
 
 --
 -- Multiply DDS signals with single input signal
@@ -184,8 +215,6 @@ DDSMult4 : Multiplier1
 --
 -- Implement filters
 --
-cicLog2Rate <= unsigned(filterReg_i(3 downto 0));
-setShift <= unsigned(filterReg_i(7 downto 4));
 cicShift <= to_integer(cicLog2Rate)+ to_integer(cicLog2Rate)+ to_integer(cicLog2Rate);
 filterConfig <= std_logic_vector(shift_left(to_unsigned(1, filterConfig'length),to_integer(cicLog2Rate)));
 --

@@ -295,9 +295,12 @@ begin
         -- FIFO registers
         --
         fifoReg <= (others => '0');
-        fifo_bus(0).m.status <= idle;
-        fifo_bus(1).m.status <= idle;
-        fifo_bus(2).m.status <= idle;
+        for I in 0 to NUM_FIFOS - 1 loop
+            fifo_bus(I).m.status <= idle;
+        end loop;
+        -- fifo_bus(0).m.status <= idle;
+        -- fifo_bus(1).m.status <= idle;
+        -- fifo_bus(2).m.status <= idle;
         --
         -- Memory signals
         --
@@ -336,9 +339,12 @@ begin
                             -- FIFO control and data retrieval
                             --
                             when X"000084" => rw(bus_m,bus_s,comState,fifoReg);
-                            when X"000088" => fifoRead(bus_m,bus_s,comState,fifo_bus(0).m,fifo_bus(0).s);
-                            when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
-                            when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
+                            -- when X"000088" => fifoRead(bus_m,bus_s,comState,fifo_bus(0).m,fifo_bus(0).s);
+                            -- when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
+                            -- when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
+                            for I in 0 to NUM_FIFOS - 1 loop
+                                when X"000084" + 4*I => fifoRead(bus_m,bus_s,comState,fifo_bus(I).m,fifo_bus(I).s);
+                            end loop;
                             --
                             -- Memory signals
                             --

@@ -53,7 +53,7 @@ toc;
 nlf = nonlinfit(V,data2(:,3));
 nlf.ex = nlf.x >= 1;
 nlf.setFitFunc(@(A,s,x0,x) A*sin(2*pi*(x - x0)/s));
-nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'s',[0.25,5,1.5],'x0',[0,max(nlf.x),0.2]);
+nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'s',[0.25,5,1.5],'x0',[0,3*max(nlf.x),0.4]);
 nlf.fit;
 figure(855013);clf;
 nlf.plot('plotresiduals',0);
@@ -111,15 +111,16 @@ toc;
 %% Plot scan over DC1 and DC2
 figure(855014);clf;
 subplot(1,3,1);
-surf(V,V,data3(:,:,1));
-xlabel('DC1');ylabel('DC2');
+surf(V,V,data3(:,:,1).^2);
+xlabel('DC2');ylabel('DC1');
 subplot(1,3,2);
-surf(V,V,data3(:,:,2));
-xlabel('DC1');ylabel('DC2');
+surf(V,V,data3(:,:,2).^2);
+xlabel('DC2');ylabel('DC1');
 subplot(1,3,3);
-surf(V,V,data3(:,:,3));
-xlabel('DC1');ylabel('DC2');
+surf(V,V,data3(:,:,3).^2);
+xlabel('DC2');ylabel('DC1');
 
+return
 %% Use voltage scan to find minima in 1f components
 M = zeros(size(D,1),size(D,2),3);
 [D3min,idx] = deal(zeros(size(D,1),size(D,2)));
