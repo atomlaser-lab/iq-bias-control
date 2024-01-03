@@ -16,9 +16,6 @@ classdef DeviceControl < handle
         phase_offset % added for DDS
         phase_inc  % added for DDS
         dds2_phase_offset % added for DDS2
-        dds2_phase_inc  % added for DDS2
-        dds3_phase_offset % added for DDS3
-        dds3_phase_inc  % added for DDS3
         log2_rate
         cic_shift
         numSamples
@@ -38,9 +35,6 @@ classdef DeviceControl < handle
         ddsPhaseOffsetReg %  added for dds 
         ddsPhaseIncReg  % added for dds
         dds2PhaseOffsetReg %  added for dds2 
-        dds2PhaseIncReg  % added for dds2
-        dds3PhaseOffsetReg % added for dds3
-        dds3PhaseIncReg % ------- dds3
         numSamplesReg
         pwmReg
         auxReg
@@ -78,10 +72,7 @@ classdef DeviceControl < handle
             self.inputReg = DeviceRegister('10',self.conn);
             self.ddsPhaseIncReg = DeviceRegister('14',self.conn);
             self.ddsPhaseOffsetReg = DeviceRegister('18',self.conn);
-            self.dds2PhaseIncReg = DeviceRegister('1C',self.conn);
             self.dds2PhaseOffsetReg = DeviceRegister('20',self.conn);
-            self.dds3PhaseIncReg = DeviceRegister('24',self.conn);
-            self.dds3PhaseOffsetReg = DeviceRegister('28',self.conn);
             self.pwmReg = DeviceRegister('2C',self.conn);
             self.numSamplesReg = DeviceRegister('100000',self.conn);
             self.auxReg = DeviceRegister('100004',self.conn);
@@ -117,28 +108,16 @@ classdef DeviceControl < handle
             self.phase_offset = DeviceParameter([0,31],self.ddsPhaseOffsetReg,'uint32')...
                  .setLimits('lower',-360,'upper', 360)...
                  .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
-             %% new signals for dds2
-              self.dds2_phase_inc = DeviceParameter([0,31],self.dds2PhaseIncReg,'uint32')...
-                 .setLimits('lower',0,'upper', 50e6)...
-                 .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
-            
+
             self.dds2_phase_offset = DeviceParameter([0,31],self.dds2PhaseOffsetReg,'uint32')...
-                 .setLimits('lower',-360,'upper', 360)...
-                 .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
-             %% new signals for dds3
-              self.dds3_phase_inc = DeviceParameter([0,31],self.dds3PhaseIncReg,'uint32')...
-                 .setLimits('lower',0,'upper', 50e6)...
-                 .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
-            
-            self.dds3_phase_offset = DeviceParameter([0,31],self.dds3PhaseOffsetReg,'uint32')...
                  .setLimits('lower',-360,'upper', 360)...
                  .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
 
             self.pwm = DeviceParameter.empty;
-            for nn = 1:4
-                self.pwm(nn) = DeviceParameter(8*(nn - 1) + [0,7],self.pwmReg)...
+            for nn = 1:3
+                self.pwm(nn) = DeviceParameter(10*(nn - 1) + [0,9],self.pwmReg)...
                     .setLimits('lower',0,'upper',1.62)...
-                    .setFunctions('to',@(x) x/1.62*255,'from',@(x) x/255*1.62);
+                    .setFunctions('to',@(x) x/1.62*1023,'from',@(x) x/1023*1.62);
             end
           
             self.log2_rate = DeviceParameter([0,3],self.filterReg,'uint32')...
@@ -161,10 +140,7 @@ classdef DeviceControl < handle
              self.led_o.set(0);
              self.phase_inc.set(1e6); % added for dds1 
              self.phase_offset.set(0); % added for dds1
-             self.dds2_phase_inc.set(1e6); % added for dds2 
              self.dds2_phase_offset.set(0); % added for dds2
-             self.dds3_phase_inc.set(1e6); % added for dds3 
-             self.dds3_phase_offset.set(0); % added for dds3
             for nn = 1:numel(self.pwm)
                 self.pwm(nn).set(0);
             end
@@ -205,8 +181,8 @@ classdef DeviceControl < handle
             d = [self.outputReg.getWriteData;
               self.filterReg.getWriteData;
               self.ddsPhaseIncReg.getWriteData;
+              self.ddsPhaseOffsetReg.getWriteData;
               self.dds2PhaseOffsetReg.getWriteData;
-              self.dds3PhaseOffsetReg.getWriteData;
               self.pwmReg.getWriteData;
               self.numSamplesReg.getWriteData];
             d = d';
@@ -231,8 +207,8 @@ classdef DeviceControl < handle
                  self.inputReg.getReadData;
                  self.filterReg.getReadData;
                  self.ddsPhaseIncReg.getReadData;
+                 self.ddsPhaseOffsetReg.getReadData;
                  self.dds2PhaseOffsetReg.getReadData;
-                 self.dds3PhaseOffsetReg.getReadData;
                  self.pwmReg.getReadData;
                  self.numSamplesReg.getReadData];
             self.conn.write(d,'mode','read');
@@ -245,8 +221,8 @@ classdef DeviceControl < handle
             self.inputReg.value = value(2);
             self.filterReg.value = value(3);
             self.ddsPhaseIncReg.value = value(4);
-            self.dds2PhaseOffsetReg.value = value(5);
-            self.dds3PhaseOffsetReg.value = value(6);
+            self.ddsPhaseOffsetReg.value = value(5);
+            self.dds2PhaseOffsetReg.value = value(6);
             self.pwmReg.value = value(7);
             self.numSamplesReg.value = value(8);
             %
@@ -262,9 +238,6 @@ classdef DeviceControl < handle
             self.phase_offset.get; % added for dds1
             self.phase_inc.get;   % added for dds1
             self.dds2_phase_offset.get; % added for dds2
-            self.dds2_phase_inc.get;   % added for dds2
-            self.dds3_phase_offset.get; % added for dds3
-            self.dds3_phase_inc.get;   % added for dds3
 
             for nn = 1:numel(self.pwm)
                 self.pwm(nn).get;
@@ -399,7 +372,7 @@ classdef DeviceControl < handle
                 {'./analyze_biases','-n',sprintf('%d',round(numVoltages)),'-a',sprintf('%d',numAvgs),'-m',sprintf('%d',maxVoltageInt)},...
                 'return_mode','file');
             raw = typecast(self.conn.recvMessage,'int32');
-            D = zeros([numVoltages*[1,1,1],3]);
+            D = zeros([numVoltages*[1,1,1],4]);
             for nn = 1:size(D,4)
                 tmp = raw((nn - 1)*numVoltages^3 + (1:(numVoltages^3)));
                 D(:,:,:,nn) = reshape(double(tmp),numVoltages*[1,1,1]);
@@ -416,10 +389,7 @@ classdef DeviceControl < handle
             self.adcReg.print('adcReg',strwidth);
             self.ddsPhaseIncReg.print('phaseIncReg',strwidth);
             self.ddsPhaseOffsetReg.print('phaseOffsetReg',strwidth);
-            self.dds2PhaseIncReg.print('dds2phaseIncReg',strwidth);
             self.dds2PhaseOffsetReg.print('dds2phaseOffsetReg',strwidth);
-            self.dds3PhaseIncReg.print('dds3phaseIncReg',strwidth);
-            self.dds3PhaseOffsetReg.print('dds3phaseOffsetReg',strwidth);
             self.pwmReg.print('pwmReg',strwidth);
            % self.new_register.print('new_register',strwidth);
 
@@ -434,10 +404,7 @@ classdef DeviceControl < handle
              self.adc(2).print('ADC 2',strwidth,'%.3f');
              self.phase_inc.print('Phase Increment',strwidth,'%.3e');
              self.phase_offset.print('Phase Offset',strwidth,'%.3f');
-             self.dds2_phase_inc.print('dds2 Phase Increment',strwidth,'%.3e');
              self.dds2_phase_offset.print('dds2 Phase Offset',strwidth,'%.3f');
-             self.dds3_phase_inc.print('dds3 Phase Increment',strwidth,'%.3e');
-             self.dds3_phase_offset.print('dds3 Phase Offset',strwidth,'%.3f');
              for nn = 1:numel(self.pwm)
                 self.pwm(nn).print(sprintf('PWM %d',nn),strwidth,'%.3f');
              end
@@ -453,7 +420,7 @@ classdef DeviceControl < handle
         function d = convertData(raw)
             raw = raw(:);
             Nraw = numel(raw);
-            numStreams = 3;
+            numStreams = 4;
             d = zeros(Nraw/(numStreams*4),numStreams,'int32');
             
             raw = reshape(raw,4*numStreams,Nraw/(4*numStreams));
@@ -505,7 +472,7 @@ classdef DeviceControl < handle
             %Process data
 %             raw = typecast(x,'int32');
             raw = x;
-            D = zeros([numVoltages*[1,1,1],3]);
+            D = zeros([numVoltages*[1,1,1],4]);
             for nn = 1:size(D,4)
                 tmp = raw((nn - 1)*numVoltages^3 + (1:(numVoltages^3)));
                 D(:,:,:,nn) = reshape(double(tmp),numVoltages*[1,1,1]);

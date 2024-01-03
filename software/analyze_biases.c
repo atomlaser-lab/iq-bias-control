@@ -14,6 +14,7 @@
 #define DATA_LOC1 0x00000088
 #define DATA_LOC2 0x0000008C
 #define DATA_LOC3 0x00000090
+#define DATA_LOC4 0x00000094
 #define FIFO_LOC  0x00000084
 #define PWM_LOC   0x0000002C
 
@@ -34,7 +35,7 @@ int stop_fifo(void *cfg) {
 }
 
 int write_to_pwm(void *cfg,uint8_t V1,uint8_t V2,uint8_t V3,uint8_t V4) {
-  uint32_t data = V1 + V2*(1 << 8) + V3*(1 << 16) + V4*(1 << 24);
+  uint32_t data = V1 + V2*(1 << 10) + V3*(1 << 20);
   *((uint32_t *)(cfg + PWM_LOC)) = data;
   return 0;
 }
@@ -50,7 +51,7 @@ int main(int argc, char **argv)
 
   uint32_t i, incr = 0;
   uint8_t saveType = 2;
-  uint32_t saveFactor = 3;
+  uint32_t saveFactor = 4;
   uint32_t tmp;
   uint32_t *raw_data;
   int *data;
@@ -94,14 +95,14 @@ int main(int argc, char **argv)
   }
 
 
-  uint32_t raw_data_size = 3*numAvgs;
+  uint32_t raw_data_size = saveFactor*numAvgs;
   raw_data = (uint32_t *) malloc(raw_data_size * sizeof(uint32_t));
   if (!raw_data) {
     printf("Error allocating memory for raw data");
     return -1;
   }
 
-  uint32_t data_size = (uint32_t) 3*pow((double) numVoltages,3);
+  uint32_t data_size = (uint32_t) saveFactor*pow((double) numVoltages,3);
   data = (int *) malloc(data_size * sizeof(int));
   if (!raw_data) {
     printf("Error allocating memory for saved data");
@@ -139,6 +140,7 @@ int main(int argc, char **argv)
           *(raw_data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC1));
           *(raw_data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC2));
           *(raw_data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC3));
+          *(raw_data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC4));
         }
         stop_fifo(cfg);
         // Average raw data
@@ -146,14 +148,17 @@ int main(int argc, char **argv)
         *(data + linear_index) = 0;
         *(data + linear_index + offset_index) = 0;
         *(data + linear_index + 2*offset_index) = 0;
+        *(data + linear_index + 3*offset_index) = 0;
         for (i = 0;i < raw_data_size;i += saveFactor) {
           *(data + linear_index) += (int) *(raw_data + i);
           *(data + linear_index + offset_index) += (int) *(raw_data + i + 1);
           *(data + linear_index + 2*offset_index) += (int) *(raw_data + i + 2);
+          *(data + linear_index + 3*offset_index) += (int) *(raw_data + i + 3);
         }
         *(data + linear_index) /= numAvgs;
         *(data + linear_index + offset_index) /= numAvgs;
         *(data + linear_index + 2*offset_index) /= numAvgs;
+        *(data + linear_index + 3*offset_index) /= numAvgs;
       }
     }
   }

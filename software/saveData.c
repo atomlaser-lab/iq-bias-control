@@ -14,6 +14,7 @@
 #define DATA_LOC1 0x00000088
 #define DATA_LOC2 0x0000008C
 #define DATA_LOC3 0x00000090
+#define DATA_LOC4 0x00000094
 #define FIFO_LOC 0x00000084
  
 int main(int argc, char **argv)
@@ -26,7 +27,7 @@ int main(int argc, char **argv)
 
   uint32_t i, incr = 0;
   uint8_t saveType = 2;
-  uint32_t saveFactor = 3;
+  uint32_t saveFactor = 4;
   uint32_t tmp;
   uint32_t *data;
   uint8_t debugFlag = 0;
@@ -110,6 +111,7 @@ int main(int argc, char **argv)
       *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC1));
       *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC2));
       *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC3));
+      *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC4));
     }
   } else {
     // This is for if we are saving to file
@@ -119,6 +121,8 @@ int main(int argc, char **argv)
       tmp = *((uint32_t *)(cfg + DATA_LOC2));
       fwrite(&tmp,4,1,ptr);
       tmp = *((uint32_t *)(cfg + DATA_LOC3));
+      fwrite(&tmp,4,1,ptr);
+      tmp = *((uint32_t *)(cfg + DATA_LOC4));
       fwrite(&tmp,4,1,ptr);
     }
   }

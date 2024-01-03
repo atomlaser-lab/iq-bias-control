@@ -117,8 +117,8 @@ signal cicShift                         :   natural;
 signal setShift                         :   unsigned(3 downto 0);
 signal filterConfig, filterConfig_old   :   std_logic_vector(15 downto 0);
 signal valid_config                     :   std_logic;
-signal filter_o                         :   t_cic_o_array(2 downto 0);
-signal valid_filter_o                   :   std_logic_vector(2 downto 0);
+signal filter_o                         :   t_cic_o_array(NUM_DEMOD_SIGNALS - 1 downto 0);
+signal valid_filter_o                   :   std_logic_vector(NUM_DEMOD_SIGNALS - 1 downto 0);
 signal dds_output_scale                 :   std_logic_vector(7 downto 0);
 
 begin
@@ -159,14 +159,14 @@ end generate DDS_GEN;
 OutputMultiplierCos : Output_Scaling_Multiplier
 port map(
     clk     =>  clk,
-    A       =>  dds_cos(0),
+    A       =>  std_logic_vector(dds_cos(0)),
     B       =>  dds_output_scale,
     P       =>  dds_cos_scale
 );
 OutputMultiplierSin : Output_Scaling_Multiplier
 port map(
     clk     =>  clk,
-    A       =>  dds_sin(0),
+    A       =>  std_logic_vector(dds_sin(0)),
     B       =>  dds_output_scale,
     P       =>  dds_sin_scale
 );

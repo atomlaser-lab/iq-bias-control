@@ -147,7 +147,7 @@ signal filter_valid         :   std_logic;
 --
 -- ADC signals
 --
-signal adc                  :   signed(ADC_ACTUAL_WIDTH - 1 downto 0);
+signal adc                  :   t_adc;
 
 --
 -- FIFO signals
@@ -190,10 +190,10 @@ m_axis_tvalid <= '1';
 --
 -- PWM outputs
 --
-pwm_data(0) <= unsigned(pwmReg(7 downto 0));
-pwm_data(1) <= unsigned(pwmReg(15 downto 8));
-pwm_data(2) <= unsigned(pwmReg(23 downto 16));
-pwm_data(3) <= unsigned(pwmReg(31 downto 24));
+pwm_data(0) <= unsigned(pwmReg(9 downto 0));
+pwm_data(1) <= unsigned(pwmReg(19 downto 10));
+pwm_data(2) <= unsigned(pwmReg(29 downto 20));
+pwm_data(3) <= (others => '0');
 PWM1: PWM_Generator
 port map(
   clk     =>  adcClkx2,
@@ -339,12 +339,19 @@ begin
                             -- FIFO control and data retrieval
                             --
                             when X"000084" => rw(bus_m,bus_s,comState,fifoReg);
-                            -- when X"000088" => fifoRead(bus_m,bus_s,comState,fifo_bus(0).m,fifo_bus(0).s);
-                            -- when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
-                            -- when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
-                            for I in 0 to NUM_FIFOS - 1 loop
-                                when X"000084" + 4*I => fifoRead(bus_m,bus_s,comState,fifo_bus(I).m,fifo_bus(I).s);
-                            end loop;
+                            when X"000088" => fifoRead(bus_m,bus_s,comState,fifo_bus(0).m,fifo_bus(0).s);
+                            when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
+                            when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
+                            when X"000094" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(3).s);
+--                            when X"000088" | X"00008C" | X"000090" | X"000094" =>
+--                                for I in 0 to NUM_FIFOS - 1 loop
+--                                    if bus_m.addr(23 downto 0) = X"000088" + 4*I then
+--                                        fifoRead(bus_m,bus_s,comState,fifo_bus(I).m,fifo_bus(I).s);
+--                                    end if;
+--                                end loop;
+--                            for I in 0 to NUM_FIFOS - 1 loop
+--                                when X"000084" + 4*I => fifoRead(bus_m,bus_s,comState,fifo_bus(I).m,fifo_bus(I).s);
+--                            end loop;
                             --
                             -- Memory signals
                             --
