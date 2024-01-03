@@ -6,7 +6,7 @@ function varargout = phase_detection_simulation(NamedArgs)
 arguments
     NamedArgs.phA = 180;
     NamedArgs.phB = 180;
-    NamedArgs.phP = 90;
+    NamedArgs.phP = 180;
     NamedArgs.mode = 'diff';
 end
 

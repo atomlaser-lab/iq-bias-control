@@ -44,40 +44,27 @@ ATTRIBUTE X_INTERFACE_PARAMETER : STRING;
 ATTRIBUTE X_INTERFACE_PARAMETER of m_axis_tdata: SIGNAL is "CLK_DOMAIN system_AXIS_Red_Pitaya_ADC_0_0_adc_clk,FREQ_HZ 125000000";
 ATTRIBUTE X_INTERFACE_PARAMETER of m_axis_tvalid: SIGNAL is "CLK_DOMAIN system_AXIS_Red_Pitaya_ADC_0_0_adc_clk,FREQ_HZ 125000000";
 
-COMPONENT DDS1
-  PORT (
-    aclk : IN STD_LOGIC;
-    aresetn : IN STD_LOGIC;
-    s_axis_phase_tvalid : IN STD_LOGIC;
-    s_axis_phase_tdata : IN STD_LOGIC_VECTOR(63 DOWNTO 0);
-    m_axis_data_tvalid : OUT STD_LOGIC;
-    m_axis_data_tdata : OUT STD_LOGIC_VECTOR(31 DOWNTO 0) 
-  );
-END COMPONENT;
-
-COMPONENT Multiplier1
-  PORT (
-    CLK : IN STD_LOGIC;
-    A : IN STD_LOGIC_VECTOR(13 DOWNTO 0);
-    B : IN STD_LOGIC_VECTOR(9 DOWNTO 0);
-    P : OUT STD_LOGIC_VECTOR(23 DOWNTO 0) 
-  );
-END COMPONENT;
-
-COMPONENT CICfilter
-  PORT (
-    aclk : IN STD_LOGIC;
-    aresetn : IN STD_LOGIC;
-    s_axis_config_tdata : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
-    s_axis_config_tvalid : IN STD_LOGIC;
-    s_axis_config_tready : OUT STD_LOGIC;
-    s_axis_data_tdata : IN STD_LOGIC_VECTOR(23 DOWNTO 0);
-    s_axis_data_tvalid : IN STD_LOGIC;
-    s_axis_data_tready : OUT STD_LOGIC;
-    m_axis_data_tdata : OUT STD_LOGIC_VECTOR(63 DOWNTO 0);
-    m_axis_data_tvalid : OUT STD_LOGIC 
-  );
-END COMPONENT;
+component Demodulator is
+    generic(
+        NUM_DEMOD_SIGNALS : natural :=  3
+    );
+    port(
+        clk             :   in  std_logic;
+        aresetn         :   in  std_logic;
+        --
+        -- Registers
+        --
+        filter_reg_i    :   in  t_param_reg;
+        dds_regs_i      :   in  t_param_reg_array(2 downto 0);
+        --
+        -- Input and output data
+        --
+        data_i          :   in  t_adc;
+        dac_o           :   out t_dac_array(1 downto 0);
+        filtered_data_o :   out t_meas_array(NUM_DEMOD_SIGNALS - 1 downto 0);
+        valid_o         :   out std_logic
+    );
+end component;
 
 component FIFOHandler is
     port(
@@ -138,71 +125,41 @@ signal reset                :   std_logic;
 --
 -- Registers
 --
-signal triggers             :   t_param_reg                     :=  (others => '0');
-signal outputReg            :   t_param_reg                     :=  (others => '0');
+signal triggers             :   t_param_reg;
+signal outputReg            :   t_param_reg;
 signal filterReg            :   t_param_reg;
--- we can add a new register 
--- signal new_register         :   t_param_reg; -- dds2 
--- DDS register
-signal dds_phase_inc_reg     : t_param_reg;
-signal dds_phase_off_reg     : t_param_reg;
--- DDS2 register
-signal dds2_phase_inc_reg     : t_param_reg; -- dds2
-signal dds2_phase_off_reg     : t_param_reg; -- dds2
--- DDS3
-signal dds3_phase_inc_reg     : t_param_reg; -- dds2
-signal dds3_phase_off_reg     : t_param_reg; -- dds2
+-- DDS registers
+signal dds_phase_inc_reg    :   t_param_reg;
+signal dds_phase_off_reg    :   t_param_reg;
+signal dds2_phase_off_reg   :   t_param_reg;
+signal dds_regs             :   t_param_reg_array(2 downto 0);
+-- PWM register
+signal pwmReg               :   t_param_reg;
+-- FIFO register
+signal fifoReg              :   t_param_reg;
 
-signal pwmReg                : t_param_reg;
--- we can add some costom signals for DDS2
-
--- add DDS signals
-signal phase_offset       : std_logic_vector(31 downto 0);
-signal phase_inc          : std_logic_vector(31 downto 0);
-signal dds_phase_i        : std_logic_vector(63 downto 0);
-signal dds_o              : std_logic_vector(31 downto 0);
-signal dds_cos, dds_sin   : std_logic_vector(9 downto 0);
-signal dac_o              : t_dac_array(1 downto 0);
--- DDS2 signals
-signal dds2_phase_offset       : std_logic_vector(31 downto 0);
-signal dds2_phase_inc          : std_logic_vector(31 downto 0);
-signal dds2_phase_i        : std_logic_vector(63 downto 0);
-signal dds2_o              : std_logic_vector(31 downto 0);
-signal dds2_cos, dds2_sin   : std_logic_vector(9 downto 0);
--- DDS3 signals
-signal dds3_phase_offset       : std_logic_vector(31 downto 0);
-signal dds3_phase_inc          : std_logic_vector(31 downto 0);
-signal dds3_phase_i        : std_logic_vector(63 downto 0);
-signal dds3_o              : std_logic_vector(31 downto 0);
-signal dds3_cos, dds3_sin   : std_logic_vector(9 downto 0);
-
-signal adc1, adc2, adc3                 : signed(13 downto 0);
-signal adc1_slv, adc2_slv, adc3_slv     : std_logic_vector(13 downto 0);
-
--- Filtering Signals
-signal cicLog2Rate                      : unsigned(3 downto 0);
-signal cicShift                         : natural;
-signal setShift                         : unsigned(3 downto 0);
-signal filterConfig, filterConfig_old  : std_logic_vector(15 downto 0);
-signal Mult1_o, Mult2_o, Mult3_o        : std_logic_vector(23 downto 0);
-signal filter_valid                       : std_logic;
-signal filtMult1_i, filtMult2_i, filtMult3_i        : std_logic_vector(23 downto 0);
-signal filtMult1_o, filtMult2_o, filtMult3_o        : std_logic_vector(63 downto 0);
-signal Mult1_o_valid, Mult2_o_valid, Mult3_o_valid  : std_logic;
-
-signal filterData   :   t_meas_array(2 downto 0);
+--
+-- DDS signals
+--
+signal dac_o                :   t_dac_array(1 downto 0);
+signal filtered_data        :   t_meas_array(3 downto 0);
+signal filter_valid         :   std_logic;
+--
+-- ADC signals
+--
+signal adc                  :   signed(ADC_ACTUAL_WIDTH - 1 downto 0);
 
 --
 -- FIFO signals
 --
-constant NUM_FIFOS  :   natural :=  3;
-type t_fifo_data_array is array(natural range <>) of std_logic_vector(FIFO_WIDTH-1 downto 0);
-signal fifoData     :   t_fifo_data_array(NUM_FIFOS-1 downto 0);
-signal fifoValid    :   std_logic_vector(NUM_FIFOS-1 downto 0);
-signal fifo_bus     :   t_fifo_bus_array(NUM_FIFOS-1 downto 0)  :=  (others => INIT_FIFO_BUS);
-signal fifoReg      :   t_param_reg;
-signal enableFIFO   :   std_logic;
-signal fifoReset    :   std_logic;
+constant NUM_FIFOS          :   natural :=  filtered_data'length;
+type t_fifo_data_array is array(natural range <>) of std_logic_vector(FIFO_WIDTH - 1 downto 0);
+
+signal fifoData             :   t_fifo_data_array(NUM_FIFOS - 1 downto 0);
+signal fifoValid            :   std_logic_vector(NUM_FIFOS - 1 downto 0);
+signal fifo_bus             :   t_fifo_bus_array(NUM_FIFOS - 1 downto 0)  :=  (others => INIT_FIFO_BUS);
+signal enableFIFO           :   std_logic;
+signal fifoReset            :   std_logic;
 --
 -- Memory signals
 --
@@ -250,159 +207,35 @@ port map(
 ext_o <= outputReg(7 downto 0);
 led_o <= outputReg(15 downto 8);
 
-adc1        <=    resize(signed(adcData_i(15 downto 0)), 14);
-adc1_slv    <=    std_logic_vector(adc1);
-
--- 
--- DDS
 --
-DDS_inst : DDS1
-  PORT MAP (
-    aclk                     => adcClk,
-    aresetn                  => aresetn,
-    s_axis_phase_tvalid      => '1',
-    s_axis_phase_tdata       => dds_phase_i,
-    m_axis_data_tvalid       => open,
-    m_axis_data_tdata        => dds_o
-  );
-DDS_inst2 : DDS1
-  PORT MAP (
-    aclk                      => adcClk,
-    aresetn                   => aresetn,
-    s_axis_phase_tvalid       => '1',
-    s_axis_phase_tdata        => dds2_phase_i,
-    m_axis_data_tvalid        => open,
-    m_axis_data_tdata         => dds2_o
-  );
-  
- DDS_inst3 : DDS1
-  PORT MAP (
-    aclk                        => adcClk,
-    aresetn                     => aresetn,
-    s_axis_phase_tvalid         => '1',
-    s_axis_phase_tdata          => dds3_phase_i,
-    m_axis_data_tvalid          => open,
-    m_axis_data_tdata           => dds3_o
-  );
-DDSMult1 : Multiplier1
-  PORT MAP (
-    CLK => adcClk,
-    A => std_logic_vector(adc1),
-    B => dds2_sin,
-    P => Mult1_o
-  );
-  
-DDSMult2 : Multiplier1
-  PORT MAP (
-    CLK => adcClk,
-    A => std_logic_vector(adc1),
-    B => dds2_cos,
-    P => Mult2_o
-  );
-DDSMult3 : Multiplier1
-  PORT MAP (
-    CLK => adcCLK,
-    A => std_logic_vector(adc1),
-    B => dds3_sin,
-    P => Mult3_o
-  );
-  --Filter
-cicLog2Rate <= unsigned(filterReg(3 downto 0));
-setShift <= unsigned(filterReg(7 downto 4));
-cicShift <= to_integer(cicLog2Rate)+ to_integer(cicLog2Rate)+ to_integer(cicLog2Rate);
-filterConfig <= std_logic_vector(shift_left(to_unsigned(1, filterConfig'length),to_integer(cicLog2Rate)));
-
-ChangeProc: process(adcClk, aresetn) is
-begin 
-   if aresetn ='0' then
-      filterConfig_old <= filterConfig;
-      filter_valid <= '0';
-   elsif rising_edge(adcClk) then 
-      filterConfig_old <= filterConfig;
-      if filterConfig /= filterConfig_old then
-         filter_valid <= '1';
-      else
-         filter_valid <= '0';
-      end if;
-   end if;      
-
-end process;
-
-Filt1 : CICfilter
-  PORT MAP (
-    aclk => adcClk,
-    aresetn => aresetn,
-    s_axis_config_tdata => filterConfig,
-    s_axis_config_tvalid => filter_valid,
-    s_axis_config_tready => open,
-    s_axis_data_tdata => Mult1_o,
-    s_axis_data_tvalid => '1',
-    s_axis_data_tready => open,
-    m_axis_data_tdata => filtMult1_o,
-    m_axis_data_tvalid => Mult1_o_valid
-  );
-Filt2 : CICfilter
-  PORT MAP (
-   aclk => adcClk,
-    aresetn => aresetn,
-    s_axis_config_tdata => filterConfig,
-    s_axis_config_tvalid => filter_valid,
-    s_axis_config_tready => open,
-    s_axis_data_tdata => Mult2_o,
-    s_axis_data_tvalid => '1',
-    s_axis_data_tready => open,
-    m_axis_data_tdata => filtMult2_o,
-    m_axis_data_tvalid => Mult2_o_valid
-  );
-Filt3 : CICfilter
-  PORT MAP (
-  aclk => adcClk,
-    aresetn => aresetn,
-    s_axis_config_tdata => filterConfig,
-    s_axis_config_tvalid => filter_valid,
-    s_axis_config_tready => open,
-    s_axis_data_tdata => Mult3_o,
-    s_axis_data_tvalid => '1',
-    s_axis_data_tready => open,
-    m_axis_data_tdata => filtMult3_o,
-    m_axis_data_tvalid => Mult3_o_valid
-  );
-  
-filterData(0) <= resize(shift_right(signed(filtMult1_o),cicShift + to_integer(setShift)),t_meas'length);
-filterData(1) <= resize(shift_right(signed(filtMult2_o),cicShift + to_integer(setShift)),t_meas'length);
-filterData(2) <= resize(shift_right(signed(filtMult3_o),cicShift + to_integer(setShift)),t_meas'length);
-
--- 
-phase_inc <= dds_phase_inc_reg;
-phase_offset <= dds_phase_off_reg;
-dds_phase_i <= phase_offset & phase_inc;
-dds_cos     <= dds_o(9 downto 0);
-dds_sin     <= dds_o(25 downto 16);
-
-dac_o(0) <= shift_left(resize(signed(dds_cos),16),4);
-dac_o(1) <= shift_left(resize(signed(dds_sin),16),4);
--- DDS2 
-dds2_phase_inc <= dds_phase_inc_reg;
-dds2_phase_offset <= dds2_phase_off_reg;
-dds2_phase_i <= dds2_phase_offset & dds2_phase_inc;
-dds2_cos     <= dds2_o(9 downto 0);
-dds2_sin     <= dds2_o(25 downto 16);
-
--- DDS3 
-dds3_phase_inc <= std_logic_vector(shift_left(unsigned(dds_phase_inc_reg),1));
-dds3_phase_offset <= dds3_phase_off_reg;
-dds3_phase_i <= dds3_phase_offset & dds3_phase_inc;
-dds3_cos     <= dds3_o(9 downto 0);
-dds3_sin     <= dds3_o(25 downto 16);
+-- Modulator/demodulator component
+--
+adc <= resize(signed(adcData_i(15 downto 0)), adc'length);
+dds_regs <= (0 => dds_phase_inc_reg, 1 => dds_phase_off_reg, 2 => dds2_phase_off_reg);
+Main_Demodulator: Demodulator
+generic map(
+    NUM_DEMOD_SIGNALS   =>  filtered_data'length
+)
+port map(
+    clk             =>  adcClk,
+    aresetn         =>  aresetn,
+    filter_reg_i    =>  filterReg,
+    dds_regs_i      =>  dds_regs,
+    data_i          =>  adc,
+    dac_o           =>  dac_o,
+    filtered_data_o =>  filtered_data,
+    valid_o         =>  filter_valid
+);
 
 --
--- FIFO buffering for long data sets
+-- Collect demodulated data at lower sampling rate in FIFO buffers
+-- to be read out continuously by CPU
 --
 enableFIFO <= fifoReg(0);
 fifoReset <= fifoReg(1);
-FIFO_GEN: for I in 0 to NUM_FIFOS-1 generate
-    fifoData(I) <= std_logic_vector(resize(filterData(I),FIFO_WIDTH));
-    fifoValid(I) <= Mult3_o_valid and enableFIFO;
+FIFO_GEN: for I in 0 to NUM_FIFOS - 1 generate
+    fifoData(I) <= std_logic_vector(resize(filtered_data(I),FIFO_WIDTH));
+    fifoValid(I) <= filter_valid and enableFIFO;
     PhaseMeas_FIFO_NORMAL_X: FIFOHandler
     port map(
         wr_clk      =>  adcClk,
@@ -452,15 +285,10 @@ begin
         triggers <= (others => '0');
         outputReg <= (others => '0');
         filterReg <= X"0000000a";
-        --dac_o <= (others => '0');
         dds_phase_off_reg <= (others => '0');
         dds_phase_inc_reg <= std_logic_vector(to_unsigned(34359738, 32)); -- 1 MHz with 32 bit DDS and 125 MHz clk freq
         --dds2 
         dds2_phase_off_reg <= (others => '0');
-        dds2_phase_inc_reg <= std_logic_vector(to_unsigned(34359738, 32)); 
-        -- DDS3
-        dds3_phase_off_reg <= (others => '0');
-        dds3_phase_inc_reg <= std_logic_vector(to_unsigned(34359738, 32)); 
         pwmReg <= (others => '0');
        -- new_register <= (others => '0'); -- dds2
         --
@@ -501,11 +329,7 @@ begin
                             when X"000010" => readOnly(bus_m,bus_s,comState,ext_i);
                             when X"000014" => rw(bus_m,bus_s,comState,dds_phase_inc_reg);
                             when X"000018" => rw(bus_m,bus_s,comState,dds_phase_off_reg);
-                            --when X"00001C" => rw(bus_m,bus_s,comState,new_register); -- dds2
-                            when X"00001C" => rw(bus_m,bus_s,comState,dds2_phase_inc_reg);
                             when X"000020" => rw(bus_m,bus_s,comState,dds2_phase_off_reg);
-                            when X"000024" => rw(bus_m,bus_s,comState,dds3_phase_inc_reg);
-                            when X"000028" => rw(bus_m,bus_s,comState,dds3_phase_off_reg);
                             when X"00002C" => rw(bus_m,bus_s,comState,pwmReg);
 
                             --

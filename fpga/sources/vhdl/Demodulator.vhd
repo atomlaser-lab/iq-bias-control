@@ -6,24 +6,23 @@ use work.CustomDataTypes.all;
 use work.AXI_Bus_Package.all;
 
 entity Demodulator is
+    generic(
+        NUM_DEMOD_SIGNALS : natural :=  3
+    );
     port(
         clk             :   in  std_logic;
         aresetn         :   in  std_logic;
         --
         -- Registers
         --
-        filterReg_i     :   in  t_param_reg;
-        --
-        -- Parameters
-        --
-        modulation_freq :   in  t_phase;
-        phase_offsets   :   in  t_phase_array(1 downto 0);
+        filter_reg_i    :   in  t_param_reg;
+        dds_regs_i      :   in  t_param_reg_array(2 downto 0);
         --
         -- Input and output data
         --
         data_i          :   in  t_adc;
         dac_o           :   out t_dac_array(1 downto 0);
-        filtered_data_o :   out t_adc_array(2 downto 0);
+        filtered_data_o :   out t_meas_array(NUM_DEMOD_SIGNALS - 1 downto 0);
         valid_o         :   out std_logic
     );
 end Demodulator;
@@ -67,34 +66,39 @@ END COMPONENT;
 
 --
 -- DDS constants and types
+-- It looks like overkill, but it's useful for procedurally generating
+-- multiple blocks of code.
 --
 constant DDS_OUTPUT_WIDTH   :   natural :=  10;
-subtype t_dds_phase_slv is std_logic_vector(31 downto 0);
-subtype t_dds_phase_combined_slv is std_logic_vector(63 downto 0);
-subtype t_dds_o_slv is std_logic_vector(31 downto 0);
-subtype t_dds is signed(DDS_OUTPUT_WIDTH - 1 downto 0);
-
+-- Used for phase inputs to DDSs
+subtype t_dds_phase_combined_slv    is std_logic_vector(63 downto 0);
 type t_dds_phase_combined_slv_array is array(natural range <>) of t_dds_phase_combined_slv;
-type t_dds_o_slv_array is array(natural range <>) of t_dds_o_slv;
-type t_dds_array is array(natural range <>) of t_dds;
-
+-- Used for raw (combined cos/sin) DDS outputs
+subtype t_dds_o_slv                 is std_logic_vector(31 downto 0);
+type t_dds_o_slv_array              is array(natural range <>) of t_dds_o_slv;
+-- Used for separated DDS outputs
+subtype t_dds                       is signed(DDS_OUTPUT_WIDTH - 1 downto 0);
+type t_dds_array                    is array(natural range <>) of t_dds;
+-- Multiplier outputs
 constant MULT_OUTPUT_WIDTH  :   natural :=  ADC_ACTUAL_WIDTH + DDS_OUTPUT_WIDTH;
 type t_mult_o_array is array(natural range <>) of std_logic_vector(MULT_OUTPUT_WIDTH - 1 downto 0);
-
+-- CIC filter outputs
 constant CIC_OUTPUT_WIDTH   :   natural :=  64;
 type t_cic_o_array is array(natural range <>) of std_logic_vector(CIC_OUTPUT_WIDTH - 1 downto 0);
 
 --
 -- DDS signals
 --
-signal dds_phase_i        : t_dds_phase_combined_slv_array(2 downto 0);
-signal dds_o              : t_dds_o_slv_array(2 downto 0);
-signal dds_cos, dds_sin   : t_dds_array(2 downto 0);
+signal modulation_freq                  :   t_phase;
+signal phase_offsets                    :   t_phase_array(1 downto 0);
+signal dds_phase_i                      :   t_dds_phase_combined_slv_array(2 downto 0);
+signal dds_o                            :   t_dds_o_slv_array(2 downto 0);
+signal dds_cos, dds_sin                 :   t_dds_array(2 downto 0);
 --
 -- Multiplier signals
 --
-signal adc_reduced      :   signed(ADC_ACTUAL_WIDTH - 1 downto 0);
-signal mult_o           :   t_mult_o_array(2 downto 0); 
+signal adc_reduced                      :   signed(ADC_ACTUAL_WIDTH - 1 downto 0);
+signal mult_o                           :   t_mult_o_array(NUM_DEMOD_SIGNALS - 1 downto 0); 
 --
 -- Filter signals
 --
@@ -105,20 +109,22 @@ signal filterConfig, filterConfig_old   :   std_logic_vector(15 downto 0);
 signal valid_config                     :   std_logic;
 signal filter_o                         :   t_cic_o_array(2 downto 0);
 signal valid_filter_o                   :   std_logic_vector(2 downto 0);
-
-signal filtMult1_i, filtMult2_i, filtMult3_i        : std_logic_vector(23 downto 0);
-signal filtMult1_o, filtMult2_o, filtMult3_o        : std_logic_vector(63 downto 0);
-signal Mult1_o_valid, Mult2_o_valid, Mult3_o_valid  : std_logic;
+signal scale_factor                     :   std_logic_vector(7 downto 0);
 
 begin
-
 --
--- Generate DDS signals
+-- Parse registers
+--
+modulation_freq <= unsigned(dds_regs_i(0));
+phase_offsets(0) <= unsigned(dds_regs_i(1));
+phase_offsets(1) <= unsigned(dds_regs_i(2));
+--
+-- Generate DDS signals.  Note dds_phase_i(2) has a doubled frequency
 --
 dds_phase_i(0) <= X"00000000" & std_logic_vector(modulation_freq);
 dds_phase_i(1) <= std_logic_vector(phase_offsets(0)) & std_logic_vector(modulation_freq);
 dds_phase_i(2) <= std_logic_vector(phase_offsets(1)) & std_logic_vector(shift_left(modulation_freq,1));
-
+-- Procedurally generate all DDS instances
 DDS_GEN: for I in 0 to 2 generate
     DDS_X: DDS1
     PORT MAP (
@@ -133,7 +139,7 @@ DDS_GEN: for I in 0 to 2 generate
     dds_sin(I) <= signed(dds_o(I)(16 + DDS_OUTPUT_WIDTH - 1 downto 16));
 end generate DDS_GEN;
 
--- dds_o(0) Gets sent to the output and thence to the IQ modulator
+-- dds_cos(0) and dds_sin(0) get sent to the output and thence to the IQ modulator
 dac_o(0) <= resize(shift_left(dds_cos(0),DAC_ACTUAL_WIDTH - DDS_OUTPUT_WIDTH),DAC_WIDTH);
 dac_o(1) <= resize(shift_left(dds_sin(0),DAC_ACTUAL_WIDTH - DDS_OUTPUT_WIDTH),DAC_WIDTH);
 
@@ -164,7 +170,16 @@ DDSMult3 : Multiplier1
     B => std_logic_vector(dds_sin(2)),
     P => mult_o(2)
   );
-
+-- Only use if the quadrature phase part of the 2nd harmonic signal is to be captured
+MULT_GEN: if NUM_DEMOD_SIGNALS = 4 generate
+DDSMult4 : Multiplier1
+  PORT MAP (
+    CLK => clk,
+    A => std_logic_vector(adc_reduced),
+    B => std_logic_vector(dds_cos(2)),
+    P => mult_o(3)
+  );
+  end generate MULT_GEN;
 
 --
 -- Implement filters
@@ -191,8 +206,8 @@ begin
       end if;
    end if;      
 end process;
-
-FILT_GEN: for I in 0 to 2 generate
+-- Procedurally generate all CIC filters
+FILT_GEN: for I in 0 to NUM_DEMOD_SIGNALS - 1 generate
     Filt_X : CICfilter
     PORT MAP (
         aclk                        => clk,
@@ -206,7 +221,7 @@ FILT_GEN: for I in 0 to 2 generate
         m_axis_data_tdata           => filter_o(I),
         m_axis_data_tvalid          => valid_filter_o(I)
     );
-    filtered_data_o(I) <= resize(shift_right(signed(filter_o(I)),cicShift + to_integer(setShift)),t_adc'length);
+    filtered_data_o(I) <= resize(shift_right(signed(filter_o(I)),cicShift + to_integer(setShift)),t_meas'length);
 end generate FILT_GEN;
 
 valid_o <= valid_filter_o(0);
