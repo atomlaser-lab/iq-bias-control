@@ -44,6 +44,29 @@ ATTRIBUTE X_INTERFACE_PARAMETER : STRING;
 ATTRIBUTE X_INTERFACE_PARAMETER of m_axis_tdata: SIGNAL is "CLK_DOMAIN system_AXIS_Red_Pitaya_ADC_0_0_adc_clk,FREQ_HZ 125000000";
 ATTRIBUTE X_INTERFACE_PARAMETER of m_axis_tvalid: SIGNAL is "CLK_DOMAIN system_AXIS_Red_Pitaya_ADC_0_0_adc_clk,FREQ_HZ 125000000";
 
+component Control is
+    Port ( 
+        clk             :   in  std_logic;
+        aresetn         :   in  std_logic;
+        -- Inputs
+       -- meas_i          :   in t_phase
+        filtered_data    :   in t_meas;
+        control_i       :   in  t_meas;
+        valid_i         :   in  std_logic;
+        --
+        -- Parameters
+        enable_i        :   in  std_logic;
+        polarity_i      :   in  std_logic;
+        hold_i          :   in  std_logic;
+        gains           :   in  t_param_reg;
+        --
+        -- Outputs
+        --
+        valid_o         :   out std_logic;
+        --data_o          : out t_phase;
+        control_signal_o  : out signed(PWM_DATA_WIDTH -1 downto 0) 
+    );
+end component;
 component Demodulator is
     generic(
         NUM_DEMOD_SIGNALS : natural :=  3
@@ -138,6 +161,11 @@ signal pwmReg               :   t_param_reg;
 -- FIFO register
 signal fifoReg              :   t_param_reg;
 
+signal gains_reg            : t_param_reg;
+-- register for pidcontrol, polarity and enable signals
+signal combined_input_reg   : t_param_reg;
+signal pwm_limit_reg        :   t_param_reg;
+
 --
 -- DDS signals
 --
@@ -172,14 +200,26 @@ signal memTrig      :   std_logic;
 --
 -- PID signals
 --
-signal enable, polarity, valid_i        : std_logic;
-signal control, measurement    : signed(15 downto 0);
-signal pidvalid_o              : std_logic;
-signal pid_o                   : signed(15 downto 0);
+signal clk                      : std_logic;
+signal pidcontrol               : t_meas;
+signal enable, polarity         : std_logic;
+signal valid_i, valid_o, hold_i : std_logic;
+--signal filtered_data   : signed(2 downto 0);
+signal pidvalid_o               : std_logic;
+
+signal control_inphase          : signed(PWM_DATA_WIDTH -1 downto 0); --##########
 --
 -- PWM signals
 --
-signal pwm_data     : t_pwm_array(3 downto 0);
+constant PWM_EXP_WIDTH  :   natural :=  PWM_DATA_WIDTH + 1;
+subtype t_pwm_exp is signed(PWM_EXP_WIDTH - 1 downto 0);
+signal pwm_data, pwm_data_i     : t_pwm_array(3 downto 0);
+signal control_signal_o : signed(PWM_DATA_WIDTH - 1 downto 0); -- added this ??
+signal pwm_data_exp :   t_pwm_exp;
+signal pwm_sum      :   t_pwm_exp;
+signal pwm_limit    :   t_pwm_exp;
+signal pwm_max, pwm_min :   t_pwm_exp;
+
 begin
 
 --
@@ -187,18 +227,23 @@ begin
 --
 m_axis_tdata <= std_logic_vector(dac_o(1)) & std_logic_vector(dac_o(0));
 m_axis_tvalid <= '1';
---
+
 -- PWM outputs
 --
 pwm_data(0) <= unsigned(pwmReg(9 downto 0));
 pwm_data(1) <= unsigned(pwmReg(19 downto 10));
 pwm_data(2) <= unsigned(pwmReg(29 downto 20));
 pwm_data(3) <= (others => '0');
+
+pwm_data_i(0) <= pwm_data(0);
+pwm_data_i(1) <= pwm_data(1);
+pwm_data_i(2) <= resize(unsigned(std_logic_vector(pwm_limit)),PWM_DATA_WIDTH);
+pwm_data_i(3) <= pwm_data(3);
 PWM1: PWM_Generator
 port map(
   clk     =>  adcClkx2,
   aresetn =>  aresetn,
-  data_i  =>  pwm_data,
+  data_i  =>  pwm_data_i,
   pwm_o   =>  pwm_o
 );
 -- 
@@ -212,6 +257,8 @@ led_o <= outputReg(15 downto 8);
 --
 adc <= resize(signed(adcData_i(15 downto 0)), adc'length);
 dds_regs <= (0 => dds_phase_inc_reg, 1 => dds_phase_off_reg, 2 => dds2_phase_off_reg);
+-- 
+
 Main_Demodulator: Demodulator
 generic map(
     NUM_DEMOD_SIGNALS   =>  filtered_data'length
@@ -226,6 +273,39 @@ port map(
     filtered_data_o =>  filtered_data,
     valid_o         =>  filter_valid
 );
+
+--
+-- Apply feedback
+--
+enable <= combined_input_reg(0);
+polarity <= combined_input_reg(1);
+hold_i <= combined_input_reg(2);
+pidcontrol <= resize(signed(combined_input_reg(31 downto 16)),pidcontrol'length);
+PID_Control_0 : Control
+port map(
+clk               =>      clk,
+aresetn           =>      aresetn,
+filtered_data     =>  filtered_data(2),
+control_i         =>  pidcontrol,
+valid_i           =>  filter_valid,
+enable_i          =>  enable,
+polarity_i        =>  polarity,
+hold_i            =>  hold_i,
+gains             =>  gains_reg,
+valid_o           =>  valid_o,
+control_signal_o  =>  control_inphase
+);
+-- Expand manual data to a signed 11 bit value
+pwm_data_exp <= signed(std_logic_vector(resize(pwm_data(2),PWM_EXP_WIDTH)));
+-- Sum expanded manual data and control data
+pwm_sum <= pwm_data_exp + resize(control_inphase,PWM_EXP_WIDTH);
+-- Parse limits, expand to 11 bits as signed values
+pwm_min <= signed(resize(unsigned(pwm_limit_reg(PWM_DATA_WIDTH - 1 downto 0)),PWM_EXP_WIDTH));
+pwm_max <= signed(resize(unsigned(pwm_limit_reg(2*PWM_DATA_WIDTH - 1 downto PWM_DATA_WIDTH)),PWM_EXP_WIDTH));
+-- Limit the summed manual and control values to their max/min limits
+pwm_limit <=    pwm_sum when pwm_sum < pwm_max and pwm_sum > pwm_min else
+                pwm_max when pwm_sum >= pwm_max else
+                pwm_min when pwm_sum <= pwm_min;
 
 --
 -- Collect demodulated data at lower sampling rate in FIFO buffers
@@ -276,7 +356,10 @@ bus_m.data <= writeData_i;
 readData_o <= bus_s.data;
 resp_o <= bus_s.resp;
 
-Parse: process(sysClk,aresetn) is
+-- Assigning the ouput control signal to pwm output values
+
+
+Parse: process(sysClk,aresetn, clk) is
 begin
     if aresetn = '0' then
         comState <= idle;
@@ -290,6 +373,8 @@ begin
         --dds2 
         dds2_phase_off_reg <= (others => '0');
         pwmReg <= (others => '0');
+        gains_reg <= (others => '0');
+        combined_input_reg <= (others => '0');
        -- new_register <= (others => '0'); -- dds2
         --
         -- FIFO registers
@@ -334,6 +419,10 @@ begin
                             when X"000018" => rw(bus_m,bus_s,comState,dds_phase_off_reg);
                             when X"000020" => rw(bus_m,bus_s,comState,dds2_phase_off_reg);
                             when X"00002C" => rw(bus_m,bus_s,comState,pwmReg);
+                            
+                            when X"000030" => rw(bus_m,bus_s,comState,gains_reg);
+                            when X"000034" => rw(bus_m,bus_s,comState,combined_input_reg);
+                            when X"000038" => rw(bus_m,bus_s,comState,pwm_limit_reg);
 
                             --
                             -- FIFO control and data retrieval
@@ -343,15 +432,10 @@ begin
                             when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
                             when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
                             when X"000094" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(3).s);
---                            when X"000088" | X"00008C" | X"000090" | X"000094" =>
---                                for I in 0 to NUM_FIFOS - 1 loop
---                                    if bus_m.addr(23 downto 0) = X"000088" + 4*I then
---                                        fifoRead(bus_m,bus_s,comState,fifo_bus(I).m,fifo_bus(I).s);
---                                    end if;
---                                end loop;
---                            for I in 0 to NUM_FIFOS - 1 loop
---                                when X"000084" + 4*I => fifoRead(bus_m,bus_s,comState,fifo_bus(I).m,fifo_bus(I).s);
---                            end loop;
+                            
+                            when X"010000" => readOnly(bus_m,bus_s,comState,control_inphase);
+                            when X"010004" => readOnly(bus_m,bus_s,comState,pwm_sum);
+                            when X"010008" => readOnly(bus_m,bus_s,comState,pwm_limit);
                             --
                             -- Memory signals
                             --

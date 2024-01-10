@@ -66,7 +66,7 @@ zero_crossing_voltage = nlf.c(3,1);
 d.pwm(3).set(zero_crossing_voltage).write;
 
 %% Scan over DC1 and 1f demodulation phase
-data4 = zeros(numel(V),numel(ph),3);
+data4 = zeros(numel(V),numel(ph),4);
 tic;
 for row = 1:numel(V)
     fprintf('%d/%d\n',row,numel(V));

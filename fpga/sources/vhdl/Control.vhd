@@ -19,12 +19,11 @@ entity Control is
         aresetn         :   in  std_logic;
         -- Inputs
        -- meas_i          :   in t_phase
-        filterData_i    :   in  t_phase;
-        control_i       :   in  t_phase;
+        filtered_data    :   in t_meas;
+        control_i       :   in  t_meas;
         valid_i         :   in  std_logic;
         --
         -- Parameters
-        --
         enable_i        :   in  std_logic;
         polarity_i      :   in  std_logic;
         hold_i          :   in  std_logic;
@@ -34,7 +33,7 @@ entity Control is
         --
         valid_o         :   out std_logic;
         --data_o          : out t_phase;
-        pidData_o          :   out t_phase
+        control_signal_o  : out signed(PWM_DATA_WIDTH -1 downto 0) 
     );
 end Control;
 
@@ -43,14 +42,14 @@ architecture Behavioral of Control is
 COMPONENT PIDmultipliers
   PORT (
     CLK : IN STD_LOGIC;
-    A : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
-    B : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
-    P : OUT STD_LOGIC_VECTOR(23 DOWNTO 0) 
+    A : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+    B : IN STD_LOGIC_VECTOR(25 DOWNTO 0);
+    P : OUT STD_LOGIC_VECTOR(33 DOWNTO 0) 
   );
 END COMPONENT; 
 
 constant MULT_LATENCY   :   natural :=  3;
-constant EXP_WIDTH      :   natural :=  28;
+constant EXP_WIDTH      :   natural :=  26;
 constant GAIN_WIDTH     :   natural :=  8;
 constant PHASE_WIDTH    :   natural :=  6;
 constant MULT_WIDTH     :   natural :=  EXP_WIDTH + GAIN_WIDTH;
@@ -75,7 +74,6 @@ signal pidSum, pidAccumulate    :   t_mult_local;
 
 signal valid_p                  :   std_logic_vector(7 downto 0);
 
-
 begin
 
 kp <= gains(7 downto 0);
@@ -85,8 +83,8 @@ divisor <= to_integer(unsigned(gains(31 downto 24)));
 --
 -- Resize inputs
 --
-measurement <= resize(signed(filterData_i),measurement'length);
-control <= resize(signed(control_i),control'length);
+measurement <= resize(filtered_data,measurement'length);
+control <= resize(control_i,control'length);
 --
 --
 prop_i <= err(0) - err(1);
@@ -126,7 +124,7 @@ begin
         valid_o <= '0';
         valid_p <= (others => '0');
         pidAccumulate <= (others => '0');
-        pidData_o <= (others => '0');
+        control_signal_o <= (others => '0');
     elsif rising_edge(clk) then
         if enable_i = '1' then
             --
@@ -165,14 +163,14 @@ begin
             -- Produce output
             --
             if valid_p(1 + MULT_LATENCY) = '1' then
-                pidData_o <= resize(shift_right(unsigned(pidAccumulate),divisor),pidData_o'length);
+                control_signal_o <= resize(shift_right(pidAccumulate,divisor),control_signal_o'length);
             end if;
             valid_o <= valid_p(1 + MULT_LATENCY);
         else
             err <= (others => (others => '0'));
             valid_p <= (others => '0');
             pidAccumulate <= (others => '0');
-            pidData_o <= (others => '0');
+            control_signal_o <= (others => '0');
             valid_o <= '0';
         end if;
     end if;

@@ -92,6 +92,12 @@ procedure readOnly(
     signal bus_o    :   out     t_axi_bus_slave;
     signal state    :   inout   t_status;
     signal param    :   in      unsigned);
+    
+procedure readOnly(
+    signal bus_i    :   in      t_axi_bus_master;
+    signal bus_o    :   out     t_axi_bus_slave;
+    signal state    :   inout   t_status;
+    signal param    :   in      signed);
 
 procedure readOnly(
     signal bus_i    :   in      t_axi_bus_master;
@@ -224,6 +230,21 @@ begin
         else
             bus_o.data <= (AXI_DATA_WIDTH-1 downto param'length => '0') & std_logic_vector(param);
         end if;
+    end if;
+end readOnly;
+
+procedure readOnly(
+    signal bus_i    :   in      t_axi_bus_master;
+    signal bus_o    :   out     t_axi_bus_slave;
+    signal state    :   inout   t_status;
+    signal param    :   in      signed) is 
+begin
+    state <= finishing;
+    if bus_i.valid(1) = '0' then
+        bus_o.resp <= "11";
+    else
+        bus_o.resp <= "01";
+        bus_o.data <= std_logic_vector(resize(param,AXI_DATA_WIDTH));
     end if;
 end readOnly;
 
