@@ -200,7 +200,6 @@ signal memTrig      :   std_logic;
 --
 -- PID signals
 --
-signal clk                      : std_logic;
 signal pidcontrol               : t_meas;
 signal enable, polarity         : std_logic;
 signal valid_i, valid_o, hold_i : std_logic;
@@ -283,7 +282,7 @@ hold_i <= combined_input_reg(2);
 pidcontrol <= resize(signed(combined_input_reg(31 downto 16)),pidcontrol'length);
 PID_Control_0 : Control
 port map(
-clk               =>      clk,
+clk               =>      adcClk,
 aresetn           =>      aresetn,
 filtered_data     =>  filtered_data(2),
 control_i         =>  pidcontrol,
@@ -359,7 +358,7 @@ resp_o <= bus_s.resp;
 -- Assigning the ouput control signal to pwm output values
 
 
-Parse: process(sysClk,aresetn, clk) is
+Parse: process(sysClk,aresetn) is
 begin
     if aresetn = '0' then
         comState <= idle;

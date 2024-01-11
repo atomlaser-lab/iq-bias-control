@@ -81,3 +81,9 @@ When creating the project, use Vivado 2023.2.
 
 To create the project, clone the repository to a directory on your computer, open Vivado, navigate to the fpga/ directory (use `pwd` in the TCL console to determine your current directory and `cd` to navigate, just like in Bash), and then run `source make-project.tcl` which will create the project files under the directory `basic-project`.  If you want a different file name, open the `make-project.tcl` file and edit the line under the comment `# Set the project name`.  This should create the project with no errors.  It may not correctly assign the AXI addresses, so you will need to open the address editor and assign the `PS7/AXI_Parse_0/s_axi` interface the address range `0x4000_000` to `0x7fff_ffff`.
 
+# TODO
+Re-write software to use a PID controller module to simplify handling.
+
+Change read and write software to automatically determine what registers to write?
+
+Add diagnostic outputs to VHDL to see the value computed by the actuator and the output value.
