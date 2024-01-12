@@ -7,21 +7,26 @@ classdef DeviceControl < handle
     end
     
     properties(SetAccess = immutable)
-        conn
-        triggers
-        ext_o
-        adc
-        ext_i
-        led_o
-        phase_offset % added for DDS
-        phase_inc  % added for DDS
-        dds2_phase_offset % added for DDS2
-        log2_rate
-        cic_shift
-        numSamples
-        output_scale
-        pwm
-        
+        conn                    %Instance of CONNECTIONCLIENT used for communication with socket server
+        %
+        % All of these are DEVICEPARAMETER objects
+        %
+        triggers                %Triggers -- currently unused
+        ext_o                   %External output signals -- currently unused
+        adc                     %Read-only for getting current ADC values
+        ext_i                   %Read-only for getting current digital input values
+        led_o                   %LED control
+        phase_inc               %Modulation frequency [Hz]
+        phase_offset            %Phase offset for demodulation of fundamental [deg]
+        dds2_phase_offset       %Phase offset for demodulation at 2nd harmonic [deg]
+        log2_rate               %Log2(CIC filter rate)
+        cic_shift               %Log2(Additional digital gain after filter)
+        numSamples              %Number of samples to collect from recording raw ADC signals
+        output_scale            %Output scaling from 0 to 1
+        pwm                     %Array of 4 PWM outputs
+        pid                     %PID control, array of 3 IQBIasPID objects
+
+
         Kp
         Ki
         Kd
@@ -40,153 +45,155 @@ classdef DeviceControl < handle
     
     properties(SetAccess = protected)
         % R/W registers
-        trigReg
-        outputReg
-        inputReg
-        filterReg
-        adcReg
-        ddsPhaseOffsetReg 
-        ddsPhaseIncReg  
-        dds2PhaseOffsetReg 
-        numSamplesReg
-        pwmReg
-        auxReg
-        gains_reg
-        combined_input_reg
-        pwm_limit_reg
+        trigReg                 %Register for software trigger signals
+        outputReg               %Register for external output control (digital and LED)
+        inputReg                %UNUSED
+        filterReg               %Register for CIC filter control
+        adcReg                  %Read-only register for getting current ADC data
+        ddsPhaseIncReg          %Register for modulation frequency
+        ddsPhaseOffsetReg       %Register for phase offset at fundamental
+        dds2PhaseOffsetReg      %Register for phase offset at 2nd harmonic
+        numSamplesReg           %Register for storing number of samples of ADC data to fetch
+        pwmReg                  %Register for PWM signals
+        auxReg                  %Auxiliary register
+        pidRegs                 %Registers (3 x 3) for PID control
         
         %new_register % new register added here for dds2
     end
     
     properties(Constant)
         CLK = 125e6;
-        %HOST_ADDRESS = 'rp-f0919a.local';
-        HOST_ADDRESS = 'rp-f06a54.local';
+        DEFAULT_HOST = 'rp-f06a54.local';
         DAC_WIDTH = 14;
         ADC_WIDTH = 14;
         DDS_WIDTH = 32;
         PARAM_WIDTH = 32;
+        PWM_WIDTH = 10;
+        NUM_PWM = 3;
+        NUM_PIDS = 3;
+        %
+        % Conversion values going from integer values to volts
+        %
         CONV_ADC_LV = 1.1851/2^(DeviceControl.ADC_WIDTH - 1);
         CONV_ADC_HV = 29.3570/2^(DeviceControl.ADC_WIDTH - 1);
-        
+        CONV_PWM = 1.6/(2^PWM_WIDTH - 1);
     end
     
     methods
         function self = DeviceControl(varargin)
+            %DEVICECONTROL Creates an instance of a DEVICECONTROL object.  Sets
+            %up the registers and parameters as instances of the correct
+            %classes with the necessary
+            %addressses/registers/limits/functions
+            %
+            %   SELF = DEVICECONTROL() creates an instance with default host
+            %   and port
+            %
+            %   SELF = DEVICECONTROL(HOST) creates an instance with socket
+            %   server host address HOST
+
             if numel(varargin)==1
                 self.conn = ConnectionClient(varargin{1});
             else
-                self.conn = ConnectionClient(self.HOST_ADDRESS);
+                self.conn = ConnectionClient(self.DEFAULT_HOST);
             end
-            
+            %
+            % Set jumper values
+            %
             self.jumpers = 'lv';
-            
-            % R/W registers
+            %
+            % Registers
+            %
             self.trigReg = DeviceRegister('0',self.conn);
             self.outputReg = DeviceRegister('4',self.conn);
-            %self.dacReg = DeviceRegister('8',self.conn);
             self.filterReg = DeviceRegister('8',self.conn);
-            self.adcReg = DeviceRegister('C',self.conn);
-            self.inputReg = DeviceRegister('10',self.conn);
+            self.adcReg = DeviceRegister('C',self.conn,true);
+            self.inputReg = DeviceRegister('10',self.conn,true);
             self.ddsPhaseIncReg = DeviceRegister('14',self.conn);
             self.ddsPhaseOffsetReg = DeviceRegister('18',self.conn);
             self.dds2PhaseOffsetReg = DeviceRegister('20',self.conn);
             self.pwmReg = DeviceRegister('2C',self.conn);
             self.numSamplesReg = DeviceRegister('100000',self.conn);
-            
-            self.gains_reg = DeviceRegister('30',self.conn); %$$$$$$$$$$$$$$
-            self.combined_input_reg = DeviceRegister('34',self.conn); %$$$$$$$$$$$
-            self.pwm_limit_reg = DeviceRegister('38',self.conn); %$$$$$$$$$$$$$$$$$
-            
+            %
+            % PID registers: there are 3 PIDs with IQBiasPID.NUM_REGS registers
+            % each, starting at address 0x000100
+            %
+            self.pidRegs = DeviceRegister.empty;
+            for row = 1:self.NUM_PIDS
+                for col = 1:IQBiasPID.NUM_REGS
+                    addr = 4*(col - 1) + dec2hex('100')*row;
+                    self.pidRegs(row,col) = DeviceRegister(addr,self.conn);
+                end
+            end
+            %
+            % Auxiliary register for all and sundry
+            %
             self.auxReg = DeviceRegister('100004',self.conn);
-            
-            
-            
-           % self.new_register = DeviceRegister('1C',self.conn); % added this new register
-            
-            % self.dac = DeviceParameter([0,15],self.dacReg,'int16')...
-            %     .setLimits('lower',-1,'upper',1)...
-            %     .setFunctions('to',@(x) x*(2^(self.DAC_WIDTH - 1) - 1),'from',@(x) x/(2^(self.DAC_WIDTH - 1) - 1));
-            % 
-            % self.dac(2) = DeviceParameter([16,31],self.dacReg,'int16')...
-            %     .setLimits('lower',-1,'upper',1)...
-            %     .setFunctions('to',@(x) x*(2^(self.DAC_WIDTH - 1) - 1),'from',@(x) x/(2^(self.DAC_WIDTH - 1) - 1));
-            % 
-
+            %
+            % Digital and LED input/output parameters
+            %
             self.ext_o = DeviceParameter([0,7],self.outputReg)...
                 .setLimits('lower',0,'upper',255);
+            self.ext_i = DeviceParameter([0,7],self.inputReg);
             self.led_o = DeviceParameter([8,15],self.outputReg)...
                 .setLimits('lower',0,'upper',255);
-            
+            %
+            % Current ADC values
+            %
             self.adc = DeviceParameter([0,15],self.adcReg,'int16')...
                 .setFunctions('to',@(x) self.convert2int(x),'from',@(x) self.convert2volts(x));
-            
             self.adc(2) = DeviceParameter([16,31],self.adcReg,'int16')...
                 .setFunctions('to',@(x) self.convert2int(x),'from',@(x) self.convert2volts(x));
-            
-            self.ext_i = DeviceParameter([0,7],self.inputReg);
-           
+            %
+            % Modulation settings
+            % 
             self.phase_inc = DeviceParameter([0,31],self.ddsPhaseIncReg,'uint32')...
-                 .setLimits('lower',0,'upper', 50e6)...
-                 .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
-            
+                .setLimits('lower',0,'upper', 50e6)...
+                .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
             self.phase_offset = DeviceParameter([0,31],self.ddsPhaseOffsetReg,'uint32')...
-                 .setLimits('lower',-360,'upper', 360)...
-                 .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
-
+                .setLimits('lower',-360,'upper', 360)...
+                .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
             self.dds2_phase_offset = DeviceParameter([0,31],self.dds2PhaseOffsetReg,'uint32')...
-                 .setLimits('lower',-360,'upper', 360)...
-                 .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
-
-            self.pwm = DeviceParameter.empty;
-            for nn = 1:3
-                self.pwm(nn) = DeviceParameter(10*(nn - 1) + [0,9],self.pwmReg)...
-                    .setLimits('lower',0,'upper',1.62)...
-                    .setFunctions('to',@(x) x/1.62*1023,'from',@(x) x/1023*1.62);
-            end
-          
-            self.log2_rate = DeviceParameter([0,3],self.filterReg,'uint32')...
-                .setLimits('lower',2,'upper',13);
-
-            self.cic_shift = DeviceParameter([4,7],self.filterReg,'uint32')...
-                .setLimits('lower',0,'upper',15);
+                .setLimits('lower',-360,'upper', 360)...
+                .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
             self.output_scale = DeviceParameter([16,23],self.filterReg,'uint32')...
                 .setLimits('lower',0,'upper',1)...
                 .setFunctions('to',@(x) x*(2^8 - 1),'from',@(x) x/(2^8 - 1));
-
+            %
+            % Filter settings
+            %
+            self.log2_rate = DeviceParameter([0,3],self.filterReg,'uint32')...
+                .setLimits('lower',2,'upper',13);
+            self.cic_shift = DeviceParameter([4,7],self.filterReg,'uint32')...
+                .setLimits('lower',0,'upper',15);
+            %
+            % PWM settings
+            %
+            self.pwm = DeviceParameter.empty;
+            for nn = 1:self.NUM_PWM
+                self.pwm(nn) = DeviceParameter(10*(nn - 1) + [0,9],self.pwmReg)...
+                    .setLimits('lower',0,'upper',1.62)...
+                    .setFunctions('to',@(x) x/self.CONV_PWM,'from',@(x) x/CONV_PWM);
+            end
+            %
+            % Number of samples for reading raw ADC data
+            %
             self.numSamples = DeviceParameter([0,11],self.numSamplesReg,'uint32')...
                 .setLimits('lower',0,'upper',2^12);
-            % ############################### feedback control
-            self.Kp = DeviceParameter([0,7],self.gains_reg,'uint32')...
-                .setLimits('lower',0,'upper',255);
-            self.Ki = DeviceParameter([8,15],self.gains_reg,'uint32')...
-                .setLimits('lower',0,'upper',255);
-            self.Kd = DeviceParameter([16,23],self.gains_reg,'uint32')...
-                .setLimits('lower',0,'upper',255);
-            self.divisor = DeviceParameter([24,31],self.gains_reg,'uint32')...
-                .setLimits('lower',0,'upper',255);
-            
-            self.pid_enable = DeviceParameter([0,0],self.combined_input_reg,'uint32')...
-                .setLimits('lower',0,'upper',1);
-            self.pid_polarity = DeviceParameter([1,1],self.combined_input_reg,'uint32')...
-                .setLimits('lower',0,'upper',1);
-            self.pid_hold = DeviceParameter([2,2],self.combined_input_reg,'uint32')...
-                .setLimits('lower',0,'upper',1);
-            self.pid_control = DeviceParameter([16,31],self.combined_input_reg,'int16')...
-                .setLimits('lower',-2^14,'upper',2^14);
-            
-            self.pwm_lower_limit = DeviceParameter([0,9],self.pwm_limit_reg,'uint32')...
-                .setLimits('lower',0,'upper',1.62)...
-                .setFunctions('to',@(x) x/1.62*1023,'from',@(x) x/1023*1.62);
-            self.pwm_upper_limit = DeviceParameter([10,19],self.pwm_limit_reg,'uint32')...
-                .setLimits('lower',0,'upper',1.62)...
-                .setFunctions('to',@(x) x/1.62*1023,'from',@(x) x/1023*1.62);
+            %
+            % PID settings
+            %
+            self.pid = IQBiasPID.empty;
+            for row = 1:self.NUM_PIDS
+                self.pid(row,1) = IQBiasPID(self,self.pidRegs(row,:));
+            end
             
         end
         
         function self = setDefaults(self,varargin)
-           % self.dac(1).set(0);
-            %self.dac(2).set(0);
+            %SETDEFAULTS Sets parameter values to their defaults
+            %
+            %   SELF = SETDEFAULTS(SELF) sets default values for SELF
              self.ext_o.set(0);
              self.led_o.set(0);
              self.phase_inc.set(1e6); 
@@ -199,16 +206,9 @@ classdef DeviceControl < handle
              self.cic_shift.set(0);
              self.output_scale.set(1);
              self.numSamples.set(4000);
-             self.Kp.set(0);
-             self.Ki.set(0);
-             self.Kd.set(0);
-             self.divisor.set(0);
-             self.pid_enable.set(0);
-             self.pid_polarity.set(0);
-             self.pid_hold.set(0);
-             self.pid_control.set(0);
-             self.pwm_lower_limit.set(0);
-             self.pwm_upper_limit.set(1.6);
+             for nn = 1:numel(self.pid)
+                self.pid(nn).setDefaults();
+             end
             
              self.auto_retry = true;
         end
@@ -217,7 +217,7 @@ classdef DeviceControl < handle
             %DT Returns the current sampling time based on the filter
             %settings
             %
-            %   R = DT(SELF) returns sampling time R for LASERSERVO object
+            %   R = DT(SELF) returns sampling time R for DEVICECONTROL object
             %   SELF
             r = 2^(self.log2_rate.value)/self.CLK;
         end
@@ -239,18 +239,25 @@ classdef DeviceControl < handle
             %
             % Get all write data
             %
-            d = [self.outputReg.getWriteData;
-              self.filterReg.getWriteData;
-              self.ddsPhaseIncReg.getWriteData;
-              self.ddsPhaseOffsetReg.getWriteData;
-              self.dds2PhaseOffsetReg.getWriteData;
-              self.pwmReg.getWriteData;
-              self.numSamplesReg.getWriteData;
-              self.gains_reg.getWriteData;
-              self.combined_input_reg.getWriteData;
-              self.pwm_limit_reg.getWriteData];
-            d = d';
-            d = d(:);
+            p = properties(self);
+            d = [];
+            for nn = 1:numel(p)
+                if isa(self.(p{nn}),'DeviceRegister') && ~self.(p{nn}).read_only
+                    d = [d;self.(p{nn}).getWriteData]; %#ok<*AGROW> 
+                end
+            end
+%             d = [self.outputReg.getWriteData;
+%               self.filterReg.getWriteData;
+%               self.ddsPhaseIncReg.getWriteData;
+%               self.ddsPhaseOffsetReg.getWriteData;
+%               self.dds2PhaseOffsetReg.getWriteData;
+%               self.pwmReg.getWriteData;
+%               self.numSamplesReg.getWriteData;
+%               self.gains_reg.getWriteData;
+%               self.combined_input_reg.getWriteData;
+%               self.pwm_limit_reg.getWriteData];
+%             d = d';
+%             d = d(:);
             %
             % Write every register using the same connection
             %
@@ -267,72 +274,89 @@ classdef DeviceControl < handle
             % Get addresses to read from for each register and get data
             % from device
             %
-            d = [self.outputReg.getReadData;
-                 self.inputReg.getReadData;
-                 self.filterReg.getReadData;
-                 self.ddsPhaseIncReg.getReadData;
-                 self.ddsPhaseOffsetReg.getReadData;
-                 self.dds2PhaseOffsetReg.getReadData;
-                 self.pwmReg.getReadData;
-                 self.numSamplesReg.getReadData;
-                 self.gains_reg.getReadData;
-                 self.combined_input_reg.getReadData;
-                 self.pwm_limit_reg.getReadData];
+            p = properties(self);
+            pread = {};
+            d = [];
+            for nn = 1:numel(p)
+                if isa(self.(p{nn}),'DeviceRegister')
+                    d = [d;self.(p{nn}).getReadData]; %#ok<*AGROW> 
+                    pread{end + 1} = p{nn};
+                end
+            end
+%             d = [self.outputReg.getReadData;
+%                  self.inputReg.getReadData;
+%                  self.filterReg.getReadData;
+%                  self.ddsPhaseIncReg.getReadData;
+%                  self.ddsPhaseOffsetReg.getReadData;
+%                  self.dds2PhaseOffsetReg.getReadData;
+%                  self.pwmReg.getReadData;
+%                  self.numSamplesReg.getReadData;
+%                  self.gains_reg.getReadData;
+%                  self.combined_input_reg.getReadData;
+%                  self.pwm_limit_reg.getReadData];
             self.conn.write(d,'mode','read');
             value = self.conn.recvMessage;
             %
             % Parse the received data in the same order as the addresses
             % were written
             %
-            self.outputReg.value = value(1);
-            self.inputReg.value = value(2);
-            self.filterReg.value = value(3);
-            self.ddsPhaseIncReg.value = value(4);
-            self.ddsPhaseOffsetReg.value = value(5);
-            self.dds2PhaseOffsetReg.value = value(6);
-            self.pwmReg.value = value(7);
-            self.numSamplesReg.value = value(8);
-            self.gains_reg.value = value(9);
-            self.combined_input_reg.value = value(10);
-            self.pwm_limit_reg.value = value(11);
+            for nn = 1:numel(pread)
+                self.(pread{nn}).value = value(nn);
+            end
+%             self.outputReg.value = value(1);
+%             self.inputReg.value = value(2);
+%             self.filterReg.value = value(3);
+%             self.ddsPhaseIncReg.value = value(4);
+%             self.ddsPhaseOffsetReg.value = value(5);
+%             self.dds2PhaseOffsetReg.value = value(6);
+%             self.pwmReg.value = value(7);
+%             self.numSamplesReg.value = value(8);
+%             self.gains_reg.value = value(9);
+%             self.combined_input_reg.value = value(10);
+%             self.pwm_limit_reg.value = value(11);
             %
             % Read parameters from registers
             %
-            self.ext_o.get;
-            self.led_o.get;
-            self.ext_i.get;
-            
-            for nn = 1:numel(self.adc)
-                self.adc(nn).get;
+            for nn = 1:numel(p)
+                if isa(self.(p{nn}),'DeviceParameter')
+                    self.(p{nn}).get;
+                end
             end
-            self.phase_offset.get; 
-            self.phase_inc.get;  
-            self.dds2_phase_offset.get; 
-
-            for nn = 1:numel(self.pwm)
-                self.pwm(nn).get;
-            end
-
-            self.log2_rate.get;
-            self.cic_shift.get;
-            self.output_scale.get;
-            self.numSamples.get;
-            self.Kp.get;
-            self.Ki.get;
-            self.Kd.get;
-            self.divisor.get;
-            self.pid_enable.get;
-            self.pid_polarity.get;
-            self.pid_hold.get;
-            self.pid_control.get;
-            self.pwm_lower_limit.get;
-            self.pwm_upper_limit.get;
+%             self.ext_o.get;
+%             self.led_o.get;
+%             self.ext_i.get;
+%             
+%             for nn = 1:numel(self.adc)
+%                 self.adc(nn).get;
+%             end
+%             self.phase_offset.get; 
+%             self.phase_inc.get;  
+%             self.dds2_phase_offset.get; 
+% 
+%             for nn = 1:numel(self.pwm)
+%                 self.pwm(nn).get;
+%             end
+% 
+%             self.log2_rate.get;
+%             self.cic_shift.get;
+%             self.output_scale.get;
+%             self.numSamples.get;
+%             self.Kp.get;
+%             self.Ki.get;
+%             self.Kd.get;
+%             self.divisor.get;
+%             self.pid_enable.get;
+%             self.pid_polarity.get;
+%             self.pid_hold.get;
+%             self.pid_control.get;
+%             self.pwm_lower_limit.get;
+%             self.pwm_upper_limit.get;
             
         end
 
         function self = memoryReset(self)
             %MEMORYRESET Resets the two block memories
-            
+            self.auxReg.addr = '100004';
             self.auxReg.write;
         end
         
@@ -400,13 +424,6 @@ classdef DeviceControl < handle
             %   samples from the device SELF
             %
             %   SELF = GETRAM(SELF,N) Retrieves N samples from device
-            
-%             if nargin < 2
-%                 self.conn.keepAlive = true;
-%                 self.lastSample(1).read;
-%                 self.conn.keepAlive = false;
-%                 numSamples = self.lastSample(1).value;
-%             end
             self.numSamples.set(numSamples).write;
             self.trigReg.set(1,[0,0]).write;
             self.trigReg.set(0,[0,0]);
@@ -472,40 +489,33 @@ classdef DeviceControl < handle
             self.ddsPhaseOffsetReg.print('phaseOffsetReg',strwidth);
             self.dds2PhaseOffsetReg.print('dds2phaseOffsetReg',strwidth);
             self.pwmReg.print('pwmReg',strwidth);
-            self.gains_reg.print('gains_reg',strwidth);
-            self.combined_input_reg.print('combined_input_reg',strwidth);
-            self.pwm_limit_reg.print('pwm_limit_reg',strwidth);
-           % self.new_register.print('new_register',strwidth);
-
+            self.pidRegs.print('pidRegs',strwidth);
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Parameters\n');
-             self.led_o.print('LEDs',strwidth,'%02x');
-             self.ext_o.print('External output',strwidth,'%02x');
-             self.ext_i.print('External input',strwidth,'%02x');
-             %self.dac(1).print('DAC 1',strwidth,'%.3f');
-             %self.dac(2).print('DAC 2',strwidth,'%.3f');
-             self.adc(1).print('ADC 1',strwidth,'%.3f');
-             self.adc(2).print('ADC 2',strwidth,'%.3f');
-             self.phase_inc.print('Phase Increment',strwidth,'%.3e');
-             self.phase_offset.print('Phase Offset',strwidth,'%.3f');
-             self.dds2_phase_offset.print('dds2 Phase Offset',strwidth,'%.3f');
-             for nn = 1:numel(self.pwm)
+            
+            self.led_o.print('LEDs',strwidth,'%02x');
+            self.ext_o.print('External output',strwidth,'%02x');
+            self.ext_i.print('External input',strwidth,'%02x');
+            self.adc(1).print('ADC 1',strwidth,'%.3f');
+            self.adc(2).print('ADC 2',strwidth,'%.3f');
+            self.phase_inc.print('Phase Increment',strwidth,'%.3e');
+            self.phase_offset.print('Phase Offset',strwidth,'%.3f');
+            self.dds2_phase_offset.print('dds2 Phase Offset',strwidth,'%.3f');
+            for nn = 1:numel(self.pwm)
                 self.pwm(nn).print(sprintf('PWM %d',nn),strwidth,'%.3f');
-             end
-             self.log2_rate.print('Log2 Rate',strwidth,'%.0f');
-             self.cic_shift.print('CIC shift',strwidth,'%.0f');
-             self.output_scale.print('Output scale',strwidth,'%.3f');
-             self.Kp.print('Kp',strwidth,'%.0f');
-             self.Ki.print('Ki',strwidth,'%.0f');
-             self.Kd.print('Kd',strwidth,'%.0f');
-             self.divisor.print('divisor',strwidth,'%.0f');
-             self.pid_enable.print('PID enable',strwidth,'%.0f');
-             self.pid_polarity.print('PID polarity',strwidth,'%.0f');
-             self.pid_hold.print('PID hold',strwidth,'%.0f');
-             self.pid_control.print('PID control',strwidth,'%.0f');
-             self.pwm_lower_limit.print('PWM lower limit',strwidth,'%.3f');
-             self.pwm_upper_limit.print('PWM upper limit',strwidth,'%.3f');
-             
+            end
+            self.log2_rate.print('Log2 Rate',strwidth,'%.0f');
+            self.cic_shift.print('CIC shift',strwidth,'%.0f');
+            self.output_scale.print('Output scale',strwidth,'%.3f');
+            fprintf(1,'\t ----------------------------------\n');
+            fprintf(1,'\t PID 1 Parameters\n');
+            self.pid(1).print(strwidth);
+            fprintf(1,'\t ----------------------------------\n');
+            fprintf(1,'\t PID 2 Parameters\n');
+            self.pid(2).print(strwidth);
+            fprintf(1,'\t ----------------------------------\n');
+            fprintf(1,'\t PID 3 Parameters\n');
+            self.pid(3).print(strwidth); 
         end
         
         

@@ -160,11 +160,15 @@ signal dds_regs             :   t_param_reg_array(2 downto 0);
 signal pwmReg               :   t_param_reg;
 -- FIFO register
 signal fifoReg              :   t_param_reg;
+-- PID registers
+signal pid1_regs            :   t_param_reg_array(2 downto 0);
+signal pid2_regs            :   t_param_reg_array(2 downto 0);
+signal pid3_regs            :   t_param_reg_array(2 downto 0);
 
-signal gains_reg            : t_param_reg;
--- register for pidcontrol, polarity and enable signals
-signal combined_input_reg   : t_param_reg;
-signal pwm_limit_reg        :   t_param_reg;
+-- signal gains_reg            : t_param_reg;
+-- -- register for pidcontrol, polarity and enable signals
+-- signal combined_input_reg   : t_param_reg;
+-- signal pwm_limit_reg        :   t_param_reg;
 
 --
 -- DDS signals
@@ -188,6 +192,25 @@ signal fifoValid            :   std_logic_vector(NUM_FIFOS - 1 downto 0);
 signal fifo_bus             :   t_fifo_bus_array(NUM_FIFOS - 1 downto 0)  :=  (others => INIT_FIFO_BUS);
 signal enableFIFO           :   std_logic;
 signal fifoReset            :   std_logic;
+-- type t_fifo_route is (fifo_demod,fifo_pid_out,fifo_pwm_out,fifo_no_output);
+-- type t_fifo_route_array is array(natural range <>) of t_fifo_route;
+-- signal fifoRoute            :   t_fifo_route_array(NUM_FIFOS - 1 downto 0);
+
+-- function convert_fifo_route(s : std_logic_vector(1 downto 0)) return t_fifo_route is
+--     variable result :   t_fifo_route;
+-- begin
+--     if s = X"0" then
+--         result := fifo_demod;
+--     elsif s = X"1" then
+--         result := fifo_pid_out;
+--     elsif s = X"2" then
+--         result := fifo_pwm_out;
+--     else
+--         result := no_output;
+--     end if;
+--     return result;
+-- end convert_fifo_route;
+
 --
 -- Memory signals
 --
@@ -276,31 +299,31 @@ port map(
 --
 -- Apply feedback
 --
-enable <= combined_input_reg(0);
-polarity <= combined_input_reg(1);
-hold_i <= combined_input_reg(2);
-pidcontrol <= resize(signed(combined_input_reg(31 downto 16)),pidcontrol'length);
+enable <= pid3_regs(0)(0);
+polarity <= pid3_regs(0)(1);
+hold_i <= pid3_regs(0)(2);
+pidcontrol <= resize(signed(pid3_regs(0)(31 downto 16)),pidcontrol'length);
 PID_Control_0 : Control
-port map(
-clk               =>      adcClk,
-aresetn           =>      aresetn,
-filtered_data     =>  filtered_data(2),
-control_i         =>  pidcontrol,
-valid_i           =>  filter_valid,
-enable_i          =>  enable,
-polarity_i        =>  polarity,
-hold_i            =>  hold_i,
-gains             =>  gains_reg,
-valid_o           =>  valid_o,
-control_signal_o  =>  control_inphase
+    port map(
+    clk               =>  adcClk,
+    aresetn           =>  aresetn,
+    filtered_data     =>  filtered_data(2),
+    control_i         =>  pidcontrol,
+    valid_i           =>  filter_valid,
+    enable_i          =>  enable,
+    polarity_i        =>  polarity,
+    hold_i            =>  hold_i,
+    gains             =>  pid3_regs(1),
+    valid_o           =>  valid_o,
+    control_signal_o  =>  control_inphase
 );
 -- Expand manual data to a signed 11 bit value
 pwm_data_exp <= signed(std_logic_vector(resize(pwm_data(2),PWM_EXP_WIDTH)));
 -- Sum expanded manual data and control data
 pwm_sum <= pwm_data_exp + resize(control_inphase,PWM_EXP_WIDTH);
 -- Parse limits, expand to 11 bits as signed values
-pwm_min <= signed(resize(unsigned(pwm_limit_reg(PWM_DATA_WIDTH - 1 downto 0)),PWM_EXP_WIDTH));
-pwm_max <= signed(resize(unsigned(pwm_limit_reg(2*PWM_DATA_WIDTH - 1 downto PWM_DATA_WIDTH)),PWM_EXP_WIDTH));
+pwm_min <= signed(resize(unsigned(pid3_regs(2)(PWM_DATA_WIDTH - 1 downto 0)),PWM_EXP_WIDTH));
+pwm_max <= signed(resize(unsigned(pid3_regs(2)(2*PWM_DATA_WIDTH - 1 downto PWM_DATA_WIDTH)),PWM_EXP_WIDTH));
 -- Limit the summed manual and control values to their max/min limits
 pwm_limit <=    pwm_sum when pwm_sum < pwm_max and pwm_sum > pwm_min else
                 pwm_max when pwm_sum >= pwm_max else
@@ -382,9 +405,6 @@ begin
         for I in 0 to NUM_FIFOS - 1 loop
             fifo_bus(I).m.status <= idle;
         end loop;
-        -- fifo_bus(0).m.status <= idle;
-        -- fifo_bus(1).m.status <= idle;
-        -- fifo_bus(2).m.status <= idle;
         --
         -- Memory signals
         --
@@ -418,10 +438,20 @@ begin
                             when X"000018" => rw(bus_m,bus_s,comState,dds_phase_off_reg);
                             when X"000020" => rw(bus_m,bus_s,comState,dds2_phase_off_reg);
                             when X"00002C" => rw(bus_m,bus_s,comState,pwmReg);
-                            
-                            when X"000030" => rw(bus_m,bus_s,comState,gains_reg);
-                            when X"000034" => rw(bus_m,bus_s,comState,combined_input_reg);
-                            when X"000038" => rw(bus_m,bus_s,comState,pwm_limit_reg);
+                            --
+                            -- PID registers
+                            --
+                            when X"000100" => rw(bus_m,bus_s,comState,pid1_regs(0));
+                            when X"000104" => rw(bus_m,bus_s,comState,pid1_regs(1));
+                            when X"000108" => rw(bus_m,bus_s,comState,pid1_regs(2));
+
+                            when X"000200" => rw(bus_m,bus_s,comState,pid2_regs(0));
+                            when X"000204" => rw(bus_m,bus_s,comState,pid2_regs(1));
+                            when X"000208" => rw(bus_m,bus_s,comState,pid2_regs(2));
+
+                            when X"000300" => rw(bus_m,bus_s,comState,pid3_regs(0));
+                            when X"000304" => rw(bus_m,bus_s,comState,pid3_regs(1));
+                            when X"000308" => rw(bus_m,bus_s,comState,pid3_regs(2));
 
                             --
                             -- FIFO control and data retrieval
@@ -431,7 +461,9 @@ begin
                             when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
                             when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
                             when X"000094" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(3).s);
-                            
+                            --
+                            -- Debugging output values
+                            --
                             when X"010000" => readOnly(bus_m,bus_s,comState,control_inphase);
                             when X"010004" => readOnly(bus_m,bus_s,comState,pwm_sum);
                             when X"010008" => readOnly(bus_m,bus_s,comState,pwm_limit);

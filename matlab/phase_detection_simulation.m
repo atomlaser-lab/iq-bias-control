@@ -51,11 +51,11 @@ elseif strcmpi(NamedArgs.mode,'diff')
 else
     error('Unrecognized mode options');
 end
-
+ph_err = 0;
 E1 = 0.5*exp(1i*mod_depth*sin(mod_freq*t) + 1i*ph1);
 E2 = 0.5*exp(1i*mod_depth*sin(mod_freq*t + pi) + 1i*ph2);
-E3 = 0.5*exp(1i*mod_depth*sin(mod_freq*t + pi/2) + 1i*ph3);
-E4 = 0.5*exp(1i*mod_depth*sin(mod_freq*t + 3*pi/2) + 1i*ph4);
+E3 = 0.5*exp(1i*mod_depth*sin(mod_freq*t + pi/2 + ph_err) + 1i*ph3);
+E4 = 0.5*exp(1i*mod_depth*sin(mod_freq*t + 3*pi/2 + ph_err) + 1i*ph4);
 
 EA = 1/sqrt(2)*(E1 + E2);
 EB = 1/sqrt(2)*(E3 + E4);
