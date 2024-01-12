@@ -25,22 +25,6 @@ classdef DeviceControl < handle
         output_scale            %Output scaling from 0 to 1
         pwm                     %Array of 4 PWM outputs
         pid                     %PID control, array of 3 IQBIasPID objects
-
-
-        Kp
-        Ki
-        Kd
-        divisor
-        
-        pid_enable
-        pid_polarity
-        pid_hold
-        pid_control
-        
-        pwm_lower_limit
-        pwm_upper_limit
-      
-
     end
     
     properties(SetAccess = protected)
@@ -76,7 +60,7 @@ classdef DeviceControl < handle
         %
         CONV_ADC_LV = 1.1851/2^(DeviceControl.ADC_WIDTH - 1);
         CONV_ADC_HV = 29.3570/2^(DeviceControl.ADC_WIDTH - 1);
-        CONV_PWM = 1.6/(2^PWM_WIDTH - 1);
+        CONV_PWM = 1.6/(2^DeviceControl.PWM_WIDTH - 1);
     end
     
     methods
@@ -119,9 +103,9 @@ classdef DeviceControl < handle
             % each, starting at address 0x000100
             %
             self.pidRegs = DeviceRegister.empty;
-            for row = 1:self.NUM_PIDS
-                for col = 1:IQBiasPID.NUM_REGS
-                    addr = 4*(col - 1) + dec2hex('100')*row;
+            for col = 1:self.NUM_PIDS
+                for row = 1:IQBiasPID.NUM_REGS
+                    addr = 4*(row - 1) + hex2dec('100')*col;
                     self.pidRegs(row,col) = DeviceRegister(addr,self.conn);
                 end
             end
@@ -164,8 +148,8 @@ classdef DeviceControl < handle
             %
             self.log2_rate = DeviceParameter([0,3],self.filterReg,'uint32')...
                 .setLimits('lower',2,'upper',13);
-            self.cic_shift = DeviceParameter([4,7],self.filterReg,'uint32')...
-                .setLimits('lower',0,'upper',15);
+            self.cic_shift = DeviceParameter([4,7],self.filterReg,'int8')...
+                .setLimits('lower',-7,'upper',7);
             %
             % PWM settings
             %
@@ -173,7 +157,7 @@ classdef DeviceControl < handle
             for nn = 1:self.NUM_PWM
                 self.pwm(nn) = DeviceParameter(10*(nn - 1) + [0,9],self.pwmReg)...
                     .setLimits('lower',0,'upper',1.62)...
-                    .setFunctions('to',@(x) x/self.CONV_PWM,'from',@(x) x/CONV_PWM);
+                    .setFunctions('to',@(x) x/self.CONV_PWM,'from',@(x) x*self.CONV_PWM);
             end
             %
             % Number of samples for reading raw ADC data
@@ -184,8 +168,8 @@ classdef DeviceControl < handle
             % PID settings
             %
             self.pid = IQBiasPID.empty;
-            for row = 1:self.NUM_PIDS
-                self.pid(row,1) = IQBiasPID(self,self.pidRegs(row,:));
+            for nn = 1:self.NUM_PIDS
+                self.pid(nn,1) = IQBiasPID(self,self.pidRegs(:,nn));
             end
             
         end
@@ -242,8 +226,21 @@ classdef DeviceControl < handle
             p = properties(self);
             d = [];
             for nn = 1:numel(p)
-                if isa(self.(p{nn}),'DeviceRegister') && ~self.(p{nn}).read_only
-                    d = [d;self.(p{nn}).getWriteData]; %#ok<*AGROW> 
+                if isa(self.(p{nn}),'DeviceRegister')
+                    R = self.(p{nn});
+                    if numel(R) == 1
+                        if ~R.read_only
+                            d = [d;self.(p{nn}).getWriteData]; %#ok<*AGROW>
+                        end
+                    else
+                        for row = 1:size(R,1)
+                            for col = 1:size(R,2)
+                                if ~R(row,col).read_only
+                                    d = [d;R(row,col).getWriteData];
+                                end
+                            end
+                        end
+                    end
                 end
             end
 %             d = [self.outputReg.getWriteData;
@@ -256,8 +253,8 @@ classdef DeviceControl < handle
 %               self.gains_reg.getWriteData;
 %               self.combined_input_reg.getWriteData;
 %               self.pwm_limit_reg.getWriteData];
-%             d = d';
-%             d = d(:);
+            d = d';
+            d = d(:);
             %
             % Write every register using the same connection
             %
@@ -276,11 +273,25 @@ classdef DeviceControl < handle
             %
             p = properties(self);
             pread = {};
+            Rread = DeviceRegister.empty;
             d = [];
             for nn = 1:numel(p)
                 if isa(self.(p{nn}),'DeviceRegister')
-                    d = [d;self.(p{nn}).getReadData]; %#ok<*AGROW> 
-                    pread{end + 1} = p{nn};
+                    R = self.(p{nn});
+                    if numel(R) == 1
+                        d = [d;R.getReadData];
+                        Rread(end + 1) = R;
+                        pread{end + 1} = p{nn};
+                    else
+                        pread{end + 1} = p{nn};
+                        for row = 1:size(R,1)
+                            for col = 1:size(R,2)
+                                d = [d;R(row,col).getReadData];
+                                Rread(end + 1) = R(row,col);
+                            end
+                        end
+                    end
+                    
                 end
             end
 %             d = [self.outputReg.getReadData;
@@ -300,8 +311,18 @@ classdef DeviceControl < handle
             % Parse the received data in the same order as the addresses
             % were written
             %
-            for nn = 1:numel(pread)
-                self.(pread{nn}).value = value(nn);
+            for nn = 1:numel(value)
+                Rread(nn).value = value(nn);
+%                 R = self.(pread{nn});
+%                 if numel(R) == 1
+%                     R.value = value(nn);
+%                 else
+%                     for row = 1:size(R,1)
+%                         for col = 1:size(R,2)
+%                             R(row,col) = value(nn);
+%                         end
+%                     end
+%                 end
             end
 %             self.outputReg.value = value(1);
 %             self.inputReg.value = value(2);

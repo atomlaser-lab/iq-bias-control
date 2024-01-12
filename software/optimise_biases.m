@@ -70,7 +70,7 @@ data4 = zeros(numel(V),numel(ph),4);
 tic;
 for row = 1:numel(V)
     fprintf('%d/%d\n',row,numel(V));
-    d.pwm(1).set(V(row)).write;
+    d.pwm(2).set(V(row)).write;
     for col = 1:numel(ph)
         d.phase_offset.set(ph(col)).write;
         data4(row,col,:) = get_data_auto_retry(d,1e3);

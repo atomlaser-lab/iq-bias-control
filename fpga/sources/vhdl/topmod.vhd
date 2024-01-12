@@ -395,8 +395,12 @@ begin
         --dds2 
         dds2_phase_off_reg <= (others => '0');
         pwmReg <= (others => '0');
-        gains_reg <= (others => '0');
-        combined_input_reg <= (others => '0');
+        
+        for I in 0 to pid3_regs'length - 1 loop
+            pid1_regs(I) <= (others => '0');
+            pid2_regs(I) <= (others => '0');
+            pid3_regs(I) <= (others => '0');
+        end loop;
        -- new_register <= (others => '0'); -- dds2
         --
         -- FIFO registers
