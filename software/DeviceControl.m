@@ -148,7 +148,7 @@ classdef DeviceControl < handle
             %
             self.log2_rate = DeviceParameter([0,3],self.filterReg,'uint32')...
                 .setLimits('lower',2,'upper',13);
-            self.cic_shift = DeviceParameter([4,7],self.filterReg,'int8')...
+            self.cic_shift = DeviceParameter([4,11],self.filterReg,'int8')...
                 .setLimits('lower',-7,'upper',7);
             %
             % PWM settings
@@ -539,10 +539,62 @@ classdef DeviceControl < handle
             self.pid(3).print(strwidth); 
         end
         
+        function s = struct(self)
+            %STRUCT Returns a structure representing the data
+            %
+            %   S = STRUCT(SLEF) Returns structure S from current object
+            %   SELF
+            s.conn = self.conn.struct;
+            s.t = self.t;
+            s.data = self.data;
+            
+            p = properties(self);
+            for nn = 1:numel(p)
+                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasPID')
+                    s.(p{nn}) = self.(p{nn}).struct;
+                end
+            end
+        end
+        
+        function s = saveobj(self)
+            %SAVEOBJ Returns a structure used for saving data
+            %
+            %   S = SAVEOBJ(SELF) Returns structure S used for saving data
+            %   representing object SELF
+            s = self.struct;
+        end
+        
+        function self = loadstruct(self,s)
+            %LOADSTRUCT Loads a struct and copies properties to object
+            %
+            %   SELF = LOADSTRUCT(SELF,S) Copies properties from structure
+            %   S to SELF
+            self.t = s.t;
+            self.data = s.data;
+            p = properties(self);
+            for nn = 1:numel(p)
+                if isfield(s,p{nn})
+                    if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasPID')
+                        self.(p{nn}).loadstruct(s.(p{nn}));
+                    end
+                end
+            end
+        end
         
     end
 
     methods(Static)
+        function self = loadobj(s)
+            %LOADOBJ Creates a DEVIECCONTROL object using input structure
+            %
+            %   SELF = LOADOBJ(S) uses structure S to create new
+            %   DEVICECONTROL object SELF
+            self = DeviceControl(s.conn.host,s.conn.port);
+            self.setDefaults;
+            self.loadstruct(s);
+        end
+        
+        
         function d = convertData(raw)
             raw = raw(:);
             Nraw = numel(raw);
