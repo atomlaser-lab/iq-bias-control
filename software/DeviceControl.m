@@ -176,7 +176,7 @@ classdef DeviceControl < handle
             %
             self.fifo_route = DeviceParameter.empty;
             for nn = 1:4
-                self.fifo_route = DeviceParameter((4 + (nn - 1))*[1,1],self.outputReg,'uint32')...
+                self.fifo_route(nn) = DeviceParameter((16 + (nn - 1))*[1,1],self.outputReg,'uint32')...
                     .setLimits('lower',0,'upper',1);
             end
         end

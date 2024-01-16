@@ -85,7 +85,7 @@ component Demodulator is
         data_i          :   in  t_adc;
         dac_o           :   out t_dac_array(1 downto 0);
         filtered_data_o :   out t_meas_array(NUM_DEMOD_SIGNALS - 1 downto 0);
-        valid_o         :   out std_logic
+        valid_o         :   out std_logic_vector(NUM_DEMOD_SIGNALS - 1 downto 0)
     );
 end component;
 
@@ -172,7 +172,7 @@ signal pid_regs             :   t_pid_reg_array(2 downto 0);
 --
 signal dac_o                :   t_dac_array(1 downto 0);
 signal filtered_data        :   t_meas_array(3 downto 0);
-signal filter_valid         :   std_logic;
+signal filter_valid         :   std_logic_vector(3 downto 0);
 --
 -- ADC signals
 --
@@ -204,7 +204,7 @@ signal memTrig      :   std_logic;
 -- PID signals
 --
 signal pid_control              :   t_meas_array(2 downto 0);
-signal enable, polarity         :   std_logic_vector(2 downto 0);
+signal enable, polarity         :   std_logic_vector(3 downto 0);
 signal hold                     :   std_logic_vector(2 downto 0);
 --
 -- PWM signals
@@ -217,10 +217,10 @@ type t_pwm_signed_array is array(natural range <>) of signed(PWM_DATA_WIDTH - 1 
 signal pwm_data, pwm_data_i     :   t_pwm_array(3 downto 0);
 signal control_signal_o         :   t_pwm_signed_array(2 downto 0);
 signal pwm_data_exp             :   t_pwm_exp_array(2 downto 0);
-signal pwm_sum                  :   t_pwm_exp(2 downto 0);
+signal pwm_sum                  :   t_pwm_exp_array(2 downto 0);
 signal pwm_limit                :   t_pwm_exp_array(3 downto 0);
-signal pwm_max, pwm_min         :   t_pwm_exp(2 downto 0);
-signal control_valid            :   std_logic_vector(2 downto 0);
+signal pwm_max, pwm_min         :   t_pwm_exp_array(2 downto 0);
+signal control_valid            :   std_logic_vector(3 downto 0);
 
 begin
 
@@ -280,10 +280,10 @@ port map(
 -- Apply feedback
 --
 PID_GEN_X: for I in 0 to 2 generate
-    enable(I)       <= pid_regs(I)(0);
-    polarity(I)     <= pid_regs(I)(1);
-    hold(I)         <= pid_regs(I)(2);
-    pid_control(I)  <= resize(signed(pid_regs(I)(31 downto 16),t_meas'length));
+    enable(I)       <= pid_regs(I)(0)(0);
+    polarity(I)     <= pid_regs(I)(0)(1);
+    hold(I)         <= pid_regs(I)(0)(2);
+    pid_control(I)  <= resize(signed(pid_regs(I)(0)(31 downto 16)),t_meas'length);
     PID_Control_X : Control
     port map(
         clk               =>  adcClk,
@@ -312,6 +312,8 @@ PID_GEN_X: for I in 0 to 2 generate
 
 end generate PID_GEN_X;
 pwm_limit(3) <= (others => '0');
+control_valid(3) <= control_valid(2);
+enable(3) <= '0';
 
 --
 -- Collect demodulated data at lower sampling rate in FIFO buffers
@@ -322,7 +324,7 @@ fifoReset <= fifoReg(1);
 fifo_route <= outputReg(19 downto 16);
 FIFO_GEN: for I in 0 to NUM_FIFOS - 1 generate
     fifoData(I) <= std_logic_vector(resize(filtered_data(I),FIFO_WIDTH)) when fifo_route(I) = '0' else std_logic_vector(resize(pwm_limit(I),FIFO_WIDTH));
-    fifoValid(I) <= ((filter_valid and not(fifo_route(I))) or (control_valid(I) and fifo_route(I))) and enableFIFO;
+    fifoValid(I) <= ((filter_valid(I) and (not(fifo_route(I)) or not(enable(I)))) or (control_valid(I) and fifo_route(I) and enable(I))) and enableFIFO;
     PhaseMeas_FIFO_NORMAL_X: FIFOHandler
     port map(
         wr_clk      =>  adcClk,
@@ -450,12 +452,6 @@ begin
                             when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
                             when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
                             when X"000094" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(3).s);
-                            --
-                            -- Debugging output values
-                            --
-                            when X"010000" => readOnly(bus_m,bus_s,comState,control_inphase);
-                            when X"010004" => readOnly(bus_m,bus_s,comState,pwm_sum);
-                            when X"010008" => readOnly(bus_m,bus_s,comState,pwm_limit);
                             --
                             -- Memory signals
                             --

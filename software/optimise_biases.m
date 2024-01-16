@@ -84,15 +84,15 @@ plot(ph,range(data4(:,:,1),1),'o-');
 hold on
 plot(ph,range(data4(:,:,2),1),'sq-');
 xlabel('f demodulation phase [deg]');
-[~,idx] = max(range(data4(:,:,3),1));
-% nlf = nonlinfit(ph,range(data(:,:,3),1));
-% nlf.setFitFunc(@(A,ph0,x) A*abs(cosd(x - ph0)));
-% nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[-360,360,ph(idx)]);
-% nlf.fit;
-% hold on
-% plot(nlf.x,nlf.f(nlf.x),'--');
-% optimum_f_phase = nlf.c(2,1);
-% title(sprintf('Optimum 2f phase = %.1f',optimum_f_phase));
+[~,idx] = max(range(data4(:,:,1),1));
+nlf = nonlinfit(ph,range(data4(:,:,1),1));
+nlf.setFitFunc(@(A,ph0,x) A*abs(cosd(x - ph0)));
+nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[0,180,mod(ph(idx),180)]);
+nlf.fit;
+hold on
+plot(nlf.x,nlf.f(nlf.x),'--');
+optimum_f_phase = nlf.c(2,1);
+title(sprintf('Optimum 2f phase = %.1f',optimum_f_phase));
 % 
 % % Fix 1f demodulation phase
 % d.dds2_phase_offset.set(optimum_f_phase).write;
