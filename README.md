@@ -46,34 +46,43 @@ This project implements a digital bias controller for an IQ modulator running in
 
 Connect the OUT1 and OUT2 signals to the I and Q modulation ports (order doesn't matter) on the IQ modulator.  Make sure that the output voltages/powers are within the specified tolerances of the device.  The OUT1 and OUT2 signals are already 90 degrees out of phase, so they don't need to go through a 90 degree hybrid.  Measure the output laser power using a photodiode of sufficient bandwidth, amplify as necessary, and connect to the IN1 connector.  On the LV setting the IN1 input can only measure +/-1 V.  
 
-Connect the slow analog outputs 0-2 to the IQ modulator's DC biases.  You may need to amplify these signals (maximum output is 1.6 V) to get the right voltage range.  The slow analog outputs are pulse width modulation (PWM) outputs with a 250 MHz clock and 8 bits of resolution, so the PWM frequency is about 1 MHz.  You will likely want additional filtering on the outputs for driving the DC biases.
+Connect the slow analog outputs 0-2 to the IQ modulator's DC biases: see [this page](https://redpitaya.readthedocs.io/en/latest/developerGuide/hardware/125-14/extent.html) for the pinout.  You may need to amplify these signals (maximum output is 1.6 V) to get the right voltage range.  The slow analog outputs are pulse width modulation (PWM) outputs with a 250 MHz clock and 8 bits of resolution, so the PWM frequency is about 1 MHz.  You will likely want additional filtering on the outputs for driving the DC biases.
 
 # Using the GUI
 
-The GUI is best way to control the device.  There are three categories of device settings plus the application settings.
+The GUI is best way to control the device.  There are four categories of device settings plus the application settings.
+
+![Example GUI](gui-picture.png)
 
 ## Acquisition Settings
 
-The idea behind this technique is to generate a low-frequency modulation signal at a few MHz, inject it into the IQ modulator, measure the laser power using a photodetector, and then demodulate that signal at the modulation frequency in both quadratures, and also to demodulate at twice the modulation frequency.  Demodulation is implemented digitally by multiplying the input signal with a sinusoidally varying signal at the correct frequency but with a demodulation phase (1 and 2), and the result is then filtered using a CIC filter with a rate of $2^N$.  So under acquisition settings, the "Modulation Freq" is the modulation frequency output from the RP, "Demod Phase 1" and "Demod Phase 2" are the demodulation phases at the modulation frequency and its second harmonic, "Log2(CIC Rate)" is $N$, and "Log2 of CIC shift" is an additional digital scaling factor that reduces the output signals by $2^M$ where $M$ is the setting that is given.
+The idea behind this technique is to generate a low-frequency modulation signal at a few MHz, inject it into the IQ modulator, measure the laser power using a photodetector, and then demodulate that signal at the modulation frequency in both quadratures (in-phase I and quadrature-phase Q), and also to demodulate at twice the modulation frequency (both I and Q are provided).  Demodulation is implemented digitally by multiplying the input signal with a sinusoidally varying signal at the correct frequency but with a demodulation phase (1 and 2), and the result is then filtered using a CIC filter with a rate of $2^N$.  So under acquisition settings, the "Modulation Freq" is the modulation frequency output from the RP, "Demod Phase 1" and "Demod Phase 2" are the demodulation phases at the modulation frequency and its second harmonic, "Log2(CIC Rate)" is $N$, and "Log2 of CIC shift" is an additional digital scaling factor that reduces the output signals by $2^M$ where $M$ is the setting that is given.  The time step between filtered samples, and the equivalent bandwidth, is given at the bottom of the panel.
 
 ## PID 1-3
 
-Not implemented yet.
+These control the three independent PID modules of the design.  The PID modules generate an actuator value that is summed with the manual control values (see next section) before having upper and lower limits applied.  PID 1 uses the I component of the 1f signal, PID 2 uses the Q component of the 1f signal, and PID 3 uses the I component of the 2f signal.  The `Enable` switch turns the controllers on, and the `Polarity` switch changes the polarity: note that the demodulation phase can affect what polarity is needed.  `Kp`, `Ki`, and `Kd` are the digital values used for the proportional, integral, and derivative gains.  After the error signals are multiplied by these gain values and then summed together, the result is divided by $2^N$ with $N$ being given by the value of `Divisor`.  This implements a simple fixed-point arithmetic.  The continuous gain equivalents are given in the right-hand column.
+
+Upper and lower limits are specified in volts for the output of the PWM (before any amplifiers you may add), and the set point is given in the arbitrary units that the measured signals are reported in.
 
 ## Manual Control
 
 The voltage biases DC1, DC2, and DC3 adjust the phases of the three MZIs in the IQ modulator and thus allow for CS-SSB as well as all sorts of other, undesired output modes.  Unfortunately, simply by measuring the optical power it is fundamentally impossible to determine what frequency is on the output of the IQ modulator, as all single-frequency operation generates a steady DC value on the photodiode.  The manual control allows the user to get close to CS-SSB operation, and then the PID controllers will ideally keep it in that mode.
 
-DC1, DC2, and DC3 are output voltages from 0 to 1 V that should be connected to the appropriate pins on the IQ modulator.  These values can be changed using the sliders or spinners.  If using the arrows on the spinners, the DC increment can be changed to allow for coarser or finer changes.  Note that the minimum DC increment is 0.0063 V.
+DC1, DC2, and DC3 are output voltages from 0 to 1 V that should be connected to the appropriate pins on the IQ modulator.  These values can be changed using the sliders or spinners.  If using the arrows on the spinners, the DC increment can be changed to allow for coarser or finer changes.  Note that the minimum DC increment is 1.6 mV.
+
+## FIFO Settings
+
+The measurements are recorded in first-in, first-out (FIFO) buffers on chip, and then that data can be retrieved and displayed.  What data gets recorded can be changed by the user using the `FIFO 1`, `FIFO 2`, etc drop-down menus.  If they are set to `In`, the measurements after demodulation and filtering are recorded, and if they are set to `Out` the PWM values are recorded.  `In` values are plotted on the left Y axis, and `Out` values are plotted on the right Y axis.  The checkboxes control what values are plotted on the graph.
 
 ## Application Settings
 
-`Upload` uploads all displayed settings to the RP.  `Fetch` grabs the values off of the RP and updates the display.  `Fetch Data` grabs `Acquisition Samples` number of samples after demodulation and displays that on the plot.  Change the display limits using `YLim1`.  
+`Upload` uploads all displayed settings to the RP.  `Fetch` grabs the values off of the RP and updates the display.  `Fetch Data` grabs `Acquisition Samples` number of samples after demodulation and displays that on the plot.  Change the display limits using `YLim1` for the left-hand axis and `YLim2` for the right-hand axis.  
 
 `Auto-Update` uploads the device configuration anytime a parameter is changed.
 
 `Auto-Fetch Data` continuously uploads parameters and fetches demodulated data and displays it on the plot.  The update time is given in `Plot Update Time` in milliseconds.  You can change the parameters as it grabs data in order to optimise the bias values.
 
+You can also save and load bias control configurations using the `Load` and `Save` buttons.
 
 # Creating the project
 
@@ -81,9 +90,3 @@ When creating the project, use Vivado 2023.2.
 
 To create the project, clone the repository to a directory on your computer, open Vivado, navigate to the fpga/ directory (use `pwd` in the TCL console to determine your current directory and `cd` to navigate, just like in Bash), and then run `source make-project.tcl` which will create the project files under the directory `basic-project`.  If you want a different file name, open the `make-project.tcl` file and edit the line under the comment `# Set the project name`.  This should create the project with no errors.  It may not correctly assign the AXI addresses, so you will need to open the address editor and assign the `PS7/AXI_Parse_0/s_axi` interface the address range `0x4000_000` to `0x7fff_ffff`.
 
-# TODO
-Re-write software to use a PID controller module to simplify handling.
-
-Change read and write software to automatically determine what registers to write?
-
-Add diagnostic outputs to VHDL to see the value computed by the actuator and the output value.
