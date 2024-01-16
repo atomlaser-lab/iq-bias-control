@@ -319,7 +319,7 @@ pwm_limit(3) <= (others => '0');
 --
 enableFIFO <= fifoReg(0);
 fifoReset <= fifoReg(1);
-fifo_route <= fifoReg(7 downto 4);
+fifo_route <= outputReg(19 downto 16);
 FIFO_GEN: for I in 0 to NUM_FIFOS - 1 generate
     fifoData(I) <= std_logic_vector(resize(filtered_data(I),FIFO_WIDTH)) when fifo_route(I) = '0' else std_logic_vector(resize(pwm_limit(I),FIFO_WIDTH));
     fifoValid(I) <= ((filter_valid and not(fifo_route(I))) or (control_valid(I) and fifo_route(I))) and enableFIFO;

@@ -25,6 +25,7 @@ classdef DeviceControl < handle
         output_scale            %Output scaling from 0 to 1
         pwm                     %Array of 4 PWM outputs
         pid                     %PID control, array of 3 IQBIasPID objects
+        fifo_route              %Array of 4 FIFO routing options
     end
     
     properties(SetAccess = protected)
@@ -41,7 +42,6 @@ classdef DeviceControl < handle
         pwmReg                  %Register for PWM signals
         auxReg                  %Auxiliary register
         pidRegs                 %Registers (3 x 3) for PID control
-        
         %new_register % new register added here for dds2
     end
     
@@ -171,7 +171,14 @@ classdef DeviceControl < handle
             for nn = 1:self.NUM_PIDS
                 self.pid(nn,1) = IQBiasPID(self,self.pidRegs(:,nn));
             end
-            
+            %
+            % FIFO routing
+            %
+            self.fifo_route = DeviceParameter.empty;
+            for nn = 1:4
+                self.fifo_route = DeviceParameter((4 + (nn - 1))*[1,1],self.outputReg,'uint32')...
+                    .setLimits('lower',0,'upper',1);
+            end
         end
         
         function self = setDefaults(self,varargin)
@@ -192,6 +199,9 @@ classdef DeviceControl < handle
              self.numSamples.set(4000);
              for nn = 1:numel(self.pid)
                 self.pid(nn).setDefaults();
+             end
+             for nn = 1:numel(self.fifo_route)
+                self.fifo_route(nn).set(0);
              end
             
              self.auto_retry = true;
@@ -224,33 +234,26 @@ classdef DeviceControl < handle
             % Get all write data
             %
             p = properties(self);
-%             d = [];
-%             for nn = 1:numel(p)
-%                 if isa(self.(p{nn}),'DeviceRegister')
-%                     R = self.(p{nn});
-%                     if numel(R) == 1
-%                         if ~R.read_only
-%                             d = [d;self.(p{nn}).getWriteData]; %#ok<*AGROW>
-%                         end
-%                     else
-%                         for row = 1:size(R,1)
-%                             for col = 1:size(R,2)
-%                                 if ~R(row,col).read_only
-%                                     d = [d;R(row,col).getWriteData];
-%                                 end
-%                             end
-%                         end
-%                     end
-%                 end
-%             end
-            d = [self.outputReg.getWriteData;
-              self.filterReg.getWriteData;
-              self.ddsPhaseIncReg.getWriteData;
-              self.ddsPhaseOffsetReg.getWriteData;
-              self.dds2PhaseOffsetReg.getWriteData;
-              self.pwmReg.getWriteData;
-              self.numSamplesReg.getWriteData;
-              self.pidRegs.getWriteData];
+            d = [];
+            for nn = 1:numel(p)
+                if isa(self.(p{nn}),'DeviceRegister')
+                    R = self.(p{nn});
+                    if numel(R) == 1
+                        if ~R.read_only
+                            d = [d;self.(p{nn}).getWriteData]; %#ok<*AGROW>
+                        end
+                    else
+                        for row = 1:size(R,1)
+                            for col = 1:size(R,2)
+                                if ~R(row,col).read_only
+                                    d = [d;R(row,col).getWriteData];
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+
             d = d';
             d = d(:);
             %
@@ -269,73 +272,38 @@ classdef DeviceControl < handle
             % Get addresses to read from for each register and get data
             % from device
             %
-%             p = properties(self);
-%             pread = {};
-%             Rread = DeviceRegister.empty;
-%             d = [];
-%             for nn = 1:numel(p)
-%                 if isa(self.(p{nn}),'DeviceRegister')
-%                     R = self.(p{nn});
-%                     if numel(R) == 1
-%                         d = [d;R.getReadData];
-%                         Rread(end + 1) = R;
-%                         pread{end + 1} = p{nn};
-%                     else
-%                         pread{end + 1} = p{nn};
-%                         for row = 1:size(R,1)
-%                             for col = 1:size(R,2)
-%                                 d = [d;R(row,col).getReadData];
-%                                 Rread(end + 1) = R(row,col);
-%                             end
-%                         end
-%                     end
-%                     
-%                 end
-%             end
-            d = [self.outputReg.getReadData;
-                 self.inputReg.getReadData;
-                 self.filterReg.getReadData;
-                 self.ddsPhaseIncReg.getReadData;
-                 self.ddsPhaseOffsetReg.getReadData;
-                 self.dds2PhaseOffsetReg.getReadData;
-                 self.pwmReg.getReadData;
-                 self.numSamplesReg.getReadData;
-                 self.pidRegs(:,1).getReadData;
-                 self.pidRegs(:,2).getReadData;
-                 self.pidRegs(:,3).getReadData];
+            p = properties(self);
+            pread = {};
+            Rread = DeviceRegister.empty;
+            d = [];
+            for nn = 1:numel(p)
+                if isa(self.(p{nn}),'DeviceRegister')
+                    R = self.(p{nn});
+                    if numel(R) == 1
+                        d = [d;R.getReadData];
+                        Rread(end + 1) = R;
+                        pread{end + 1} = p{nn};
+                    else
+                        pread{end + 1} = p{nn};
+                        for row = 1:size(R,1)
+                            for col = 1:size(R,2)
+                                d = [d;R(row,col).getReadData];
+                                Rread(end + 1) = R(row,col);
+                            end
+                        end
+                    end
+                    
+                end
+            end
             self.conn.write(d,'mode','read');
             value = self.conn.recvMessage;
             %
             % Parse the received data in the same order as the addresses
             % were written
             %
-%             for nn = 1:numel(value)
-%                 Rread(nn).value = value(nn);
-% %                 R = self.(pread{nn});
-% %                 if numel(R) == 1
-% %                     R.value = value(nn);
-% %                 else
-% %                     for row = 1:size(R,1)
-% %                         for col = 1:size(R,2)
-% %                             R(row,col) = value(nn);
-% %                         end
-% %                     end
-% %                 end
-%             end
-            self.outputReg.value = value(1);
-            self.inputReg.value = value(2);
-            self.filterReg.value = value(3);
-            self.ddsPhaseIncReg.value = value(4);
-            self.ddsPhaseOffsetReg.value = value(5);
-            self.dds2PhaseOffsetReg.value = value(6);
-            self.pwmReg.value = value(7);
-            self.numSamplesReg.value = value(8);
-            for row = 1:size(self.pidRegs,1)
-                for col = 1:size(self.pidRegs,2)
-                    self.pidRegs(row,col).value = value(9 + (row - 1) + (col - 1)*self.NUM_PIDS);
-                end
+            for nn = 1:numel(value)
+                Rread(nn).value = value(nn);
             end
-            
             %
             % Read parameters from registers
             %
@@ -345,36 +313,6 @@ classdef DeviceControl < handle
                     self.(p{nn}).get;
                 end
             end
-%             self.ext_o.get;
-%             self.led_o.get;
-%             self.ext_i.get;
-%             
-%             for nn = 1:numel(self.adc)
-%                 self.adc(nn).get;
-%             end
-%             self.phase_offset.get; 
-%             self.phase_inc.get;  
-%             self.dds2_phase_offset.get; 
-% 
-%             for nn = 1:numel(self.pwm)
-%                 self.pwm(nn).get;
-%             end
-% 
-%             self.log2_rate.get;
-%             self.cic_shift.get;
-%             self.output_scale.get;
-%             self.numSamples.get;
-%             self.Kp.get;
-%             self.Ki.get;
-%             self.Kd.get;
-%             self.divisor.get;
-%             self.pid_enable.get;
-%             self.pid_polarity.get;
-%             self.pid_hold.get;
-%             self.pid_control.get;
-%             self.pwm_lower_limit.get;
-%             self.pwm_upper_limit.get;
-            
         end
 
         function self = memoryReset(self)
@@ -530,6 +468,9 @@ classdef DeviceControl < handle
             self.log2_rate.print('Log2 Rate',strwidth,'%.0f');
             self.cic_shift.print('CIC shift',strwidth,'%.0f');
             self.output_scale.print('Output scale',strwidth,'%.3f');
+            for nn = 1:numel(self.fifo_route)
+                self.fifo_route(nn).print(sprintf('FIFO Route %d',nn),strwidth,'%d');
+            end
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t PID 1 Parameters\n');
             self.pid(1).print(strwidth);
