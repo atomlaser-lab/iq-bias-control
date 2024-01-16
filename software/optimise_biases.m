@@ -7,8 +7,8 @@ ph = 0:10:360;
 
 
 d.log2_rate.set(13).write;
-d.pwm(1).set(0.5).write;
-d.pwm(2).set(0.5).write;
+% d.pwm(1).set(0.5).write;
+% d.pwm(2).set(0.5).write;
 
 %% Scan over 2f demodulation phase and DC3 bias
 data = zeros(numel(V),numel(ph),4);

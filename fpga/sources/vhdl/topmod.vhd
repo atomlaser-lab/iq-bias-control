@@ -223,13 +223,17 @@ signal memTrig      :   std_logic;
 --
 -- PID signals
 --
-signal pidcontrol               : t_meas;
-signal enable, polarity         : std_logic;
+signal polarity1, polarity2, polarity3                    : std_logic;
+signal pidcontrol1, pidcontrol2, pidcontrol3                : t_meas;
+signal enable1, enable2, enable3                          : std_logic;
 signal valid_i, valid_o, hold_i : std_logic;
+signal hold_i1, hold_i2, hold_i3 : std_logic;
 --signal filtered_data   : signed(2 downto 0);
 signal pidvalid_o               : std_logic;
 
 signal control_inphase          : signed(PWM_DATA_WIDTH -1 downto 0); --##########
+signal control_quphase          : signed(PWM_DATA_WIDTH -1 downto 0); --##########
+signal controlsignal            : signed(PWM_DATA_WIDTH -1 downto 0); --##########
 --
 -- PWM signals
 --
@@ -237,10 +241,12 @@ constant PWM_EXP_WIDTH  :   natural :=  PWM_DATA_WIDTH + 1;
 subtype t_pwm_exp is signed(PWM_EXP_WIDTH - 1 downto 0);
 signal pwm_data, pwm_data_i     : t_pwm_array(3 downto 0);
 signal control_signal_o : signed(PWM_DATA_WIDTH - 1 downto 0); -- added this ??
-signal pwm_data_exp :   t_pwm_exp;
-signal pwm_sum      :   t_pwm_exp;
-signal pwm_limit    :   t_pwm_exp;
+signal pwm_data_exp, pwm_data_exp1, pwm_data_exp2  :   t_pwm_exp;
+signal pwm_sum, pwm_sum1, pwm_sum2       :   t_pwm_exp;
+signal pwm_limit, pwm_limit1, pwm_limit2     :   t_pwm_exp;
 signal pwm_max, pwm_min :   t_pwm_exp;
+signal pwm_max1, pwm_min1 :   t_pwm_exp;
+signal pwm_max2, pwm_min2 :   t_pwm_exp;
 
 begin
 
@@ -257,8 +263,8 @@ pwm_data(1) <= unsigned(pwmReg(19 downto 10));
 pwm_data(2) <= unsigned(pwmReg(29 downto 20));
 pwm_data(3) <= (others => '0');
 
-pwm_data_i(0) <= pwm_data(0);
-pwm_data_i(1) <= pwm_data(1);
+pwm_data_i(0) <= resize(unsigned(std_logic_vector(pwm_limit1)),PWM_DATA_WIDTH);
+pwm_data_i(1) <= resize(unsigned(std_logic_vector(pwm_limit2)),PWM_DATA_WIDTH);
 pwm_data_i(2) <= resize(unsigned(std_logic_vector(pwm_limit)),PWM_DATA_WIDTH);
 pwm_data_i(3) <= pwm_data(3);
 PWM1: PWM_Generator
@@ -298,23 +304,83 @@ port map(
 
 --
 -- Apply feedback
---
-enable <= pid3_regs(0)(0);
-polarity <= pid3_regs(0)(1);
-hold_i <= pid3_regs(0)(2);
-pidcontrol <= resize(signed(pid3_regs(0)(31 downto 16)),pidcontrol'length);
+-- PID1
+enable1 <= pid1_regs(0)(0);
+polarity1 <= pid1_regs(0)(1);
+hold_i1 <= pid1_regs(0)(2);
+pidcontrol1 <= resize(signed(pid1_regs(0)(31 downto 16)),pidcontrol1'length);
 PID_Control_0 : Control
     port map(
     clk               =>  adcClk,
     aresetn           =>  aresetn,
-    filtered_data     =>  filtered_data(2),
-    control_i         =>  pidcontrol,
+    filtered_data     =>  filtered_data(0),
+    control_i         =>  pidcontrol1,
     valid_i           =>  filter_valid,
-    enable_i          =>  enable,
-    polarity_i        =>  polarity,
-    hold_i            =>  hold_i,
+    enable_i          =>  enable1,
+    polarity_i        =>  polarity1,
+    hold_i            =>  hold_i1,
+    gains             =>  pid1_regs(1),
+    valid_o           =>  open,
+    control_signal_o  =>  controlsignal
+);
+pwm_data_exp1 <= signed(std_logic_vector(resize(pwm_data(0),PWM_EXP_WIDTH)));
+-- Sum expanded manual data and control data
+pwm_sum1 <= pwm_data_exp1 + resize(controlsignal,PWM_EXP_WIDTH);
+-- Parse limits, expand to 11 bits as signed values
+pwm_min1 <= signed(resize(unsigned(pid1_regs(2)(PWM_DATA_WIDTH - 1 downto 0)),PWM_EXP_WIDTH));
+pwm_max1 <= signed(resize(unsigned(pid1_regs(2)(2*PWM_DATA_WIDTH - 1 downto PWM_DATA_WIDTH)),PWM_EXP_WIDTH));
+-- Limit the summed manual and control values to their max/min limits
+pwm_limit1 <=    pwm_sum1 when pwm_sum1 < pwm_max1 and pwm_sum1 > pwm_min1 else
+                pwm_max1 when pwm_sum1 >= pwm_max1 else
+                pwm_min1 when pwm_sum1 <= pwm_min1;
+                
+-- PID2         
+enable2 <= pid2_regs(0)(0);
+polarity2 <= pid2_regs(0)(1);
+hold_i2 <= pid2_regs(0)(2);
+pidcontrol2 <= resize(signed(pid2_regs(0)(31 downto 16)),pidcontrol2'length);
+PID_Control_1 : Control
+    port map(
+    clk               =>  adcClk,
+    aresetn           =>  aresetn,
+    filtered_data     =>  filtered_data(1),
+    control_i         =>  pidcontrol2,
+    valid_i           =>  filter_valid,
+    enable_i          =>  enable2,
+    polarity_i        =>  polarity2,
+    hold_i            =>  hold_i2,
+    gains             =>  pid2_regs(1),
+    valid_o           =>  open,
+    control_signal_o  =>  control_quphase
+);
+pwm_data_exp2 <= signed(std_logic_vector(resize(pwm_data(1),PWM_EXP_WIDTH)));
+-- Sum expanded manual data and control data
+pwm_sum2 <= pwm_data_exp2 + resize(control_quphase,PWM_EXP_WIDTH);
+-- Parse limits, expand to 11 bits as signed values
+pwm_min2 <= signed(resize(unsigned(pid2_regs(2)(PWM_DATA_WIDTH - 1 downto 0)),PWM_EXP_WIDTH));
+pwm_max2 <= signed(resize(unsigned(pid2_regs(2)(2*PWM_DATA_WIDTH - 1 downto PWM_DATA_WIDTH)),PWM_EXP_WIDTH));
+-- Limit the summed manual and control values to their max/min limits
+pwm_limit2 <=    pwm_sum2 when pwm_sum2 < pwm_max2 and pwm_sum2 > pwm_min2 else
+                pwm_max2 when pwm_sum2 >= pwm_max2 else
+                pwm_min2 when pwm_sum2 <= pwm_min2;
+                
+ -- PID3             
+enable3 <= pid3_regs(0)(0);
+polarity3 <= pid3_regs(0)(1);
+hold_i3 <= pid3_regs(0)(2);
+pidcontrol3 <= resize(signed(pid3_regs(0)(31 downto 16)),pidcontrol3'length);
+PID_Control_2 : Control
+    port map(
+    clk               =>  adcClk,
+    aresetn           =>  aresetn,
+    filtered_data     =>  filtered_data(2),
+    control_i         =>  pidcontrol3,
+    valid_i           =>  filter_valid,
+    enable_i          =>  enable3,
+    polarity_i        =>  polarity3,
+    hold_i            =>  hold_i3,
     gains             =>  pid3_regs(1),
-    valid_o           =>  valid_o,
+    valid_o           =>  open,
     control_signal_o  =>  control_inphase
 );
 -- Expand manual data to a signed 11 bit value
@@ -328,6 +394,7 @@ pwm_max <= signed(resize(unsigned(pid3_regs(2)(2*PWM_DATA_WIDTH - 1 downto PWM_D
 pwm_limit <=    pwm_sum when pwm_sum < pwm_max and pwm_sum > pwm_min else
                 pwm_max when pwm_sum >= pwm_max else
                 pwm_min when pwm_sum <= pwm_min;
+                
 
 --
 -- Collect demodulated data at lower sampling rate in FIFO buffers

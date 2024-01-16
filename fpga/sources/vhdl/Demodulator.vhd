@@ -114,7 +114,7 @@ signal mult_o                           :   t_mult_o_array(NUM_DEMOD_SIGNALS - 1
 --
 signal cicLog2Rate                      :   unsigned(3 downto 0);
 signal cicShift                         :   integer;
-signal setShift                         :   signed(3 downto 0);
+signal setShift                         :   signed(7 downto 0);
 signal filterConfig, filterConfig_old   :   std_logic_vector(15 downto 0);
 signal valid_config                     :   std_logic;
 signal filter_o                         :   t_cic_o_array(NUM_DEMOD_SIGNALS - 1 downto 0);
@@ -126,7 +126,7 @@ begin
 -- Parse registers
 --
 cicLog2Rate <= unsigned(filter_reg_i(3 downto 0));
-setShift <= signed(filter_reg_i(7 downto 4));
+setShift <= signed(filter_reg_i(11 downto 4));
 dds_output_scale <= filter_reg_i(23 downto 16);
 
 modulation_freq <= unsigned(dds_regs_i(0));

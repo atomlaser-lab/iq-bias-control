@@ -149,7 +149,7 @@ classdef DeviceControl < handle
             self.log2_rate = DeviceParameter([0,3],self.filterReg,'uint32')...
                 .setLimits('lower',2,'upper',13);
             self.cic_shift = DeviceParameter([4,11],self.filterReg,'int8')...
-                .setLimits('lower',-7,'upper',7);
+                .setLimits('lower',-100,'upper',100);
             %
             % PWM settings
             %
@@ -224,35 +224,33 @@ classdef DeviceControl < handle
             % Get all write data
             %
             p = properties(self);
-            d = [];
-            for nn = 1:numel(p)
-                if isa(self.(p{nn}),'DeviceRegister')
-                    R = self.(p{nn});
-                    if numel(R) == 1
-                        if ~R.read_only
-                            d = [d;self.(p{nn}).getWriteData]; %#ok<*AGROW>
-                        end
-                    else
-                        for row = 1:size(R,1)
-                            for col = 1:size(R,2)
-                                if ~R(row,col).read_only
-                                    d = [d;R(row,col).getWriteData];
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-%             d = [self.outputReg.getWriteData;
-%               self.filterReg.getWriteData;
-%               self.ddsPhaseIncReg.getWriteData;
-%               self.ddsPhaseOffsetReg.getWriteData;
-%               self.dds2PhaseOffsetReg.getWriteData;
-%               self.pwmReg.getWriteData;
-%               self.numSamplesReg.getWriteData;
-%               self.gains_reg.getWriteData;
-%               self.combined_input_reg.getWriteData;
-%               self.pwm_limit_reg.getWriteData];
+%             d = [];
+%             for nn = 1:numel(p)
+%                 if isa(self.(p{nn}),'DeviceRegister')
+%                     R = self.(p{nn});
+%                     if numel(R) == 1
+%                         if ~R.read_only
+%                             d = [d;self.(p{nn}).getWriteData]; %#ok<*AGROW>
+%                         end
+%                     else
+%                         for row = 1:size(R,1)
+%                             for col = 1:size(R,2)
+%                                 if ~R(row,col).read_only
+%                                     d = [d;R(row,col).getWriteData];
+%                                 end
+%                             end
+%                         end
+%                     end
+%                 end
+%             end
+            d = [self.outputReg.getWriteData;
+              self.filterReg.getWriteData;
+              self.ddsPhaseIncReg.getWriteData;
+              self.ddsPhaseOffsetReg.getWriteData;
+              self.dds2PhaseOffsetReg.getWriteData;
+              self.pwmReg.getWriteData;
+              self.numSamplesReg.getWriteData;
+              self.pidRegs.getWriteData];
             d = d';
             d = d(:);
             %
@@ -271,75 +269,79 @@ classdef DeviceControl < handle
             % Get addresses to read from for each register and get data
             % from device
             %
-            p = properties(self);
-            pread = {};
-            Rread = DeviceRegister.empty;
-            d = [];
-            for nn = 1:numel(p)
-                if isa(self.(p{nn}),'DeviceRegister')
-                    R = self.(p{nn});
-                    if numel(R) == 1
-                        d = [d;R.getReadData];
-                        Rread(end + 1) = R;
-                        pread{end + 1} = p{nn};
-                    else
-                        pread{end + 1} = p{nn};
-                        for row = 1:size(R,1)
-                            for col = 1:size(R,2)
-                                d = [d;R(row,col).getReadData];
-                                Rread(end + 1) = R(row,col);
-                            end
-                        end
-                    end
-                    
-                end
-            end
-%             d = [self.outputReg.getReadData;
-%                  self.inputReg.getReadData;
-%                  self.filterReg.getReadData;
-%                  self.ddsPhaseIncReg.getReadData;
-%                  self.ddsPhaseOffsetReg.getReadData;
-%                  self.dds2PhaseOffsetReg.getReadData;
-%                  self.pwmReg.getReadData;
-%                  self.numSamplesReg.getReadData;
-%                  self.gains_reg.getReadData;
-%                  self.combined_input_reg.getReadData;
-%                  self.pwm_limit_reg.getReadData];
+%             p = properties(self);
+%             pread = {};
+%             Rread = DeviceRegister.empty;
+%             d = [];
+%             for nn = 1:numel(p)
+%                 if isa(self.(p{nn}),'DeviceRegister')
+%                     R = self.(p{nn});
+%                     if numel(R) == 1
+%                         d = [d;R.getReadData];
+%                         Rread(end + 1) = R;
+%                         pread{end + 1} = p{nn};
+%                     else
+%                         pread{end + 1} = p{nn};
+%                         for row = 1:size(R,1)
+%                             for col = 1:size(R,2)
+%                                 d = [d;R(row,col).getReadData];
+%                                 Rread(end + 1) = R(row,col);
+%                             end
+%                         end
+%                     end
+%                     
+%                 end
+%             end
+            d = [self.outputReg.getReadData;
+                 self.inputReg.getReadData;
+                 self.filterReg.getReadData;
+                 self.ddsPhaseIncReg.getReadData;
+                 self.ddsPhaseOffsetReg.getReadData;
+                 self.dds2PhaseOffsetReg.getReadData;
+                 self.pwmReg.getReadData;
+                 self.numSamplesReg.getReadData;
+                 self.pidRegs(:,1).getReadData;
+                 self.pidRegs(:,2).getReadData;
+                 self.pidRegs(:,3).getReadData];
             self.conn.write(d,'mode','read');
             value = self.conn.recvMessage;
             %
             % Parse the received data in the same order as the addresses
             % were written
             %
-            for nn = 1:numel(value)
-                Rread(nn).value = value(nn);
-%                 R = self.(pread{nn});
-%                 if numel(R) == 1
-%                     R.value = value(nn);
-%                 else
-%                     for row = 1:size(R,1)
-%                         for col = 1:size(R,2)
-%                             R(row,col) = value(nn);
-%                         end
-%                     end
-%                 end
+%             for nn = 1:numel(value)
+%                 Rread(nn).value = value(nn);
+% %                 R = self.(pread{nn});
+% %                 if numel(R) == 1
+% %                     R.value = value(nn);
+% %                 else
+% %                     for row = 1:size(R,1)
+% %                         for col = 1:size(R,2)
+% %                             R(row,col) = value(nn);
+% %                         end
+% %                     end
+% %                 end
+%             end
+            self.outputReg.value = value(1);
+            self.inputReg.value = value(2);
+            self.filterReg.value = value(3);
+            self.ddsPhaseIncReg.value = value(4);
+            self.ddsPhaseOffsetReg.value = value(5);
+            self.dds2PhaseOffsetReg.value = value(6);
+            self.pwmReg.value = value(7);
+            self.numSamplesReg.value = value(8);
+            for row = 1:size(self.pidRegs,1)
+                for col = 1:size(self.pidRegs,2)
+                    self.pidRegs(row,col).value = value(9 + (row - 1) + (col - 1)*self.NUM_PIDS);
+                end
             end
-%             self.outputReg.value = value(1);
-%             self.inputReg.value = value(2);
-%             self.filterReg.value = value(3);
-%             self.ddsPhaseIncReg.value = value(4);
-%             self.ddsPhaseOffsetReg.value = value(5);
-%             self.dds2PhaseOffsetReg.value = value(6);
-%             self.pwmReg.value = value(7);
-%             self.numSamplesReg.value = value(8);
-%             self.gains_reg.value = value(9);
-%             self.combined_input_reg.value = value(10);
-%             self.pwm_limit_reg.value = value(11);
+            
             %
             % Read parameters from registers
             %
+            p = properties(self);
             for nn = 1:numel(p)
-                if isa(self.(p{nn}),'DeviceParameter')
+                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasPID')
                     self.(p{nn}).get;
                 end
             end
