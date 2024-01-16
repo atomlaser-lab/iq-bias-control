@@ -23,7 +23,7 @@ entity Demodulator is
         data_i          :   in  t_adc;
         dac_o           :   out t_dac_array(1 downto 0);
         filtered_data_o :   out t_meas_array(NUM_DEMOD_SIGNALS - 1 downto 0);
-        valid_o         :   out std_logic
+        valid_o         :   out std_logic_vector(NUM_DEMOD_SIGNALS - 1 downto 0)
     );
 end Demodulator;
 
@@ -253,6 +253,6 @@ FILT_GEN: for I in 0 to NUM_DEMOD_SIGNALS - 1 generate
     filtered_data_o(I) <= resize(shift_right(signed(filter_o(I)),cicShift + to_integer(setShift)),t_meas'length);
 end generate FILT_GEN;
 
-valid_o <= valid_filter_o(0);
+valid_o <= valid_filter_o;
 
 end Behavioral;

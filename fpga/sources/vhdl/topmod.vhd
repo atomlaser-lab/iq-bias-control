@@ -161,14 +161,11 @@ signal pwmReg               :   t_param_reg;
 -- FIFO register
 signal fifoReg              :   t_param_reg;
 -- PID registers
-signal pid1_regs            :   t_param_reg_array(2 downto 0);
-signal pid2_regs            :   t_param_reg_array(2 downto 0);
-signal pid3_regs            :   t_param_reg_array(2 downto 0);
-
--- signal gains_reg            : t_param_reg;
--- -- register for pidcontrol, polarity and enable signals
--- signal combined_input_reg   : t_param_reg;
--- signal pwm_limit_reg        :   t_param_reg;
+type t_pid_reg_array is array(natural range <>) of t_param_reg_array(2 downto 0);
+signal pid_regs             :   t_pid_reg_array(2 downto 0);
+-- signal pid1_regs            :   t_param_reg_array(2 downto 0);
+-- signal pid2_regs            :   t_param_reg_array(2 downto 0);
+-- signal pid3_regs            :   t_param_reg_array(2 downto 0);
 
 --
 -- DDS signals
@@ -192,24 +189,7 @@ signal fifoValid            :   std_logic_vector(NUM_FIFOS - 1 downto 0);
 signal fifo_bus             :   t_fifo_bus_array(NUM_FIFOS - 1 downto 0)  :=  (others => INIT_FIFO_BUS);
 signal enableFIFO           :   std_logic;
 signal fifoReset            :   std_logic;
--- type t_fifo_route is (fifo_demod,fifo_pid_out,fifo_pwm_out,fifo_no_output);
--- type t_fifo_route_array is array(natural range <>) of t_fifo_route;
--- signal fifoRoute            :   t_fifo_route_array(NUM_FIFOS - 1 downto 0);
-
--- function convert_fifo_route(s : std_logic_vector(1 downto 0)) return t_fifo_route is
---     variable result :   t_fifo_route;
--- begin
---     if s = X"0" then
---         result := fifo_demod;
---     elsif s = X"1" then
---         result := fifo_pid_out;
---     elsif s = X"2" then
---         result := fifo_pwm_out;
---     else
---         result := no_output;
---     end if;
---     return result;
--- end convert_fifo_route;
+signal fifo_route           :   std_logic_vector(3 downto 0);
 
 --
 -- Memory signals
@@ -223,24 +203,24 @@ signal memTrig      :   std_logic;
 --
 -- PID signals
 --
-signal pidcontrol               : t_meas;
-signal enable, polarity         : std_logic;
-signal valid_i, valid_o, hold_i : std_logic;
---signal filtered_data   : signed(2 downto 0);
-signal pidvalid_o               : std_logic;
-
-signal control_inphase          : signed(PWM_DATA_WIDTH -1 downto 0); --##########
+signal pid_control              :   t_meas_array(2 downto 0);
+signal enable, polarity         :   std_logic_vector(2 downto 0);
+signal hold                     :   std_logic_vector(2 downto 0);
 --
 -- PWM signals
 --
 constant PWM_EXP_WIDTH  :   natural :=  PWM_DATA_WIDTH + 1;
 subtype t_pwm_exp is signed(PWM_EXP_WIDTH - 1 downto 0);
-signal pwm_data, pwm_data_i     : t_pwm_array(3 downto 0);
-signal control_signal_o : signed(PWM_DATA_WIDTH - 1 downto 0); -- added this ??
-signal pwm_data_exp :   t_pwm_exp;
-signal pwm_sum      :   t_pwm_exp;
-signal pwm_limit    :   t_pwm_exp;
-signal pwm_max, pwm_min :   t_pwm_exp;
+type t_pwm_exp_array is array(natural range <>) of t_pwm_exp;
+type t_pwm_signed_array is array(natural range <>) of signed(PWM_DATA_WIDTH - 1 downto 0);
+
+signal pwm_data, pwm_data_i     :   t_pwm_array(3 downto 0);
+signal control_signal_o         :   t_pwm_signed_array(2 downto 0);
+signal pwm_data_exp             :   t_pwm_exp_array(2 downto 0);
+signal pwm_sum                  :   t_pwm_exp(2 downto 0);
+signal pwm_limit                :   t_pwm_exp_array(3 downto 0);
+signal pwm_max, pwm_min         :   t_pwm_exp(2 downto 0);
+signal control_valid            :   std_logic_vector(2 downto 0);
 
 begin
 
@@ -257,9 +237,9 @@ pwm_data(1) <= unsigned(pwmReg(19 downto 10));
 pwm_data(2) <= unsigned(pwmReg(29 downto 20));
 pwm_data(3) <= (others => '0');
 
-pwm_data_i(0) <= pwm_data(0);
-pwm_data_i(1) <= pwm_data(1);
-pwm_data_i(2) <= resize(unsigned(std_logic_vector(pwm_limit)),PWM_DATA_WIDTH);
+pwm_data_i(0) <= resize(unsigned(std_logic_vector(pwm_limit(0))),PWM_DATA_WIDTH);
+pwm_data_i(1) <= resize(unsigned(std_logic_vector(pwm_limit(1))),PWM_DATA_WIDTH);
+pwm_data_i(2) <= resize(unsigned(std_logic_vector(pwm_limit(2))),PWM_DATA_WIDTH);
 pwm_data_i(3) <= pwm_data(3);
 PWM1: PWM_Generator
 port map(
@@ -299,35 +279,39 @@ port map(
 --
 -- Apply feedback
 --
-enable <= pid3_regs(0)(0);
-polarity <= pid3_regs(0)(1);
-hold_i <= pid3_regs(0)(2);
-pidcontrol <= resize(signed(pid3_regs(0)(31 downto 16)),pidcontrol'length);
-PID_Control_0 : Control
+PID_GEN_X: for I in 0 to 2 generate
+    enable(I)       <= pid_regs(I)(0);
+    polarity(I)     <= pid_regs(I)(1);
+    hold(I)         <= pid_regs(I)(2);
+    pid_control(I)  <= resize(signed(pid_regs(I)(31 downto 16),t_meas'length));
+    PID_Control_X : Control
     port map(
-    clk               =>  adcClk,
-    aresetn           =>  aresetn,
-    filtered_data     =>  filtered_data(2),
-    control_i         =>  pidcontrol,
-    valid_i           =>  filter_valid,
-    enable_i          =>  enable,
-    polarity_i        =>  polarity,
-    hold_i            =>  hold_i,
-    gains             =>  pid3_regs(1),
-    valid_o           =>  valid_o,
-    control_signal_o  =>  control_inphase
-);
--- Expand manual data to a signed 11 bit value
-pwm_data_exp <= signed(std_logic_vector(resize(pwm_data(2),PWM_EXP_WIDTH)));
--- Sum expanded manual data and control data
-pwm_sum <= pwm_data_exp + resize(control_inphase,PWM_EXP_WIDTH);
--- Parse limits, expand to 11 bits as signed values
-pwm_min <= signed(resize(unsigned(pid3_regs(2)(PWM_DATA_WIDTH - 1 downto 0)),PWM_EXP_WIDTH));
-pwm_max <= signed(resize(unsigned(pid3_regs(2)(2*PWM_DATA_WIDTH - 1 downto PWM_DATA_WIDTH)),PWM_EXP_WIDTH));
--- Limit the summed manual and control values to their max/min limits
-pwm_limit <=    pwm_sum when pwm_sum < pwm_max and pwm_sum > pwm_min else
-                pwm_max when pwm_sum >= pwm_max else
-                pwm_min when pwm_sum <= pwm_min;
+        clk               =>  adcClk,
+        aresetn           =>  aresetn,
+        filtered_data     =>  filtered_data(I),
+        control_i         =>  pid_control(I),
+        valid_i           =>  filter_valid(I),
+        enable_i          =>  enable(I),
+        polarity_i        =>  polarity(I),
+        hold_i            =>  hold(I),
+        gains             =>  pid_regs(I)(1),
+        valid_o           =>  control_valid(I),
+        control_signal_o  =>  control_signal_o(I)
+    );
+    -- Expand manual data to a signed 11 bit value
+    pwm_data_exp(I) <= signed(std_logic_vector(resize(pwm_data(I),PWM_EXP_WIDTH)));
+    -- Sum expanded manual data and control data
+    pwm_sum(I) <= pwm_data_exp(I) + resize(control_signal_o(I),PWM_EXP_WIDTH);
+    -- Parse limits, expand to 11 bits as signed values
+    pwm_min(I) <= signed(resize(unsigned(pid_regs(I)(2)(PWM_DATA_WIDTH - 1 downto 0)),PWM_EXP_WIDTH));
+    pwm_max(I) <= signed(resize(unsigned(pid_regs(I)(2)(2*PWM_DATA_WIDTH - 1 downto PWM_DATA_WIDTH)),PWM_EXP_WIDTH));
+    -- Limit the summed manual and control values to their max/min limits
+    pwm_limit(I) <= pwm_sum(I) when pwm_sum(I) < pwm_max(I) and pwm_sum(I) > pwm_min(I) else
+                    pwm_max(I) when pwm_sum(I) >= pwm_max(I) else
+                    pwm_min(I) when pwm_sum(I) <= pwm_min(I);
+
+end generate PID_GEN_X;
+pwm_limit(3) <= (others => '0');
 
 --
 -- Collect demodulated data at lower sampling rate in FIFO buffers
@@ -335,9 +319,10 @@ pwm_limit <=    pwm_sum when pwm_sum < pwm_max and pwm_sum > pwm_min else
 --
 enableFIFO <= fifoReg(0);
 fifoReset <= fifoReg(1);
+fifo_route <= fifoReg(7 downto 4);
 FIFO_GEN: for I in 0 to NUM_FIFOS - 1 generate
-    fifoData(I) <= std_logic_vector(resize(filtered_data(I),FIFO_WIDTH));
-    fifoValid(I) <= filter_valid and enableFIFO;
+    fifoData(I) <= std_logic_vector(resize(filtered_data(I),FIFO_WIDTH)) when fifo_route(I) = '0' else std_logic_vector(resize(pwm_limit(I),FIFO_WIDTH));
+    fifoValid(I) <= ((filter_valid and not(fifo_route(I))) or (control_valid(I) and fifo_route(I))) and enableFIFO;
     PhaseMeas_FIFO_NORMAL_X: FIFOHandler
     port map(
         wr_clk      =>  adcClk,
@@ -445,17 +430,17 @@ begin
                             --
                             -- PID registers
                             --
-                            when X"000100" => rw(bus_m,bus_s,comState,pid1_regs(0));
-                            when X"000104" => rw(bus_m,bus_s,comState,pid1_regs(1));
-                            when X"000108" => rw(bus_m,bus_s,comState,pid1_regs(2));
+                            when X"000100" => rw(bus_m,bus_s,comState,pid_regs(0)(0));
+                            when X"000104" => rw(bus_m,bus_s,comState,pid_regs(0)(1));
+                            when X"000108" => rw(bus_m,bus_s,comState,pid_regs(0)(2));
 
-                            when X"000200" => rw(bus_m,bus_s,comState,pid2_regs(0));
-                            when X"000204" => rw(bus_m,bus_s,comState,pid2_regs(1));
-                            when X"000208" => rw(bus_m,bus_s,comState,pid2_regs(2));
+                            when X"000200" => rw(bus_m,bus_s,comState,pid_regs(1)(0));
+                            when X"000204" => rw(bus_m,bus_s,comState,pid_regs(1)(1));
+                            when X"000208" => rw(bus_m,bus_s,comState,pid_regs(1)(2));
 
-                            when X"000300" => rw(bus_m,bus_s,comState,pid3_regs(0));
-                            when X"000304" => rw(bus_m,bus_s,comState,pid3_regs(1));
-                            when X"000308" => rw(bus_m,bus_s,comState,pid3_regs(2));
+                            when X"000300" => rw(bus_m,bus_s,comState,pid_regs(2)(0));
+                            when X"000304" => rw(bus_m,bus_s,comState,pid_regs(2)(1));
+                            when X"000308" => rw(bus_m,bus_s,comState,pid_regs(2)(2));
 
                             --
                             -- FIFO control and data retrieval
