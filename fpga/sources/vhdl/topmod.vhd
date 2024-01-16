@@ -381,10 +381,10 @@ begin
         dds2_phase_off_reg <= (others => '0');
         pwmReg <= (others => '0');
         
-        for I in 0 to pid3_regs'length - 1 loop
-            pid1_regs(I) <= (others => '0');
-            pid2_regs(I) <= (others => '0');
-            pid3_regs(I) <= (others => '0');
+        for I in 0 to pid_regs(0)'length - 1 loop
+            pid_regs(0)(I) <= (others => '0');
+            pid_regs(1)(I) <= (others => '0');
+            pid_regs(2)(I) <= (others => '0');
         end loop;
        -- new_register <= (others => '0'); -- dds2
         --
