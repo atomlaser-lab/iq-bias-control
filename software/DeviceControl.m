@@ -451,7 +451,9 @@ classdef DeviceControl < handle
             self.ddsPhaseOffsetReg.print('phaseOffsetReg',strwidth);
             self.dds2PhaseOffsetReg.print('dds2phaseOffsetReg',strwidth);
             self.pwmReg.print('pwmReg',strwidth);
-            self.controlRegs.print('pidRegs',strwidth);
+            self.controlRegs.print('controlRegs',strwidth);
+            self.gainRegs.print('gainRegs',strwidth);
+            self.pwmLimitRegs.print('pwmLimitRegs',strwidth);
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Parameters\n');
             
