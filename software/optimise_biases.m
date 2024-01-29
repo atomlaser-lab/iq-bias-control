@@ -6,7 +6,7 @@ V = 0:0.1:1;
 ph = 0:10:360;
 
 
-d.log2_rate.set(13).write;
+% d.log2_rate.set(13).write;
 % d.pwm(1).set(0.5).write;
 % d.pwm(2).set(0.5).write;
 
@@ -30,7 +30,7 @@ xlabel('2f demodulation phase [deg]');
 [~,idx] = max(range(data(:,:,3),1));
 nlf = nonlinfit(ph,range(data(:,:,3),1));
 nlf.setFitFunc(@(A,ph0,x) abs(A*cosd(x - ph0)));
-nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[0,180,ph(idx)]);
+nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[50,270,ph(idx)]);
 nlf.fit;
 hold on
 plot(nlf.x,nlf.f(nlf.x),'--');
@@ -60,12 +60,17 @@ figure(855013);clf;
 nlf.plot('plotresiduals',0);
 title(sprintf('Zero-crossing voltage = %.3f',nlf.c(3,1)));
 
-zero_crossing_voltage = nlf.c(3,1);
+approx_zero_voltages = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
+for nn = 1:numel(approx_zero_voltages)
+    zero_crossing_voltages_2f(nn,1) = fsolve(@(x) interp1(nlf.x,nlf.y,x,'pchip'),approx_zero_voltages(nn),optimset('display','off'));
+end
 
+%%
 % Set DC3 voltage
-d.pwm(3).set(zero_crossing_voltage).write;
+d.pwm(3).set(zero_crossing_voltages_2f(2)).write;
 
-%% Scan over DC1 and 1f demodulation phase
+%% Scan over DC2 and 1f demodulation phase
+old_voltages = [d.pwm(1).get,d.pwm(2).get];
 data4 = zeros(numel(V),numel(ph),4);
 tic;
 for row = 1:numel(V)
@@ -77,6 +82,8 @@ for row = 1:numel(V)
     end
 end
 toc;
+d.pwm(1).set(old_voltages(1)).write;
+d.pwm(2).set(old_voltages(2)).write;
 
 %% Analyze scan over 1f data to get optimum demodulation phase
 figure(855015);clf;
@@ -84,8 +91,8 @@ plot(ph,range(data4(:,:,1),1),'o-');
 hold on
 plot(ph,range(data4(:,:,2),1),'sq-');
 xlabel('f demodulation phase [deg]');
-[~,idx] = max(range(data4(:,:,1),1));
-nlf = nonlinfit(ph,range(data4(:,:,1),1));
+[~,idx] = max(range(data4(:,:,2),1));
+nlf = nonlinfit(ph,range(data4(:,:,2),1));
 nlf.setFitFunc(@(A,ph0,x) A*abs(cosd(x - ph0)));
 nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[0,180,mod(ph(idx),180)]);
 nlf.fit;
@@ -95,7 +102,50 @@ optimum_f_phase = nlf.c(2,1);
 title(sprintf('Optimum 2f phase = %.1f',optimum_f_phase));
 % 
 % % Fix 1f demodulation phase
-% d.dds2_phase_offset.set(optimum_f_phase).write;
+d.phase_offset.set(optimum_f_phase).write;
+
+%% Fine scan over DC1 and DC2 individually
+data12 = zeros(numel(V2),4,2);
+tic;
+for row = 1:numel(V2)
+    d.pwm(1).set(V2(row)).write;
+    data12(row,:,1) = get_data_auto_retry(d,1e3);
+end
+toc;
+d.pwm(1).set(old_voltages(1)).write;
+tic;
+for row = 1:numel(V2)
+    d.pwm(2).set(V2(row)).write;
+    data12(row,:,2) = get_data_auto_retry(d,1e3);
+end
+toc;
+d.pwm(2).set(old_voltages(2)).write;
+
+%% Analyze fine scan
+figure(12751);clf;
+plot(V2,data12(:,1,1),'b.');
+hold on
+plot(V2,data12(:,2,2),'r.');
+
+% plot(V2,data12(:,3,1)*1e2,'bsq','markersize',4);
+% plot(V2,data12(:,3,2)*1e2,'rsq','markersize',4);
+grid on;
+plot_format('Voltage [V]','Signal','',10);
+legend('I-phase, DC1','Q-phase, DC2');
+
+nlf = nonlinfit(V2,data12(:,1,1));
+nlf.ex = nlf.x >= 1 | nlf.x < 0.1;
+nlf.setFitFunc(@(A,s,x0,x) A*sin(2*pi*(x - x0)/s));
+nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'s',[0.25,5,1.5],'x0',[0,3*max(nlf.x),0.4]);
+nlf.fit;
+plot(nlf.x,nlf.f(nlf.x),'b--','handlevisibility','off');
+zero_crossing_voltages_DC1 = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
+
+nlf.y = data12(:,2,2);
+nlf.fit;
+plot(nlf.x,nlf.f(nlf.x),'r--','handlevisibility','off');
+zero_crossing_voltages_DC2 = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
+
 
 %% Scan over DC1 and DC2
 data3 = zeros(numel(V),numel(V),3);
