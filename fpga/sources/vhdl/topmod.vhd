@@ -206,13 +206,8 @@ signal hold_i, hold             :   std_logic;
 --
 -- PWM signals
 --
-constant PWM_EXP_WIDTH  :   natural :=  PWM_DATA_WIDTH + 1;
-subtype t_pwm_exp is signed(PWM_EXP_WIDTH - 1 downto 0);
-type t_pwm_exp_array is array(natural range <>) of t_pwm_exp;
-type t_pwm_signed_array is array(natural range <>) of signed(PWM_DATA_WIDTH - 1 downto 0);
-
 signal pwm_data, pwm_data_i     :   t_pwm_array(3 downto 0);
-signal control_signal_o         :   t_pwm_signed_array(2 downto 0);
+signal control_signal_o         :   t_pwm_exp_array(2 downto 0);
 signal pwm_data_exp             :   t_pwm_exp_array(2 downto 0);
 signal pwm_sum                  :   t_pwm_exp_array(2 downto 0);
 signal pwm_limit                :   t_pwm_exp_array(3 downto 0);
@@ -285,22 +280,22 @@ hold <= soft_hold or hold_i;
 --
 -- Control signals
 --
-pid_control(0) <= pid_regs(0)(31 downto 16);
-pid_control(1) <= pid_regs(1)(15 downto 0);
-pid_control(2) <= pid_regs(1)(31 downto 16);
+pid_control(0) <= resize(signed(pid_regs(0)(31 downto 16)),t_meas'length);
+pid_control(1) <= resize(signed(pid_regs(1)(15 downto 0)),t_meas'length);
+pid_control(2) <= resize(signed(pid_regs(1)(31 downto 16)),t_meas'length);
 --
 -- Control module
 --
-PID_Control_X : Control
+Coupled_Control : Control
 port map(
     clk               =>  adcClk,
     aresetn           =>  aresetn,
-    filtered_data     =>  filtered_data,
+    meas_i            =>  filtered_data(2 downto 0),
     control_i         =>  pid_control,
     valid_i           =>  filter_valid(0),
     enable_i          =>  enable,
     hold_i            =>  hold,
-    gains             =>  pid_regs(4 downto 2),
+    gains_i           =>  pid_regs(4 downto 2),
     valid_o           =>  control_valid,
     control_signal_o  =>  control_signal_o
 );

@@ -24,7 +24,7 @@ end PWM_Generator;
 architecture rtl of PWM_Generator is
 
 signal count    :   unsigned(t_pwm'left downto 0);
-signal data     :   t_pwm_array;
+signal data     :   t_pwm_array(data_i'left downto 0);
 
 begin
 
