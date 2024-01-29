@@ -17,12 +17,13 @@ classdef IQBiasController < handle
     end
 
     properties(Constant)
-        NUM_CONTROL_REGS = 3;   %Number of registers needed for control
+        NUM_CONTROL_REGS = 2;   %Number of registers needed for control
+        NUM_GAIN_REGS = 3;      %Number of registers needed for gain values
         NUM_LIMIT_REGS = 3;     %Number of registers needed for limiting PWM outputs
     end
     
     methods
-        function self = IQBiasController(parent,control_regs,pwm_limit_regs)
+        function self = IQBiasController(parent,control_regs,gain_regs,pwm_limit_regs)
             %IQBIASCONTROLLER Creates an instance of the class
             %
             %   SELF = IQBIASCONTROLLER(PARENT,REGS) Creates instance SELF
@@ -49,10 +50,11 @@ classdef IQBiasController < handle
             self.divisors = DeviceParameter.empty;
             for row = 1:3
                 for col = 1:3
-                    self.gains(row,col) = DeviceParameter((col - 1)*8 + [0,7],control_regs(2 + row),'int8')...
+                    self.gains(row,col) = DeviceParameter;
+                    self.gains(row,col) = DeviceParameter((col - 1)*8 + [0,7],gain_regs(row),'int8')...
                         .setLimits(-2^7,2^7 - 1);
                 end
-                self.divisors(row) = DeviceParameter([24,31],control_regs(2 + row),'uint32')...
+                self.divisors(row) = DeviceParameter([24,31],gain_regs(row),'uint32')...
                     .setLimits('lower',0,'upper',2^8 - 1);
             end
 
@@ -86,7 +88,7 @@ classdef IQBiasController < handle
                 self.gains.set(0);
                 self.divisors.set(0);
                 self.lower_limits.set(0);
-                self.upper_limits.set(0);
+                self.upper_limits.set(1);
             end
         end
         
@@ -136,10 +138,10 @@ classdef IQBiasController < handle
             s{1} = self.enable.print('Enable',width,'%d');
             s{2} = self.hold.print('Hold',width,'%d');
             s{3} = sprintf(['% ',num2str(width),'s: %.3f, %.3f, %.3f\n'],'Controls',self.controls(1).value,self.controls(2).value,self.controls(3).value);
-            s{4} = sprintf(['% ',num2str(width),'s= %d, %d, %d\n'],'K',self.gains(1,1).value,self.gains(1,2).value,self.gains(1,3).value);
-            s{5} = sprintf(['% ',num2str(width),'s= %d, %d, %d\n'],' ',self.gains(2,1).value,self.gains(2,2).value,self.gains(2,3).value);
-            s{6} = sprintf(['% ',num2str(width),'s= %d, %d, %d\n'],' ',self.gains(3,1).value,self.gains(3,2).value,self.gains(3,3).value);
-            s{7} = sprintf(['% ',num2str(width),'s: %d, %d, %d\n'],'Divisors',self.divisors(1).value,self.divisors(2).value,self.divisors(3).value);
+            s{4} = sprintf(['% ',num2str(width),'s= %+ 3d, %+ 3d, %+ 3d\n'],'K',self.gains(1,1).value,self.gains(1,2).value,self.gains(1,3).value);
+            s{5} = sprintf(['% ',num2str(width),'s= %+ 3d, %+ 3d, %+ 3d\n'],' ',self.gains(2,1).value,self.gains(2,2).value,self.gains(2,3).value);
+            s{6} = sprintf(['% ',num2str(width),'s= %+ 3d, %+ 3d, %+ 3d\n'],' ',self.gains(3,1).value,self.gains(3,2).value,self.gains(3,3).value);
+            s{7} = sprintf(['% ',num2str(width),'s: % 2d, % 2d, % 2d\n'],'Divisors',self.divisors(1).value,self.divisors(2).value,self.divisors(3).value);
             s{8} = sprintf(['% ',num2str(width),'s: %.3f, %.3f, %.3f\n'],'Lower limits',self.lower_limits(1).value,self.lower_limits(2).value,self.lower_limits(3).value);
             s{9} = sprintf(['% ',num2str(width),'s: %.3f, %.3f, %.3f\n'],'Upper limits',self.upper_limits(1).value,self.upper_limits(2).value,self.upper_limits(3).value);
             

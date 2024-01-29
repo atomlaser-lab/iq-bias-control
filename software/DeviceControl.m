@@ -41,7 +41,8 @@ classdef DeviceControl < handle
         numSamplesReg           %Register for storing number of samples of ADC data to fetch
         pwmReg                  %Register for PWM signals
         auxReg                  %Auxiliary register
-        controlRegs             %Registers control
+        controlRegs             %Registers for control
+        gainRegs                %Registers for gain values
         pwmLimitRegs            %Registers for limiting PWM outputs
         %new_register % new register added here for dds2
     end
@@ -103,8 +104,13 @@ classdef DeviceControl < handle
             % each, starting at address 0x000100
             %
             self.controlRegs = DeviceRegister.empty;
+            self.gainRegs = DeviceRegister.empty;
+            self.pwmLimitRegs = DeviceRegister.empty;
             for nn = 1:IQBiasController.NUM_CONTROL_REGS
                 self.controlRegs(nn,1) = DeviceRegister(hex2dec('100') + (nn - 1)*4,self.conn);
+            end
+            for nn = 1:IQBiasController.NUM_GAIN_REGS
+                self.gainRegs(nn,1) = DeviceRegister(hex2dec('108') + (nn - 1)*4,self.conn);
             end
             for nn = 1:IQBiasController.NUM_LIMIT_REGS
                 self.pwmLimitRegs(nn,1) = DeviceRegister(hex2dec('114') + (nn - 1)*4,self.conn);
@@ -167,7 +173,7 @@ classdef DeviceControl < handle
             %
             % PID settings
             %
-            self.control = IQBiasController(self,self.controlRegs,self.pwmLimitRegs);
+            self.control = IQBiasController(self,self.controlRegs,self.gainRegs,self.pwmLimitRegs);
             %
             % FIFO routing
             %
