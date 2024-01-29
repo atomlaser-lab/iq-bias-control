@@ -33,8 +33,14 @@ type t_dac_array is array(natural range <>) of t_dac;
 -- Define PWM types
 --
 constant PWM_DATA_WIDTH     :   natural :=  10;
+constant PWM_EXP_WIDTH  :   natural :=  PWM_DATA_WIDTH + 1;
+
 subtype t_pwm is unsigned(PWM_DATA_WIDTH - 1 downto 0);
 type t_pwm_array is array(natural range <>) of t_pwm;
+subtype t_pwm_exp is signed(PWM_EXP_WIDTH - 1 downto 0);
+type t_pwm_exp_array is array(natural range <>) of t_pwm_exp;
+type t_pwm_signed_array is array(natural range <>) of signed(PWM_DATA_WIDTH - 1 downto 0);
+
 --
 -- Defines PID gain types
 --
@@ -139,33 +145,6 @@ constant INIT_FIFO_BUS_SLAVE     :   t_fifo_bus_slave :=(data   =>  (others => '
 constant INIT_FIFO_BUS           :   t_FIFO_bus       :=(m  =>  INIT_FIFO_BUS_MASTER,
                                                         s  =>  INIT_FIFO_BUS_SLAVE);
 
-
-type t_control is record
-    enable  :   std_logic;
-    start   :   std_logic;
-    stop    :   std_logic;
-    debug   :   std_logic_vector(3 downto 0);
-end record t_control;
-
-constant INIT_CONTROL_DISABLED      :   t_control       :=  (enable =>  '0',
-                                                             start  =>  '0',
-                                                             stop   =>  '0',
-                                                             debug  =>  (others => '0'));
-
-constant INIT_CONTROL_ENABLED       :   t_control       :=  (enable =>  '1',
-                                                             start  =>  '0',
-                                                             stop   =>  '0',
-                                                             debug  =>  (others => '0'));
-
-type t_module_status is record
-    started :   std_logic;
-    running :   std_logic;
-    done    :   std_logic;
-end record t_module_status;
-	
-constant INIT_MODULE_STATUS     :   t_module_status :=  (started    =>  '0',
-                                                         running    =>  '0',
-                                                         done       =>  '0');
 
 function to_slv_u(ARG   :   integer; SZ :   natural) return std_logic_vector;
 function to_slv_s(ARG   :   integer; SZ :   natural) return std_logic_vector;

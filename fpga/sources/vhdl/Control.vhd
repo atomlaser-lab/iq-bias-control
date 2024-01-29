@@ -3,43 +3,32 @@ use ieee.std_logic_1164.all;
 use ieee.numeric_std.ALL;
 use ieee.std_logic_unsigned.all; 
 use work.CustomDataTypes.all;
-use work.AXI_Bus_Package.all;
--- Uncomment the following library declaration if using
--- arithmetic functions with Signed or Unsigned values
---use IEEE.NUMERIC_STD.ALL;
-
--- Uncomment the following library declaration if instantiating
--- any Xilinx leaf cells in this code.
---library UNISIM;
---use UNISIM.VComponents.all;
 
 entity Control is
     Port ( 
-        clk             :   in  std_logic;
-        aresetn         :   in  std_logic;
+        clk                 :   in  std_logic;
+        aresetn             :   in  std_logic;
         -- Inputs
-       -- meas_i          :   in t_phase
-        filtered_data    :   in t_meas;
-        control_i       :   in  t_meas;
-        valid_i         :   in  std_logic;
+        meas_i              :   in  t_meas_array(2 downto 0);
+        control_i           :   in  t_meas_array(2 downto 0);
+        valid_i             :   in  std_logic;
         --
         -- Parameters
-        enable_i        :   in  std_logic;
-        polarity_i      :   in  std_logic;
-        hold_i          :   in  std_logic;
-        gains           :   in  t_param_reg;
+        --
+        enable_i            :   in  std_logic;
+        hold_i              :   in  std_logic;
+        gains_i             :   in  t_param_reg_array(2 downto 0);
         --
         -- Outputs
         --
-        valid_o         :   out std_logic;
-        --data_o          : out t_phase;
-        control_signal_o  : out signed(PWM_DATA_WIDTH -1 downto 0) 
+        valid_o             :   out std_logic;
+        control_signal_o    :   out t_pwm_exp_array(2 downto 0)
     );
 end Control;
 
 architecture Behavioral of Control is
 
-COMPONENT PIDmultipliers
+COMPONENT PID_Multiplier_Signed
   PORT (
     CLK : IN STD_LOGIC;
     A : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
@@ -51,80 +40,79 @@ END COMPONENT;
 constant MULT_LATENCY   :   natural :=  3;
 constant EXP_WIDTH      :   natural :=  26;
 constant GAIN_WIDTH     :   natural :=  8;
-constant PHASE_WIDTH    :   natural :=  6;
 constant MULT_WIDTH     :   natural :=  EXP_WIDTH + GAIN_WIDTH;
 
 type t_state_local          is (idle,multiplying,dividing,summing,outputting);
 subtype t_input_local       is signed(EXP_WIDTH-1 downto 0);
 subtype t_gain_local        is std_logic_vector(GAIN_WIDTH-1 downto 0);
 subtype t_mult_local        is signed(MULT_WIDTH-1 downto 0);
-subtype t_phase_local       is signed(PHASE_WIDTH-1 downto 0);
-type    t_input_local_array    is array(natural range <>) of t_input_local;
+type    t_input_local_array is array(natural range <>) of t_input_local;
+type    t_output_2d         is array(natural range <>,natural range <>) of std_logic_vector(MULT_WIDTH - 1 downto 0);
+type    t_gain_array        is array(natural range <>,natural range <>) of t_gain_local;
+type    t_mult_local_array  is array(natural range <>) of t_mult_local;
+type    t_divisor_array     is array(natural range <>) of unsigned(GAIN_WIDTH - 1 downto 0);
 
-signal kp, ki, kd           :   t_gain_local;
-signal divisor              :   natural range 0 to 255;
+signal gains                :   t_gain_array(2 downto 0,2 downto 0);
+signal divisors             :   t_divisor_array(2 downto 0);
 --
 -- Signals
 --
-signal err                      :   t_input_local_array(2 downto 0);
-signal measurement, control     :   t_input_local;
-signal prop_i, int_i, deriv_i   :   t_input_local;
-signal prop_o, int_o, deriv_o   :   std_logic_vector(MULT_WIDTH - 1 downto 0);
-signal pidSum, pidAccumulate    :   t_mult_local;
+signal err, err_old             :   t_input_local_array(2 downto 0);
+signal measurement, control     :   t_input_local_array(2 downto 0);
+signal int_i                    :   t_input_local_array(2 downto 0);
+signal int_o                    :   t_output_2d(2 downto 0,2 downto 0);
+signal pidSum, pidAccumulate    :   t_mult_local_array(2 downto 0);
 
 signal valid_p                  :   std_logic_vector(7 downto 0);
 
 begin
 
-kp <= gains(7 downto 0);
-ki <= gains(15 downto 8);
-kd <= gains(23 downto 16);
-divisor <= to_integer(unsigned(gains(31 downto 24)));
---
--- Resize inputs
---
-measurement <= resize(filtered_data,measurement'length);
-control <= resize(control_i,control'length);
---
---
-prop_i <= err(0) - err(1);
-int_i <= shift_right(err(0) + err(1),1);
-deriv_i <= err(0) - shift_left(err(1),1) + err(2);
+Gain_Assignment: for I in 0 to 2 generate
+    --
+    -- Assign gains
+    --
+    gains(I,0)  <= gains_i(I)(7 downto 0);
+    gains(I,1)  <= gains_i(I)(15 downto 8);
+    gains(I,2)  <= gains_i(I)(23 downto 16);
+    divisors(I) <= unsigned(gains_i(I)(31 downto 24));
+    --
+    -- Resize inputs
+    --
+    measurement(I) <= resize(meas_i(I),EXP_WIDTH);
+    control(I) <= resize(control_i(I),EXP_WIDTH);
+    
+    
+end generate Gain_Assignment;
 
-PropMult: PIDmultipliers
-port map(
-    clk     =>  clk,
-    A       =>  kp,
-    B       =>  std_logic_vector(prop_i),
-    P       =>  prop_o
-);
-
-IntMult: PIDmultipliers
-port map(
-    clk     =>  clk,
-    A       =>  ki,
-    B       =>  std_logic_vector(int_i),
-    P       =>  int_o
-);
-
-DerivMult: PIDmultipliers
-port map(
-    clk     =>  clk,
-    A       =>  kd,
-    B       =>  std_logic_vector(deriv_i),
-    P       =>  deriv_o
-);
-
-pidSum <= signed(prop_o) + signed(int_o) + signed(deriv_o);
+Multiplier_Gen_Row: for row in 0 to 2 generate
+    Multiplier_Gen_Col: for col in 0 to 2 generate
+        Mult_XX: PID_Multiplier_Signed
+        port map(
+            clk =>  clk,
+            A   =>  gains(row,col),
+            B   =>  std_logic_vector(int_i(col)),
+            P   =>  int_o(row,col)
+        );
+    end generate Multiplier_Gen_Col;
+    --
+    -- Create integral gain inputs
+    --
+    int_i(row) <= shift_right(err(row) + err_old(row),1);
+    --
+    -- Create summed outputs
+    --
+    pidSum(row) <= signed(int_o(row,0)) + signed(int_o(row,1)) + signed(int_o(row,2));
+end generate Multiplier_Gen_Row;
 
 PID: process(clk,aresetn) is
 begin
     if aresetn = '0' then
         err <= (others => (others => '0'));
+        err_old <= (others => (others => '0'));
         valid_o <= '0';
         valid_p <= (others => '0');
-        pidAccumulate <= (others => '0');
-        control_signal_o <= (others => '0');
+        pidAccumulate <= (others => (others => '0'));
+        control_signal_o <= (others => (others => '0'));
     elsif rising_edge(clk) then
         if enable_i = '1' then
             --
@@ -133,18 +121,12 @@ begin
             valid_p(0) <= valid_i;
             if valid_i = '1' then
                 --
-                -- Get new data
+                -- Get new error data and store old error data
                 --
-                if polarity_i = '0' then
-                    err(0) <= control - measurement;
-                else
-                    err(0) <= measurement - control;
-                end if;
-                --
-                -- Store previous data
-                --
-                err(1) <= err(0);
-                err(2) <= err(1);
+                for I in 0 to 2 loop
+                    err(I) <= control(I) - measurement(I);
+                    err_old(I) <= err(I);
+                end loop;
             end if;
             --
             -- Step through pipeline stages to account for multiplication latency
@@ -156,21 +138,27 @@ begin
             -- Sum new values
             --
             if valid_p(MULT_LATENCY) = '1' and hold_i = '0' then
-                pidAccumulate <= pidAccumulate + pidSum;
+                for I in 0 to 2 loop
+                    pidAccumulate(I) <= pidAccumulate(I) + pidSum(I);
+                end loop;
             end if;
             valid_p(1 + MULT_LATENCY) <= valid_p(MULT_LATENCY);
             --
             -- Produce output
             --
             if valid_p(1 + MULT_LATENCY) = '1' then
-                control_signal_o <= resize(shift_right(pidAccumulate,divisor),control_signal_o'length);
+                for I in 0 to 2 loop
+                    control_signal_o(I) <= resize(shift_right(pidAccumulate(I),to_integer(divisors(I))),t_pwm_exp'length);
+                end loop;
+                
             end if;
             valid_o <= valid_p(1 + MULT_LATENCY);
         else
             err <= (others => (others => '0'));
+            err_old <= (others => (others => '0'));
             valid_p <= (others => '0');
-            pidAccumulate <= (others => '0');
-            control_signal_o <= (others => '0');
+            pidAccumulate <= (others => (others => '0'));
+            control_signal_o <= (others => (others => '0'));
             valid_o <= '0';
         end if;
     end if;

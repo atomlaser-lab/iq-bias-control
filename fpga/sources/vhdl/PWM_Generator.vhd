@@ -16,6 +16,7 @@ entity PWM_Generator is
         -- Input/outputs
         --
         data_i      :   in  t_pwm_array;
+        valid_i     :   in  std_logic;
         pwm_o       :   out std_logic_vector   
     );
 end PWM_Generator;
@@ -23,19 +24,24 @@ end PWM_Generator;
 architecture rtl of PWM_Generator is
 
 signal count    :   unsigned(t_pwm'left downto 0);
+signal data     :   t_pwm_array;
 
 begin
 
 PWM_GEN: for I in 0 to pwm_o'left generate
-    pwm_o(I) <= '1' when count < data_i(I) else '0';
+    pwm_o(I) <= '1' when count < data(I) else '0';
 end generate PWM_GEN;
 
 counting_process: process(clk,aresetn) is
 begin
     if aresetn = '0' then
         count <= (others => '0');
+        data <= (others => (others => '0'));
     elsif rising_edge(clk) then
         count <= count + 1;
+        if valid_i = '1' then
+            data <= data_i;
+        end if;
     end if;
 end process;
    

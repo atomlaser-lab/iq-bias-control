@@ -24,7 +24,7 @@ classdef DeviceControl < handle
         numSamples              %Number of samples to collect from recording raw ADC signals
         output_scale            %Output scaling from 0 to 1
         pwm                     %Array of 4 PWM outputs
-        pid                     %PID control, array of 3 IQBIasPID objects
+        control                 %Coupled integral control
         fifo_route              %Array of 4 FIFO routing options
     end
     
@@ -41,7 +41,8 @@ classdef DeviceControl < handle
         numSamplesReg           %Register for storing number of samples of ADC data to fetch
         pwmReg                  %Register for PWM signals
         auxReg                  %Auxiliary register
-        pidRegs                 %Registers (3 x 3) for PID control
+        controlRegs             %Registers control
+        pwmLimitRegs            %Registers for limiting PWM outputs
         %new_register % new register added here for dds2
     end
     
@@ -54,7 +55,6 @@ classdef DeviceControl < handle
         PARAM_WIDTH = 32;
         PWM_WIDTH = 10;
         NUM_PWM = 3;
-        NUM_PIDS = 3;
         %
         % Conversion values going from integer values to volts
         %
@@ -102,12 +102,12 @@ classdef DeviceControl < handle
             % PID registers: there are 3 PIDs with IQBiasPID.NUM_REGS registers
             % each, starting at address 0x000100
             %
-            self.pidRegs = DeviceRegister.empty;
-            for col = 1:self.NUM_PIDS
-                for row = 1:IQBiasPID.NUM_REGS
-                    addr = 4*(row - 1) + hex2dec('100')*col;
-                    self.pidRegs(row,col) = DeviceRegister(addr,self.conn);
-                end
+            self.controlRegs = DeviceRegister.empty;
+            for nn = 1:IQBiasController.NUM_CONTROL_REGS
+                self.controlRegs(nn,1) = DeviceRegister(hex2dec('100') + (nn - 1)*4,self.conn);
+            end
+            for nn = 1:IQBiasController.NUM_LIMIT_REGS
+                self.pwmLimitRegs(nn,1) = DeviceRegister(hex2dec('114') + (nn - 1)*4,self.conn);
             end
             %
             % Auxiliary register for all and sundry
@@ -167,10 +167,7 @@ classdef DeviceControl < handle
             %
             % PID settings
             %
-            self.pid = IQBiasPID.empty;
-            for nn = 1:self.NUM_PIDS
-                self.pid(nn,1) = IQBiasPID(self,self.pidRegs(:,nn));
-            end
+            self.control = IQBiasController(self,self.controlRegs,self.pwmLimitRegs);
             %
             % FIFO routing
             %
@@ -197,9 +194,7 @@ classdef DeviceControl < handle
              self.cic_shift.set(0);
              self.output_scale.set(1);
              self.numSamples.set(4000);
-             for nn = 1:numel(self.pid)
-                self.pid(nn).setDefaults();
-             end
+             self.control.setDefaults;
              for nn = 1:numel(self.fifo_route)
                 self.fifo_route(nn).set(0);
              end
@@ -450,7 +445,7 @@ classdef DeviceControl < handle
             self.ddsPhaseOffsetReg.print('phaseOffsetReg',strwidth);
             self.dds2PhaseOffsetReg.print('dds2phaseOffsetReg',strwidth);
             self.pwmReg.print('pwmReg',strwidth);
-            self.pidRegs.print('pidRegs',strwidth);
+            self.controlRegs.print('pidRegs',strwidth);
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Parameters\n');
             
@@ -472,14 +467,8 @@ classdef DeviceControl < handle
                 self.fifo_route(nn).print(sprintf('FIFO Route %d',nn),strwidth,'%d');
             end
             fprintf(1,'\t ----------------------------------\n');
-            fprintf(1,'\t PID 1 Parameters\n');
-            self.pid(1).print(strwidth);
-            fprintf(1,'\t ----------------------------------\n');
-            fprintf(1,'\t PID 2 Parameters\n');
-            self.pid(2).print(strwidth);
-            fprintf(1,'\t ----------------------------------\n');
-            fprintf(1,'\t PID 3 Parameters\n');
-            self.pid(3).print(strwidth); 
+            fprintf(1,'\t Control Parameters\n');
+            self.control.print(strwidth);
         end
         
         function s = struct(self)
@@ -493,7 +482,7 @@ classdef DeviceControl < handle
             
             p = properties(self);
             for nn = 1:numel(p)
-                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasPID')
+                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController')
                     s.(p{nn}) = self.(p{nn}).struct;
                 end
             end
@@ -517,7 +506,7 @@ classdef DeviceControl < handle
             p = properties(self);
             for nn = 1:numel(p)
                 if isfield(s,p{nn})
-                    if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasPID')
+                    if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController')
                         self.(p{nn}).loadstruct(s.(p{nn}));
                     end
                 end
