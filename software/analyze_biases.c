@@ -34,7 +34,7 @@ int stop_fifo(void *cfg) {
   return 0;
 }
 
-int write_to_pwm(void *cfg,uint8_t V1,uint8_t V2,uint8_t V3,uint8_t V4) {
+int write_to_pwm(void *cfg,uint16_t V1,uint16_t V2,uint16_t V3,uint16_t V4) {
   uint32_t data = V1 + V2*(1 << 10) + V3*(1 << 20);
   *((uint32_t *)(cfg + PWM_LOC)) = data;
   return 0;
@@ -47,7 +47,7 @@ int main(int argc, char **argv)
   int numAvgs;          //Number of averages to use
   void *cfg;		    //A pointer to a memory location.  The * indicates that it is a pointer - it points to a location in memory
   char *name = "/dev/mem";	//Name of the memory resource
-  uint8_t Vmax = 160;
+  uint16_t Vmax = 160;
 
   uint32_t i, incr = 0;
   uint8_t saveType = 2;
@@ -123,7 +123,7 @@ int main(int argc, char **argv)
    */
   int linear_index = 0;
   int offset_index = (int) pow((double) numVoltages,3);
-  uint8_t Vx, Vy, Vz;
+  uint16_t Vx, Vy, Vz;
   for (int xx = 0;xx < numVoltages; xx++) {
     Vx = xx*(Vmax/numVoltages);
     for (int yy = 0;yy < numVoltages; yy++) {
