@@ -8,8 +8,8 @@ Vfine = 0:0.025:1;
 ph = 0:10:360;
 Npoints = 1e3;
 fig_offset = 1500;
-target_low_pass_freq = 10;
-Ki_target = 2*pi*target_low_pass_freq*d.dt();
+target_low_pass_freq = 100;
+Ki_target = 2*pi*target_low_pass_freq*d.dt()/DeviceControl.CONV_PWM;
 
 % d.log2_rate.set(13).write;
 % d.pwm(1).set(0.5).write;
@@ -41,7 +41,7 @@ xlabel('2f demodulation phase [deg]');
 [~,idx] = max(range(data(:,:,3),1));
 nlf = nonlinfit(ph,range(data(:,:,3),1));
 nlf.setFitFunc(@(A,ph0,x) abs(A*cosd(x - ph0)));
-nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[50,270,ph(idx)]);
+nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[0,180,ph(idx)]);
 nlf.fit;
 hold on
 plot(nlf.x,nlf.f(nlf.x),'--');
@@ -72,7 +72,7 @@ toc;
 nlf = nonlinfit(Vfine,data2(:,3));
 nlf.ex = nlf.x >= 1;
 nlf.setFitFunc(@(A,s,x0,x) A*sin(2*pi*(x - x0)/s));
-nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'s',[0.25,5,1.5],'x0',[0,3*max(nlf.x),0.4]);
+nlf.bounds2('A',[-2*max(nlf.y),2*max(nlf.y),max(nlf.y)],'s',[0.25,5,1.5],'x0',[0,0.5*max(nlf.x),0.4]);
 nlf.fit;
 figure(fig_offset + 1);clf;
 nlf.plot('plotresiduals',0);
@@ -80,7 +80,7 @@ nlf.plot('plotresiduals',0);
 approx_zero_voltages = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
 zero_crossing_voltages_2f = get_zero_crossing_voltages(nlf,approx_zero_voltages);
 
-plot_format('DC3 [V]','Signal',sprintf('Zero-crossing voltage = %.3f',zero_crossing_voltages_2f(end)));
+plot_format('DC3 [V]','Signal',sprintf('Zero-crossing voltage = %.3f',zero_crossing_voltages_2f(end)),10);
 
 %% Set DC3 voltage
 d.pwm(3).set(zero_crossing_voltages_2f(2)).write;
@@ -131,7 +131,7 @@ d.phase_offset.set(optimum_1f_phase).write;
 
 %% Fine scan over DC1 and DC2 individually
 %
-% We then want to find the approximate voltages are which the 1f I and Q
+% We then want to find the approximate voltages at which the 1f I and Q
 % signals are zero
 %
 data12 = zeros(numel(Vfine),4,2);
@@ -193,14 +193,21 @@ zero_voltages = [d.pwm(1).get(),d.pwm(2).get(),d.pwm(3).get()];
 dV = 5e-3;
 V = dV*(-10:10);
 data_lin = zeros(numel(V),4,3);
+tic;
 for mm = 1:d.NUM_PWM
+    fprintf('PWM %d\n',mm);
     d.pwm.set(zero_voltages);
     for nn = 1:numel(V)
         d.pwm(mm).set(zero_voltages(mm) + V(nn)).write;
-        data_lin(nn,:,mm) = get_data(d);
+        if nn == 1
+            pause(1);
+        else
+            pause(100e-3);
+        end
+        data_lin(nn,:,mm) = get_data(d,Npoints);
     end
 end
-
+toc;
 %% Analyze linear responses
 %
 % Fit data to linear functions and get the slopes, which are the dynamic
@@ -209,24 +216,107 @@ end
 %
 figure(fig_offset + 5);clf;
 G = zeros(3,3);
+Z = zeros(size(zero_voltages));
 lf = linfit;
 lf.setFitFunc('poly',1);
 for row = 1:3
     for col = 1:3
         lf.set(V,data_lin(:,row,col));
+        lf.ex = (V + zero_voltages(col)) >= 1;
         lf.fit;
         G(row,col) = lf.c(2,1);
-        subplot(3,3,[row,col]);
-        plot(nlf.x,nlf.y,'.');
+        if row == col
+            Z(row) = -lf.c(1,1)./lf.c(2,1);
+        end
+        subplot(3,3,col + (row - 1)*3);
+        plot(lf.x,lf.y,'.');
         hold on
-        plot(nlf.x,nlf.f(nlf.x),'--');
-        plot_format('Voltage [V]','Signal',sprintf('S%d - DC%d',row,col),10);
+        plot(lf.x,lf.f(lf.x),'--');
+        plot_format(sprintf('DC%d [V]',col),sprintf('Signal %d',row),sprintf('S%d - DC%d',row,col),10);
+        drawnow;
     end
 end
 
-K_target = Ki_target*eye(3);
-K = G\K_target
+%% Redo linear measurement with new zero voltage values
+zero_voltages = zero_voltages + (G\(diag(G).*Z(:)))';
+dV = 5e-3;
+V = dV*(-10:10);
+data_lin = zeros(numel(V),4,3);
+tic;
+for mm = 1:d.NUM_PWM
+    fprintf('PWM %d\n',mm);
+    d.pwm.set(zero_voltages);
+    for nn = 1:numel(V)
+        d.pwm(mm).set(zero_voltages(mm) + V(nn)).write;
+        if nn == 1
+            pause(1);
+        else
+            pause(200e-3);
+        end
+        data_lin(nn,:,mm) = get_data(d,Npoints);
+    end
+end
+toc;
 
+%% Re-Analyze linear responses
+%
+% Fit data to linear functions and get the slopes, which are the dynamic
+% transfer functions.  These form a matrix G which can be inverted to find
+% the control matrix K that will give a diagonal loop gain matrix
+%
+figure(fig_offset + 5);clf;
+G = zeros(3,3);
+Z = zeros(size(zero_voltages));
+lf = linfit;
+lf.setFitFunc('poly',1);
+for row = 1:3
+    for col = 1:3
+        lf.set(V,data_lin(:,row,col));
+        lf.ex = (V + zero_voltages(col)) >= 1;
+        lf.fit;
+        G(row,col) = lf.c(2,1);
+        if row == col
+            Z(row) = -lf.c(1,1)./lf.c(2,1);
+        end
+        subplot(3,3,col + (row - 1)*3);
+        plot(lf.x,lf.y,'.');
+        hold on
+        plot(lf.x,lf.f(lf.x),'--');
+        grid on
+        plot_format(sprintf('DC%d [V]',col),sprintf('Signal %d',row),sprintf('S%d - DC%d',row,col),10);
+        drawnow;
+    end
+end
+
+%%
+K_target = Ki_target*eye(3);
+Ktmp = G\K_target;
+K = zeros(3);
+D = zeros(3,1);
+for row = 1:3
+    Dmin = min(abs(round(log2(abs(Ktmp(row,:))))));
+    Dmax = max(abs(round(log2(abs(Ktmp(row,:))))));
+    if Dmax - Dmin > 7
+        D(row) = Dmax;
+    else
+        D(row) = Dmin + 7;
+    end
+    K(row,:) = Ktmp(row,:).*2.^D(row);
+    if any(abs(K(row,:)) > 120)
+        D(row) = D(row) - ceil(log2(max(abs(K(row,:)))/120));
+        K(row,:) = Ktmp(row,:).*2.^D(row);
+    end
+end
+
+%% Set gains
+for row = 1:size(K,1)
+    for col = 1:size(K,2)
+        d.control.gains(row,col).set(round(K(row,col)));
+    end
+    d.control.divisors(row).set(D(row));
+end
+d.pwm.set(zero_voltages + Z);
+d.upload;
 
 %%
 function r = get_data(d,N)
@@ -237,6 +327,6 @@ end
 function r = get_zero_crossing_voltages(nlf,x0)
     r = [0,0];
     for nn = 1:numel(x0)
-        r(nn,1) = fsolve(@(x) interp1(nlf.x,nlf.y,x,'pchip'),x0(nn),optimset('display','off'));
+        r(nn) = fsolve(@(x) interp1(nlf.x,nlf.y,x,'pchip'),x0(nn),optimset('display','off'));
     end
 end
