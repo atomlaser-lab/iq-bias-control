@@ -23,25 +23,24 @@ COMPONENT DDS1
 END COMPONENT;
 
 component Demodulator is
+    generic(
+        NUM_DEMOD_SIGNALS : natural :=  3
+    );
     port(
         clk             :   in  std_logic;
         aresetn         :   in  std_logic;
         --
         -- Registers
         --
-        filterReg_i     :   in  t_param_reg;
-        --
-        -- Parameters
-        --
-        modulation_freq :   in  t_phase;
-        phase_offsets   :   in  t_phase_array(1 downto 0);
+        filter_reg_i    :   in  t_param_reg;
+        dds_regs_i      :   in  t_param_reg_array(2 downto 0);
         --
         -- Input and output data
         --
         data_i          :   in  t_adc;
         dac_o           :   out t_dac_array(1 downto 0);
-        filtered_data_o :   out t_adc_array(2 downto 0);
-        valid_o         :   out std_logic
+        filtered_data_o :   out t_meas_array(NUM_DEMOD_SIGNALS - 1 downto 0);
+        valid_o         :   out std_logic_vector(NUM_DEMOD_SIGNALS - 1 downto 0)
     );
 end component;
 
@@ -65,11 +64,12 @@ signal aresetn      :   std_logic;
 signal filterReg        :   t_param_reg;
 signal modulation_freq  :   t_phase;
 signal phase_offsets    :   t_phase_array(1 downto 0);
+signal dds_regs         :   t_param_reg_array(2 downto 0);
 
 signal data_i           :   t_adc;
 signal dac_o            :   t_dac_array(1 downto 0);
-signal filtered_data_o  :   t_adc_array(2 downto 0);
-signal valid_o          :   std_logic;
+signal filtered_data_o  :   t_meas_array(3 downto 0);
+signal valid_o          :   std_logic_vector(3 downto 0);
 
 signal dds_phase_i      :   t_dds_phase_combined_slv_array(1 downto 0);
 signal dds_o            :   t_dds_o_slv_array(1 downto 0);
@@ -85,13 +85,16 @@ begin
     wait for clk_period/2;
 end process;
 
+dds_regs <= (0 => std_logic_vector(modulation_freq), 1 => std_logic_vector(phase_offsets(0)), 2=> std_logic_vector(phase_offsets(1)));
 uut: Demodulator
+generic map(
+    NUM_DEMOD_SIGNALS => 4
+)
 port map(
     clk                 =>  clk,
     aresetn             =>  aresetn,
-    filterReg_i         =>  filterReg,
-    modulation_freq     =>  modulation_freq,
-    phase_offsets       =>  phase_offsets,
+    filter_reg_i        =>  filterReg,
+    dds_regs_i          =>  dds_regs,
     data_i              =>  data_i,
     dac_o               =>  dac_o,
     filtered_data_o     =>  filtered_data_o,
@@ -136,17 +139,17 @@ begin
     --
     aresetn <= '0';
     wait for 50 ns;
-    modulation_freq <= to_unsigned(34359738,modulation_freq'length);
+    modulation_freq <= to_unsigned(171798692,modulation_freq'length);
     phase_offsets(0) <= (others => '0');
     phase_offsets(1) <= (others => '0');
-    filterReg <= X"00000009";
+    filterReg <= X"00ff0009";
     wait for 200 ns;
     aresetn <= '1';
     wait for 10 us;
     wait until rising_edge(clk);
-    filterReg <= X"0000000a";
-    wait for 50 us;
-    phase_offsets(1) <= (30 => '1', others => '0');
+    filterReg <= X"00ff000a";
+--    wait for 50 us;
+--    phase_offsets(1) <= (30 => '1', others => '0');
     
     wait;
 end process; 

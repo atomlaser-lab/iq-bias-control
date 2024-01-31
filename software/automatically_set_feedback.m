@@ -8,8 +8,6 @@ Vfine = 0:0.025:1;
 ph = 0:10:360;
 Npoints = 1e3;
 fig_offset = 1500;
-target_low_pass_freq = 100;
-Ki_target = 2*pi*target_low_pass_freq*d.dt()/DeviceControl.CONV_PWM;
 
 % d.log2_rate.set(13).write;
 % d.pwm(1).set(0.5).write;
@@ -288,7 +286,14 @@ for row = 1:3
     end
 end
 
-%%
+%% Compute feedback matrix
+%
+% Using a target low-pass frequency (in Hz), we now compute the feedback
+% matrix K and its integer values taking into account the row-wise divisors
+%
+target_low_pass_freq = 100;
+Ki_target = 2*pi*target_low_pass_freq*d.dt()/DeviceControl.CONV_PWM;
+
 K_target = Ki_target*eye(3);
 Ktmp = G\K_target;
 K = zeros(3);
