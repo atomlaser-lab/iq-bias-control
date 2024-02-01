@@ -37,7 +37,7 @@ COMPONENT PID_Multiplier_Signed
   );
 END COMPONENT; 
 
-constant MULT_LATENCY   :   natural :=  4;
+constant MULT_LATENCY   :   natural :=  3;
 constant EXP_WIDTH      :   natural :=  26;
 constant GAIN_WIDTH     :   natural :=  8;
 constant MULT_WIDTH     :   natural :=  EXP_WIDTH + GAIN_WIDTH;

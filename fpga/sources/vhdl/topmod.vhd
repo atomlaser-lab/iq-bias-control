@@ -128,6 +128,7 @@ component PWM_Generator is
         -- Clocking
         --
         clk         :   in  std_logic;
+        clkx2       :   in  std_logic;
         aresetn     :   in  std_logic;
         --
         -- Input/outputs
@@ -235,7 +236,8 @@ pwm_data_i(2) <= resize(unsigned(std_logic_vector(pwm_limit(2))),PWM_DATA_WIDTH)
 pwm_data_i(3) <= pwm_data(3);
 PWM1: PWM_Generator
 port map(
-  clk     =>  adcClkx2,
+  clk     =>  adcClk,
+  clkx2   =>  adcClkx2,
   aresetn =>  aresetn,
   data_i  =>  pwm_data_i,
   valid_i => '1',

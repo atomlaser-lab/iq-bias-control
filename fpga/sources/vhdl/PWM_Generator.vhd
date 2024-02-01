@@ -11,6 +11,7 @@ entity PWM_Generator is
         -- Clocking
         --
         clk         :   in  std_logic;
+        clkx2       :   in  std_logic;
         aresetn     :   in  std_logic;
         --
         -- Input/outputs
@@ -32,16 +33,23 @@ PWM_GEN: for I in 0 to pwm_o'left generate
     pwm_o(I) <= '1' when count < data(I) else '0';
 end generate PWM_GEN;
 
-counting_process: process(clk,aresetn) is
+data_process: process(clk,aresetn) is 
 begin
     if aresetn = '0' then
-        count <= (others => '0');
         data <= (others => (others => '0'));
     elsif rising_edge(clk) then
-        count <= count + 1;
         if valid_i = '1' then
             data <= data_i;
         end if;
+    end if;
+end process;
+
+counting_process: process(clkx2,aresetn) is
+begin
+    if aresetn = '0' then
+        count <= (others => '0');
+    elsif rising_edge(clkx2) then
+        count <= count + 1;
     end if;
 end process;
    

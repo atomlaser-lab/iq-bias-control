@@ -230,6 +230,7 @@ for row = 1:3
         plot(lf.x,lf.y,'.');
         hold on
         plot(lf.x,lf.f(lf.x),'--');
+        grid on
         plot_format(sprintf('DC%d [V]',col),sprintf('Signal %d',row),sprintf('S%d - DC%d',row,col),10);
         drawnow;
     end
