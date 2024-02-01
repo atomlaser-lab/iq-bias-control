@@ -63,7 +63,16 @@ filtered_data(0) <= resize(control_signal_o(0) + shift_right(control_signal_o(1)
 filtered_data(1) <= resize(control_signal_o(1) - shift_right(control_signal_o(0),1),t_meas'length);
 filtered_data(2) <= resize(control_signal_o(2),t_meas'length);
 
-valid_i <= '1';
+Valid_proc: process is
+begin
+    valid_i <= '0';
+    wait for 1 us;
+    wait until rising_edge(clk);
+    valid_i <= '1';
+    wait until rising_edge(clk);
+    valid_i <= '0';
+end process;
+
 Control_0: Control
 port map(
     clk             =>  clk,
@@ -81,9 +90,9 @@ port map(
 main: process is
 begin
     aresetn <= '0';
-    gains_reg(0) <= X"08" & to_slv_s(1,8) & to_slv_s(-2,8) & to_slv_s(9,8);
-    gains_reg(1) <= X"08" & to_slv_s(1,8) & to_slv_s(9,8) & to_slv_s(4,8);
-    gains_reg(2) <= X"08" & to_slv_s(10,8) & to_slv_s(0,8) & to_slv_s(0,8);
+    gains_reg(0) <= X"06" & to_slv_s(1,8) & to_slv_s(-2,8) & to_slv_s(9,8);
+    gains_reg(1) <= X"06" & to_slv_s(1,8) & to_slv_s(9,8) & to_slv_s(4,8);
+    gains_reg(2) <= X"06" & to_slv_s(10,8) & to_slv_s(0,8) & to_slv_s(0,8);
     control_i(0) <= to_signed(500,t_meas'length);
     control_i(1) <= to_signed(200,t_meas'length);
     control_i(2) <= to_signed(-300,t_meas'length);

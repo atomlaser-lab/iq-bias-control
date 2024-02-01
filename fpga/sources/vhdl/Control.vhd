@@ -51,7 +51,12 @@ type    t_output_2d         is array(natural range <>,natural range <>) of std_l
 type    t_gain_array        is array(natural range <>,natural range <>) of t_gain_local;
 type    t_mult_local_array  is array(natural range <>) of t_mult_local;
 type    t_divisor_array     is array(natural range <>) of unsigned(GAIN_WIDTH - 1 downto 0);
-
+--
+-- State machine signals
+--
+signal state                :   t_state_local;
+signal count                :   unsigned(3 downto 0);
+signal row_count,col_count  :   unsigned(1 downto 0);
 signal gains                :   t_gain_array(2 downto 0,2 downto 0);
 signal divisors             :   t_divisor_array(2 downto 0);
 --
@@ -62,6 +67,9 @@ signal measurement, control     :   t_input_local_array(2 downto 0);
 signal int_i                    :   t_input_local_array(2 downto 0);
 signal int_o                    :   t_output_2d(2 downto 0,2 downto 0);
 signal pidSum, pidAccumulate    :   t_mult_local_array(2 downto 0);
+signal mult_i                   :   std_logic_vector(EXP_WIDTH - 1 downto 0);
+signal gain_i                   :   t_gain_local;
+signal mult_o                   :   std_logic_vector(MULT_WIDTH - 1 downto 0);
 
 signal valid_p                  :   std_logic_vector(7 downto 0);
 
@@ -80,29 +88,23 @@ Gain_Assignment: for I in 0 to 2 generate
     --
     measurement(I) <= resize(meas_i(I),EXP_WIDTH);
     control(I) <= resize(control_i(I),EXP_WIDTH);
-    
-    
-end generate Gain_Assignment;
-
-Multiplier_Gen_Row: for row in 0 to 2 generate
-    Multiplier_Gen_Col: for col in 0 to 2 generate
-        Mult_XX: PID_Multiplier_Signed
-        port map(
-            clk =>  clk,
-            A   =>  gains(row,col),
-            B   =>  std_logic_vector(int_i(col)),
-            P   =>  int_o(row,col)
-        );
-    end generate Multiplier_Gen_Col;
     --
     -- Create integral gain inputs
     --
-    int_i(row) <= shift_right(err(row) + err_old(row),1);
+    int_i(I) <= shift_right(err(I) + err_old(I),1);
     --
     -- Create summed outputs
     --
-    pidSum(row) <= signed(int_o(row,0)) + signed(int_o(row,1)) + signed(int_o(row,2));
-end generate Multiplier_Gen_Row;
+    pidSum(I) <= signed(int_o(I,0)) + signed(int_o(I,1)) + signed(int_o(I,2));
+end generate Gain_Assignment;
+
+Mult_XX: PID_Multiplier_Signed
+port map(
+    clk =>  clk,
+    A   =>  gain_i,
+    B   =>  mult_i,
+    P   =>  mult_o
+);
 
 PID: process(clk,aresetn) is
 begin
@@ -113,47 +115,73 @@ begin
         valid_p <= (others => '0');
         pidAccumulate <= (others => (others => '0'));
         control_signal_o <= (others => (others => '0'));
+        state <= idle;
+        count <= (others => '0');
+        row_count <= "00";
+        col_count <= "00";
+        mult_i <= (others => '0');
+        gain_i <= (others => '0');
     elsif rising_edge(clk) then
         if enable_i = '1' then
-            --
-            -- First pipeline stage
-            --
-            valid_p(0) <= valid_i;
-            if valid_i = '1' then
-                --
-                -- Get new error data and store old error data
-                --
-                for I in 0 to 2 loop
-                    err(I) <= control(I) - measurement(I);
-                    err_old(I) <= err(I);
-                end loop;
-            end if;
-            --
-            -- Step through pipeline stages to account for multiplication latency
-            --
-            for I in 0 to MULT_LATENCY - 1 loop
-                valid_p(I + 1) <= valid_p(I);
-            end loop;
-            --
-            -- Sum new values
-            --
-            if valid_p(MULT_LATENCY) = '1' and hold_i = '0' then
-                for I in 0 to 2 loop
-                    pidAccumulate(I) <= pidAccumulate(I) + pidSum(I);
-                end loop;
-            end if;
-            valid_p(1 + MULT_LATENCY) <= valid_p(MULT_LATENCY);
-            --
-            -- Produce output
-            --
-            if valid_p(1 + MULT_LATENCY) = '1' then
-                for I in 0 to 2 loop
-                    control_signal_o(I) <= resize(shift_right(pidAccumulate(I),to_integer(divisors(I))),t_pwm_exp'length);
-                end loop;
+            FSM: case(state) is
+                when idle =>
+                    valid_o <= '0';
+                    if valid_i = '1' then
+                        --
+                        -- Get new error data and store old error data
+                        --
+                        for I in 0 to 2 loop
+                            err(I) <= control(I) - measurement(I);
+                            err_old(I) <= err(I);
+                        end loop;
+                        state <= multiplying;
+                        count <= (others => '0');
+                        row_count <= "00";
+                        col_count <= "00";
+                    end if;
+
+                when multiplying =>
+                    mult_i <= std_logic_vector(int_i(to_integer(col_count)));
+                    gain_i <= gains(to_integer(row_count),to_integer(col_count));
+                    if count < MULT_LATENCY then
+                        count <= count + 1;
+                    elsif count >= MULT_LATENCY then
+                        int_o(to_integer(row_count),to_integer(col_count)) <= mult_o;
+                        count <= (others => '0');
+                        if row_count = 2 and col_count = 2 then
+                            state <= summing;
+                        else
+                            if col_count = 2 then
+                                col_count <= (others => '0');
+                                row_count <= row_count + 1;
+                            else
+                                col_count <= col_count + 1;
+                            end if;
+                        end if;
+                    end if;
+
+                when summing =>
+                    state <= outputting;
+                    for I in 0 to 2 loop
+                        pidAccumulate(I) <= pidAccumulate(I) + pidSum(I);
+                    end loop;
+
+                when outputting =>
+                    for I in 0 to 2 loop
+                        control_signal_o(I) <= resize(shift_right(pidAccumulate(I),to_integer(divisors(I))),t_pwm_exp'length);
+                    end loop;
+                    valid_o <= '1';
+                    state <= idle;
                 
-            end if;
-            valid_o <= valid_p(1 + MULT_LATENCY);
+                when others => 
+                    state <= idle;
+                    valid_o <= '0';
+                    count <= (others => '0');
+
+            end case;
         else
+            state <= idle;
+            count <= (others => '0');
             err <= (others => (others => '0'));
             err_old <= (others => (others => '0'));
             valid_p <= (others => '0');
