@@ -57,7 +57,7 @@ component Control is
         --
         enable_i            :   in  std_logic;
         hold_i              :   in  std_logic;
-        gains_i             :   in  t_param_reg_array(2 downto 0);
+        gains_i             :   in  t_param_reg_array(5 downto 0);
         --
         -- Outputs
         --
@@ -297,7 +297,7 @@ port map(
     valid_i           =>  filter_valid(0),
     enable_i          =>  enable,
     hold_i            =>  hold,
-    gains_i           =>  pid_regs(4 downto 2),
+    gains_i           =>  pid_regs(7 downto 2),
     valid_o           =>  control_valid,
     control_signal_o  =>  control_signal_o
 );
@@ -443,9 +443,13 @@ begin
                             when X"000108" => rw(bus_m,bus_s,comState,pid_regs(2));
                             when X"00010C" => rw(bus_m,bus_s,comState,pid_regs(3));
                             when X"000110" => rw(bus_m,bus_s,comState,pid_regs(4));
-                            when X"000114" => rw(bus_m,bus_s,comState,pwm_limit_regs(0));
-                            when X"000118" => rw(bus_m,bus_s,comState,pwm_limit_regs(1));
-                            when X"00011C" => rw(bus_m,bus_s,comState,pwm_limit_regs(2));
+                            when X"000114" => rw(bus_m,bus_s,comState,pid_regs(5));
+                            when X"000118" => rw(bus_m,bus_s,comState,pid_regs(6));
+                            when X"00011C" => rw(bus_m,bus_s,comState,pid_regs(7));
+
+                            when X"000200" => rw(bus_m,bus_s,comState,pwm_limit_regs(0));
+                            when X"000204" => rw(bus_m,bus_s,comState,pwm_limit_regs(1));
+                            when X"000208" => rw(bus_m,bus_s,comState,pwm_limit_regs(2));
 
                             --
                             -- FIFO control and data retrieval

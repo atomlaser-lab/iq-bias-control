@@ -17,7 +17,7 @@ entity Control is
         --
         enable_i            :   in  std_logic;
         hold_i              :   in  std_logic;
-        gains_i             :   in  t_param_reg_array(2 downto 0);
+        gains_i             :   in  t_param_reg_array(5 downto 0);
         --
         -- Outputs
         --
@@ -54,22 +54,23 @@ type    t_divisor_array     is array(natural range <>) of unsigned(GAIN_WIDTH - 
 --
 -- State machine signals
 --
-signal state                :   t_state_local;
-signal count                :   unsigned(3 downto 0);
-signal row_count,col_count  :   unsigned(1 downto 0);
-signal gains                :   t_gain_array(2 downto 0,2 downto 0);
-signal divisors             :   t_divisor_array(2 downto 0);
+signal state                        :   t_state_local;
+signal count                        :   unsigned(3 downto 0);
+signal row_count,col_count          :   unsigned(1 downto 0);
+signal int_gains, prop_gains        :   t_gain_array(2 downto 0,2 downto 0);
+signal int_divisors, prop_divisors  :   t_divisor_array(2 downto 0);
 --
 -- Signals
 --
 signal err, err_old             :   t_input_local_array(2 downto 0);
 signal measurement, control     :   t_input_local_array(2 downto 0);
-signal int_i                    :   t_input_local_array(2 downto 0);
-signal int_o                    :   t_output_2d(2 downto 0,2 downto 0);
-signal pidSum, pidAccumulate    :   t_mult_local_array(2 downto 0);
-signal mult_i                   :   std_logic_vector(EXP_WIDTH - 1 downto 0);
-signal gain_i                   :   t_gain_local;
-signal mult_o                   :   std_logic_vector(MULT_WIDTH - 1 downto 0);
+signal int_i, prop_i            :   t_input_local_array(2 downto 0);
+signal int_o, prop_o            :   t_output_2d(2 downto 0,2 downto 0);
+signal int_sum, prop_sum        :   t_mult_local_array(2 downto 0);
+signal int_accum, prop_accum    :   t_mult_local_array(2 downto 0);
+signal mult_int_i, mult_prop_i  :   std_logic_vector(EXP_WIDTH - 1 downto 0);
+signal gain_int, gain_prop      :   t_gain_local;
+signal mult_int_o, mult_prop_o  :   std_logic_vector(MULT_WIDTH - 1 downto 0);
 
 signal valid_p                  :   std_logic_vector(7 downto 0);
 
@@ -77,12 +78,19 @@ begin
 
 Gain_Assignment: for I in 0 to 2 generate
     --
-    -- Assign gains
+    -- Assign integral gains
     --
-    gains(I,0)  <= gains_i(I)(7 downto 0);
-    gains(I,1)  <= gains_i(I)(15 downto 8);
-    gains(I,2)  <= gains_i(I)(23 downto 16);
-    divisors(I) <= unsigned(gains_i(I)(31 downto 24));
+    int_gains(I,0)  <= gains_i(I)(7 downto 0);
+    int_gains(I,1)  <= gains_i(I)(15 downto 8);
+    int_gains(I,2)  <= gains_i(I)(23 downto 16);
+    int_divisors(I) <= unsigned(gains_i(I)(31 downto 24));
+    --
+    -- Assign proportional gains
+    --
+    prop_gains(I,0)  <= gains_i(3 + I)(7 downto 0);
+    prop_gains(I,1)  <= gains_i(3 + I)(15 downto 8);
+    prop_gains(I,2)  <= gains_i(3 + I)(23 downto 16);
+    prop_divisors(I) <= unsigned(gains_i(3 + I)(31 downto 24));
     --
     -- Resize inputs
     --
@@ -92,18 +100,28 @@ Gain_Assignment: for I in 0 to 2 generate
     -- Create integral gain inputs
     --
     int_i(I) <= shift_right(err(I) + err_old(I),1);
+    prop_i(I) <= err(I) - err_old(I);
     --
     -- Create summed outputs
     --
-    pidSum(I) <= signed(int_o(I,0)) + signed(int_o(I,1)) + signed(int_o(I,2));
+    int_sum(I) <= signed(int_o(I,0)) + signed(int_o(I,1)) + signed(int_o(I,2));
+    prop_sum(I) <= signed(prop_o(I,0)) + signed(prop_o(I,1)) + signed(prop_o(I,2));
 end generate Gain_Assignment;
 
-Mult_XX: PID_Multiplier_Signed
+Mult_Int: PID_Multiplier_Signed
 port map(
     clk =>  clk,
-    A   =>  gain_i,
-    B   =>  mult_i,
-    P   =>  mult_o
+    A   =>  gain_int,
+    B   =>  mult_int_i,
+    P   =>  mult_int_o
+);
+
+Mult_Prop: PID_Multiplier_Signed
+port map(
+    clk =>  clk,
+    A   =>  gain_prop,
+    B   =>  mult_prop_i,
+    P   =>  mult_prop_o
 );
 
 PID: process(clk,aresetn) is
@@ -119,8 +137,10 @@ begin
         count <= (others => '0');
         row_count <= "00";
         col_count <= "00";
-        mult_i <= (others => '0');
-        gain_i <= (others => '0');
+        mult_int_i <= (others => '0');
+        gain_int <= (others => '0');
+        mult_prop_i <= (others => '0');
+        gain_prop <= (others => '0');
     elsif rising_edge(clk) then
         if enable_i = '1' then
             FSM: case(state) is
@@ -141,8 +161,12 @@ begin
                     end if;
 
                 when multiplying =>
-                    mult_i <= std_logic_vector(int_i(to_integer(col_count)));
-                    gain_i <= gains(to_integer(row_count),to_integer(col_count));
+                    -- Integral values
+                    mult_int_i <= std_logic_vector(int_i(to_integer(col_count)));
+                    gain_int <= int_gains(to_integer(row_count),to_integer(col_count));
+                    -- Proportional values
+                    mult_prop_i <= std_logic_vector(prop_i(to_integer(col_count)));
+                    gain_prop <= prop_gains(to_integer(row_count),to_integer(col_count));
                     if count < MULT_LATENCY then
                         count <= count + 1;
                     elsif count >= MULT_LATENCY then
@@ -163,12 +187,13 @@ begin
                 when summing =>
                     state <= outputting;
                     for I in 0 to 2 loop
-                        pidAccumulate(I) <= pidAccumulate(I) + pidSum(I);
+                        int_accum(I) <= int_accum(I) + int_sum(I);
+                        prop_accum(I) <= prop_accum(I) + prop_sum(I);
                     end loop;
 
                 when outputting =>
                     for I in 0 to 2 loop
-                        control_signal_o(I) <= resize(shift_right(pidAccumulate(I),to_integer(divisors(I))),t_pwm_exp'length);
+                        control_signal_o(I) <= resize(shift_right(int_accum(I),to_integer(int_divisors(I))) + shift_right(prop_accum(I),to_integer(prop_divisors(I))),t_pwm_exp'length);
                     end loop;
                     valid_o <= '1';
                     state <= idle;

@@ -4,7 +4,9 @@ classdef IQBiasController < handle
     
     properties(SetAccess = immutable)
         gains           %3x3 integral gain matrix
+        prop_gains      %3x3 proportional gain matrix
         divisors        %3x1 overall divisors to enable fractional scaling
+        prop_divisors   %3x1 overall divisors to enable fractional scaling
         enable          %Enable/disable control
         hold            %Software enabled hold
         controls        %Controls/set-points of the module for each signal (3x1)
@@ -18,7 +20,7 @@ classdef IQBiasController < handle
 
     properties(Constant)
         NUM_CONTROL_REGS = 2;   %Number of registers needed for control
-        NUM_GAIN_REGS = 3;      %Number of registers needed for gain values
+        NUM_GAIN_REGS = 6;      %Number of registers needed for gain values
         NUM_LIMIT_REGS = 3;     %Number of registers needed for limiting PWM outputs
     end
     
@@ -58,6 +60,18 @@ classdef IQBiasController < handle
                     .setLimits('lower',0,'upper',2^8 - 1);
             end
 
+            self.prop_gains = DeviceParameter.empty;
+            self.prop_divisors = DeviceParameter.empty;
+            for row = 1:3
+                for col = 1:3
+                    self.prop_gains(row,col) = DeviceParameter;
+                    self.prop_gains(row,col) = DeviceParameter((col - 1)*8 + [0,7],gain_regs(row + 3),'int8')...
+                        .setLimits(-2^7,2^7 - 1);
+                end
+                self.prop_divisors(row) = DeviceParameter([24,31],gain_regs(row + 3),'uint32')...
+                    .setLimits('lower',0,'upper',2^8 - 1);
+            end
+
             self.lower_limits = DeviceParameter.empty;
             self.upper_limits = DeviceParameter.empty;
             for nn = 1:3
@@ -87,6 +101,8 @@ classdef IQBiasController < handle
                 self.controls.set(0);
                 self.gains.set(0);
                 self.divisors.set(0);
+                self.prop_gains.set(0);
+                self.prop_divisors.set(0);
                 self.lower_limits.set(0);
                 self.upper_limits.set(1);
             end
@@ -108,6 +124,8 @@ classdef IQBiasController < handle
                 self.controls.get;
                 self.gains.get;
                 self.divisors.get;
+                self.prop_gains.get;
+                self.prop_divisors.get;
                 self.lower_limits.get;
                 self.upper_limits.get;
             end

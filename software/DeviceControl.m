@@ -113,7 +113,7 @@ classdef DeviceControl < handle
                 self.gainRegs(nn,1) = DeviceRegister(hex2dec('108') + (nn - 1)*4,self.conn);
             end
             for nn = 1:IQBiasController.NUM_LIMIT_REGS
-                self.pwmLimitRegs(nn,1) = DeviceRegister(hex2dec('114') + (nn - 1)*4,self.conn);
+                self.pwmLimitRegs(nn,1) = DeviceRegister(hex2dec('200') + (nn - 1)*4,self.conn);
             end
             %
             % Auxiliary register for all and sundry
