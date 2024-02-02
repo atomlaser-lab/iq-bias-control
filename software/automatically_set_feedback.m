@@ -300,12 +300,12 @@ response_freqs = 1./(2*pi*diag(tc));
 % Using a target low-pass frequency (in Hz), we now compute the feedback
 % matrix K and its integer values taking into account the row-wise divisors
 %
-% target_low_pass_freqs = 100;
-target_low_pass_freqs = 0.5*response_freqs;
+target_low_pass_freqs = 5;
+% target_low_pass_freqs = 0.5*response_freqs;
 Ki_target = 2*pi*target_low_pass_freqs*d.dt()/DeviceControl.CONV_PWM;
 
 K_target = Ki_target.*eye(3);
-Ktmp = Gdynamic\K_target;
+Ktmp = G\K_target;
 K = zeros(3);
 D = zeros(3,1);
 for row = 1:3

@@ -131,7 +131,8 @@ begin
         err_old <= (others => (others => '0'));
         valid_o <= '0';
         valid_p <= (others => '0');
-        pidAccumulate <= (others => (others => '0'));
+        int_accum <= (others => (others => '0'));
+        prop_accum <= (others => (others => '0'));
         control_signal_o <= (others => (others => '0'));
         state <= idle;
         count <= (others => '0');
@@ -170,7 +171,8 @@ begin
                     if count < MULT_LATENCY then
                         count <= count + 1;
                     elsif count >= MULT_LATENCY then
-                        int_o(to_integer(row_count),to_integer(col_count)) <= mult_o;
+                        int_o(to_integer(row_count),to_integer(col_count)) <= mult_int_o;
+                        prop_o(to_integer(row_count),to_integer(col_count)) <= mult_prop_o;
                         count <= (others => '0');
                         if row_count = 2 and col_count = 2 then
                             state <= summing;
@@ -210,7 +212,8 @@ begin
             err <= (others => (others => '0'));
             err_old <= (others => (others => '0'));
             valid_p <= (others => '0');
-            pidAccumulate <= (others => (others => '0'));
+            int_accum <= (others => (others => '0'));
+            prop_accum <= (others => (others => '0'));
             control_signal_o <= (others => (others => '0'));
             valid_o <= '0';
         end if;

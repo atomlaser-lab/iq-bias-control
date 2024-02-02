@@ -163,7 +163,7 @@ signal pwmReg               :   t_param_reg;
 signal fifoReg              :   t_param_reg;
 -- PID registers
 type t_pid_reg_array is array(natural range <>) of t_param_reg_array(2 downto 0);
-signal pid_regs             :   t_param_reg_array(4 downto 0);
+signal pid_regs             :   t_param_reg_array(7 downto 0);
 signal pwm_limit_regs       :   t_param_reg_array(3 downto 0);
 --
 -- DDS signals
