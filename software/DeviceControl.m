@@ -310,7 +310,7 @@ classdef DeviceControl < handle
             %
             p = properties(self);
             for nn = 1:numel(p)
-                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasPID')
+                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController')
                     self.(p{nn}).get;
                 end
             end
@@ -372,6 +372,60 @@ classdef DeviceControl < handle
                 self.conn.write(0,'mode','command','cmd',...
                     {'./saveData','-n',sprintf('%d',round(numSamples)),'-t',sprintf('%d',saveType)},...
                     'return_mode','file');
+                raw = typecast(self.conn.recvMessage,'uint8');
+                d = self.convertData(raw);
+                self.data = d;
+                self.t = self.dt()*(0:(numSamples-1));
+            end
+        end
+        
+        function self = getOpenLoopResponse(self,numSamples,jump_index,jump_amount)
+            %GETDEMODULATEDDATA Fetches demodulated data from the device
+            %
+            %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of demodulated data
+            %
+            %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
+            %   users only: see the readme
+            if ischar(jump_index) || isstring(jump_index)
+                if strcmpi(jump_index,'x')
+                    jump_index = 1;
+                elseif strcmpi(jump_index,'y')
+                    jump_index = 2;
+                elseif strcmpi(jump_index,'z')
+                    jump_index = 3;
+                else
+                    error('Only allowed values of jump_index are ''x'', ''y'', and ''z''!');
+                end
+            elseif isnumeric(jump_index)
+                jump_index = round(jump_index);
+                if all(jump_index ~= [1,2,3])
+                    error('Only allowed values of jump_index are 1, 2, and 3!');
+                end
+            end
+            jump_amount = round(jump_amount/self.CONV_PWM);
+            Vx = self.pwm(1).intValue;
+            Vy = self.pwm(2).intValue;
+            Vz = self.pwm(3).intValue;
+            write_arg = {'./analyze_jump_response','-n',sprintf('%d',round(numSamples)),'-j',sprintf('%d',round(jump_amount)),...
+                            '-i',sprintf('%d',round(jump_index)),'-x',sprintf('%d',round(Vx)),...
+                            '-y',sprintf('%d',round(Vy)),'-z',sprintf('%d',round(Vz))};
+            if self.auto_retry
+                for jj = 1:10
+                    try
+                        self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
+                        raw = typecast(self.conn.recvMessage,'uint8');
+                        d = self.convertData(raw);
+                        self.data = d;
+                        self.t = self.dt()*(0:(numSamples-1));
+                        break;
+                    catch e
+                        if jj == 10
+                            rethrow(e);
+                        end
+                    end
+                end
+            else
+                self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
                 d = self.convertData(raw);
                 self.data = d;

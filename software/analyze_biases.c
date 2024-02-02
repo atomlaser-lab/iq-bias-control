@@ -132,7 +132,7 @@ int main(int argc, char **argv)
         Vz = zz*(Vmax/numVoltages);
         // Set PWM values
         write_to_pwm(cfg,Vx,Vy,Vz,0);
-        usleep(100);
+        usleep(10000);
         // Record raw data
         start_fifo(cfg);
         for (i = 0;i < raw_data_size;i += saveFactor) {
