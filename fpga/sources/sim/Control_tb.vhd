@@ -24,7 +24,7 @@ component Control is
         --
         enable_i            :   in  std_logic;
         hold_i              :   in  std_logic;
-        gains_i             :   in  t_param_reg_array(2 downto 0);
+        gains_i             :   in  t_param_reg_array(5 downto 0);
         --
         -- Outputs
         --
@@ -42,7 +42,7 @@ signal aresetn      :   std_logic;
 
 signal filtered_data, control_i :   t_meas_array(2 downto 0);
 signal valid_i, enable_i, polarity_i, hold_i, valid_o   :   std_logic;
-signal gains_reg    :   t_param_reg_array(2 downto 0);
+signal gains_reg    :   t_param_reg_array(5 downto 0);
 signal control_signal_o :   t_pwm_exp_array(2 downto 0);
 
 begin
@@ -90,9 +90,10 @@ port map(
 main: process is
 begin
     aresetn <= '0';
-    gains_reg(0) <= X"06" & to_slv_s(1,8) & to_slv_s(-2,8) & to_slv_s(9,8);
-    gains_reg(1) <= X"06" & to_slv_s(1,8) & to_slv_s(9,8) & to_slv_s(4,8);
-    gains_reg(2) <= X"06" & to_slv_s(10,8) & to_slv_s(0,8) & to_slv_s(0,8);
+    gains_reg(0) <= X"04" & to_slv_s(1,8) & to_slv_s(-2,8) & to_slv_s(9,8);
+    gains_reg(1) <= X"04" & to_slv_s(1,8) & to_slv_s(9,8) & to_slv_s(4,8);
+    gains_reg(2) <= X"04" & to_slv_s(10,8) & to_slv_s(0,8) & to_slv_s(0,8);
+    gains_reg(5 downto 3) <= (others => (others => '0'));
     control_i(0) <= to_signed(500,t_meas'length);
     control_i(1) <= to_signed(200,t_meas'length);
     control_i(2) <= to_signed(-300,t_meas'length);

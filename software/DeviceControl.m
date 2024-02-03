@@ -190,14 +190,14 @@ classdef DeviceControl < handle
             %   SELF = SETDEFAULTS(SELF) sets default values for SELF
              self.ext_o.set(0);
              self.led_o.set(0);
-             self.phase_inc.set(1e6); 
+             self.phase_inc.set(4e6); 
              self.phase_offset.set(0); 
              self.dds2_phase_offset.set(0);
             for nn = 1:numel(self.pwm)
                 self.pwm(nn).set(0);
             end
-             self.log2_rate.set(10);
-             self.cic_shift.set(0);
+             self.log2_rate.set(13);
+             self.cic_shift.set(-3);
              self.output_scale.set(1);
              self.numSamples.set(4000);
              self.control.setDefaults;
@@ -379,28 +379,18 @@ classdef DeviceControl < handle
             end
         end
         
-        function self = getOpenLoopResponse(self,numSamples,jump_index,jump_amount)
-            %GETDEMODULATEDDATA Fetches demodulated data from the device
+        function self = getVoltageStepResponse(self,numSamples,jump_index,jump_amount)
+            %GETVOLTAGESTEPRESPONSE Applies a PWM voltage step and records
+            %the response
             %
-            %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of demodulated data
+            %   SELF = GETVOLTAGESTEPRESPONSE(NUMSAMPLES,JUMP_INDEX,JUMP_AMOUNT) 
+            %   Acquires NUMSAMPLES of demodulated data in response to a
+            %   jump of JUMP_AMOUNT voltages applied to JUMP_INDEX 1, 2, or
+            %   3 corresponding to DC1, DC2, or DC3.
             %
-            %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
-            %   users only: see the readme
-            if ischar(jump_index) || isstring(jump_index)
-                if strcmpi(jump_index,'x')
-                    jump_index = 1;
-                elseif strcmpi(jump_index,'y')
-                    jump_index = 2;
-                elseif strcmpi(jump_index,'z')
-                    jump_index = 3;
-                else
-                    error('Only allowed values of jump_index are ''x'', ''y'', and ''z''!');
-                end
-            elseif isnumeric(jump_index)
-                jump_index = round(jump_index);
-                if all(jump_index ~= [1,2,3])
-                    error('Only allowed values of jump_index are 1, 2, and 3!');
-                end
+            jump_index = round(jump_index);
+            if all(jump_index ~= [1,2,3])
+                error('Only allowed values of jump_index are 1, 2, and 3!');
             end
             jump_amount = round(jump_amount/self.CONV_PWM);
             Vx = self.pwm(1).intValue;

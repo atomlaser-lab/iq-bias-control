@@ -20,17 +20,20 @@ fig_offset = 1500;
 % the voltage and the demodulation phase, and look for where the amplitude
 % of the response is maximum
 %
+textprogressbar('RESET');
+textprogressbar('Finding optimum 2f phase...');
 data = zeros(numel(Vcoarse),numel(ph),4);
 tic;
 for row = 1:numel(Vcoarse)
-    fprintf('DC3 = %.3f V (%d/%d)\n',Vcoarse(row),row,numel(Vcoarse));
+%     fprintf('DC3 = %.3f V (%d/%d)\n',Vcoarse(row),row,numel(Vcoarse));
+    textprogressbar(round(row/numel(Vcoarse)*100));
     d.pwm(3).set(Vcoarse(row)).write;
     for col = 1:numel(ph)
         d.dds2_phase_offset.set(ph(col)).write;
         data(row,col,:) = get_data(d,Npoints);
     end
 end
-toc;
+t = toc;
 
 %% Analyze scan over 2f data to get optimum demodulation phase
 figure(fig_offset);clf;
@@ -45,7 +48,7 @@ hold on
 plot(nlf.x,nlf.f(nlf.x),'--');
 optimum_2f_phase = nlf.c(2,1);
 plot_format('Phase [deg]','Signal',sprintf('Optimum 2f phase = %.1f',optimum_2f_phase),10);
-
+textprogressbar(sprintf('\nOptimum 2f phase is %.1f deg. Time taken = %.1f s',optimum_2f_phase,t));
 % Fix 2f demodulation phase
 d.dds2_phase_offset.set(optimum_2f_phase).write;
 
@@ -54,13 +57,16 @@ d.dds2_phase_offset.set(optimum_2f_phase).write;
 % Do a fine scan over the DC3 bias at the optimum demodulation phase to
 % determine the zero crossings
 %
+textprogressbar('RESET');
+textprogressbar('Finding optimum DC3 bias...');
 data2 = zeros(numel(Vfine),4);
 tic;
 for row = 1:numel(Vfine)
+    textprogressbar(round(row/numel(Vfine)*100));
     d.pwm(3).set(Vfine(row)).write;
     data2(row,:) = get_data(d,Npoints);
 end
-toc;
+t = toc;
 
 %% Analyze DC3 scan data to find minimum of 2f signal
 %
@@ -79,7 +85,7 @@ approx_zero_voltages = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
 zero_crossing_voltages_2f = get_zero_crossing_voltages(nlf,approx_zero_voltages);
 
 plot_format('DC3 [V]','Signal',sprintf('Zero-crossing voltage = %.3f',zero_crossing_voltages_2f(end)),10);
-
+textprogressbar(sprintf('\nDC3 biases = [%.3f,%.3f] V. Time taken = %.1f s',zero_crossing_voltages_2f,t));
 %% Set DC3 voltage
 d.pwm(3).set(zero_crossing_voltages_2f(2)).write;
 
@@ -91,16 +97,19 @@ d.pwm(3).set(zero_crossing_voltages_2f(2)).write;
 %
 old_voltages = [d.pwm(1).get,d.pwm(2).get];
 data3 = zeros(numel(Vcoarse),numel(ph),4);
+textprogressbar('RESET');
+textprogressbar('Determining optimum 1f phase...');
 tic;
 for row = 1:numel(Vcoarse)
-    fprintf('DC2 = %.3f V (%d/%d)\n',Vcoarse(row),row,numel(Vcoarse));
+%     fprintf('DC2 = %.3f V (%d/%d)\n',Vcoarse(row),row,numel(Vcoarse));
+    textprogressbar(round(row/numel(Vcoarse)*100));
     d.pwm(2).set(Vcoarse(row)).write;
     for col = 1:numel(ph)
         d.phase_offset.set(ph(col)).write;
         data3(row,col,:) = get_data(d,1e3);
     end
 end
-toc;
+t = toc;
 d.pwm(1).set(old_voltages(1)).write;
 d.pwm(2).set(old_voltages(2)).write;
 
@@ -126,6 +135,7 @@ plot_format('Phase [deg]','Signal',sprintf('Optimum 1f phase = %.1f',optimum_1f_
 % 
 % % Fix 1f demodulation phase
 d.phase_offset.set(optimum_1f_phase).write;
+textprogressbar(sprintf('\nOptimum 1f phase = %.1f deg. Time taken = %.1f s',optimum_1f_phase,t));
 
 %% Fine scan over DC1 and DC2 individually
 %
@@ -133,21 +143,21 @@ d.phase_offset.set(optimum_1f_phase).write;
 % signals are zero
 %
 data12 = zeros(numel(Vfine),4,2);
+textprogressbar('RESET');
+textprogressbar('Measuring DC1 and DC2 biases...');
 tic;
-for row = 1:numel(Vfine)
-    d.pwm(1).set(Vfine(row)).write;
-    data12(row,:,1) = get_data(d,1e3);
+for col = 1:2
+    d.pwm(1).set(old_voltages(1)).write;
+    d.pwm(2).set(old_voltages(2)).write;
+    for row = 1:numel(Vfine)
+        textprogressbar(round((row/(2*numel(Vfine)) + (col - 1)/2)*100));
+        d.pwm(col).set(Vfine(row)).write;
+        data12(row,:,col) = get_data(d,1e3);
+    end
 end
-toc;
 d.pwm(1).set(old_voltages(1)).write;
-tic;
-for row = 1:numel(Vfine)
-    d.pwm(2).set(Vfine(row)).write;
-    data12(row,:,2) = get_data(d,1e3);
-end
-toc;
 d.pwm(2).set(old_voltages(2)).write;
-
+t = toc;
 %% Analyze fine scan over DC1 and DC2
 %
 % We use the same fit-then-interpolate procedure as for the DC3 signal to
@@ -170,13 +180,15 @@ nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'s',[0.25,5,1.5],'x0',[0,3*max(nlf.x
 nlf.fit;
 plot(nlf.x,nlf.f(nlf.x),'b--','handlevisibility','off');
 approx_zero_crossing_voltages_DC1 = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
-zero_crossing_voltages_DC1 = get_zero_crossing_voltages(nlf,approx_zero_crossing_voltages_DC1)
+zero_crossing_voltages_DC1 = get_zero_crossing_voltages(nlf,approx_zero_crossing_voltages_DC1);
 
 nlf.y = data12(:,2,2);
 nlf.fit;
 plot(nlf.x,nlf.f(nlf.x),'r--','handlevisibility','off');
 approx_zero_crossing_voltages_DC2 = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
-zero_crossing_voltages_DC2 = get_zero_crossing_voltages(nlf,approx_zero_crossing_voltages_DC2)
+zero_crossing_voltages_DC2 = get_zero_crossing_voltages(nlf,approx_zero_crossing_voltages_DC2);
+
+textprogressbar(sprintf('\nDC1 biases = [%.3f,%.3f] V, DC2 biases = [%.3f,%.3f] V. Time taken = %.1f s',zero_crossing_voltages_DC1,zero_crossing_voltages_DC2,t));
 
 %% Set DC1 and DC2 to zero-crossing values
 d.pwm(1).set(zero_crossing_voltages_DC1(1)).write;
@@ -191,11 +203,14 @@ zero_voltages = [d.pwm(1).get(),d.pwm(2).get(),d.pwm(3).get()];
 dV = 5e-3;
 V = dV*(-10:10);
 data_lin = zeros(numel(V),4,3);
+textprogressbar('RESET');
+textprogressbar('Measuring linear responses...');
 tic;
 for mm = 1:d.NUM_PWM
-    fprintf('PWM %d\n',mm);
+%     fprintf('PWM %d\n',mm);
     d.pwm.set(zero_voltages);
     for nn = 1:numel(V)
+        textprogressbar(round((nn/(numel(V)*d.NUM_PWM) + (mm - 1)/d.NUM_PWM)*100));
         d.pwm(mm).set(zero_voltages(mm) + V(nn)).write;
         if nn == 1
             pause(1);
@@ -205,7 +220,7 @@ for mm = 1:d.NUM_PWM
         data_lin(nn,:,mm) = get_data(d,Npoints);
     end
 end
-toc;
+t = toc;
 %% Analyze linear responses
 %
 % Fit data to linear functions and get the slopes, which are the dynamic
@@ -235,17 +250,20 @@ for row = 1:3
         drawnow;
     end
 end
-
+textprogressbar(sprintf('\nFinished measuring linear responses in %.1f s',t));
 %% Redo linear measurement with new zero voltage values
 zero_voltages = zero_voltages + (G\(diag(G).*Z(:)))';
 dV = 5e-3;
 V = dV*(-10:10);
 data_lin = zeros(numel(V),4,3);
+textprogressbar('RESET');
+textprogressbar('Re-measuring linear responses...');
 tic;
 for mm = 1:d.NUM_PWM
-    fprintf('PWM %d\n',mm);
+%     fprintf('PWM %d\n',mm);
     d.pwm.set(zero_voltages);
     for nn = 1:numel(V)
+        textprogressbar(round((nn/(numel(V)*d.NUM_PWM) + (mm - 1)/d.NUM_PWM)*100));
         d.pwm(mm).set(zero_voltages(mm) + V(nn)).write;
         if nn == 1
             pause(1);
@@ -255,8 +273,8 @@ for mm = 1:d.NUM_PWM
         data_lin(nn,:,mm) = get_data(d,Npoints);
     end
 end
-toc;
-
+t = toc;
+d.pwm.set(zero_voltages);
 %% Re-Analyze linear responses
 %
 % Fit data to linear functions and get the slopes, which are the dynamic
@@ -286,15 +304,18 @@ for row = 1:3
         drawnow;
     end
 end
-
+textprogressbar(sprintf('\nFinished re-measuring linear responses in %.1f s',t));
 %% Get open-loop response
 %
 % Applies a step voltage to each DC bias and then measures the dynamic
 % response of the signals to get a gain matrix and a matrix of time
 % constants
-[tc,Gdynamic] = get_open_loop_responses(d,5e3,50e-3);
+fprintf('Measuring dynamic responses...');
+tic;
+[tc,Gdynamic] = get_voltage_step_response(d,5e3,50e-3);
 response_freqs = 1./(2*pi*diag(tc));
-
+t = toc;
+fprintf('Finished measuring dynamic responses in %.1f s\n',t);
 %% Compute feedback matrix
 %
 % Using a target low-pass frequency (in Hz), we now compute the feedback
@@ -322,6 +343,7 @@ for row = 1:3
         K(row,:) = Ktmp(row,:).*2.^D(row);
     end
 end
+fprintf('Feedback matrix computed\n');
 
 %% Set gains
 for row = 1:size(K,1)
@@ -332,6 +354,7 @@ for row = 1:size(K,1)
 end
 d.pwm.set(zero_voltages + Z);
 d.upload;
+fprintf('Parameters uploaded\n');
 
 %%
 function r = get_data(d,N)
