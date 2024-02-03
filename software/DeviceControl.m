@@ -190,14 +190,12 @@ classdef DeviceControl < handle
             %   SELF = SETDEFAULTS(SELF) sets default values for SELF
              self.ext_o.set(0);
              self.led_o.set(0);
-             self.phase_inc.set(1e6); 
-             self.phase_offset.set(0); 
-             self.dds2_phase_offset.set(0);
-            for nn = 1:numel(self.pwm)
-                self.pwm(nn).set(0);
-            end
-             self.log2_rate.set(10);
-             self.cic_shift.set(0);
+             self.phase_inc.set(4e6); 
+             self.phase_offset.set(154.8); 
+             self.dds2_phase_offset.set(161);
+             self.pwm.set([0.2865,0.6272,0.8446]);
+             self.log2_rate.set(13);
+             self.cic_shift.set(-3);
              self.output_scale.set(1);
              self.numSamples.set(4000);
              self.control.setDefaults;
@@ -541,6 +539,7 @@ classdef DeviceControl < handle
             s.conn = self.conn.struct;
             s.t = self.t;
             s.data = self.data;
+            s.jumpers = self.jumpers;
             
             p = properties(self);
             for nn = 1:numel(p)
@@ -565,11 +564,16 @@ classdef DeviceControl < handle
             %   S to SELF
             self.t = s.t;
             self.data = s.data;
+            self.jumpers = s.jumpers;
             p = properties(self);
             for nn = 1:numel(p)
                 if isfield(s,p{nn})
                     if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController')
-                        self.(p{nn}).loadstruct(s.(p{nn}));
+                        try
+                            self.(p{nn}).loadstruct(s.(p{nn}));
+                        catch
+                            
+                        end
                     end
                 end
             end
