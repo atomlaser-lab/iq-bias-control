@@ -5,7 +5,7 @@
 
 Vcoarse = 0:0.1:1;
 Vfine = 0:0.025:1;
-ph = 0:10:360;
+ph = 0:20:360;
 Npoints = 1e3;
 fig_offset = 1500;
 
@@ -321,9 +321,10 @@ fprintf('Finished measuring dynamic responses in %.1f s\n',t);
 % Using a target low-pass frequency (in Hz), we now compute the feedback
 % matrix K and its integer values taking into account the row-wise divisors
 %
-target_low_pass_freqs = 5;
+target_low_pass_freqs = 0.5;
 % target_low_pass_freqs = 0.5*response_freqs;
 Ki_target = 2*pi*target_low_pass_freqs*d.dt()/DeviceControl.CONV_PWM;
+% Ki_target = 2*pi*target_low_pass_freqs.^2./response_freqs*d.dt()/DeviceControl.CONV_PWM;
 
 K_target = Ki_target.*eye(3);
 Ktmp = G\K_target;
@@ -343,14 +344,40 @@ for row = 1:3
         K(row,:) = Ktmp(row,:).*2.^D(row);
     end
 end
-fprintf('Feedback matrix computed\n');
+fprintf('Integral gain matrix computed\n');
+
+%% Compute proportional gain
+damping_target = 2*pi*0.25;
+% Kp_target = max(damping_target./(2*pi*response_freqs) - 1,0)/DeviceControl.CONV_PWM;
+Kp_target = (damping_target./(2*pi*response_freqs) - 1)/DeviceControl.CONV_PWM;
+Kp_target = G\diag(Kp_target);
+Kp = zeros(3);
+Dp = zeros(3,1);
+for row = 1:3
+    idx = Kp_target(row,:) ~= 0;
+    Dmin = min(abs(round(log2(abs(Kp_target(row,idx))))));
+    Dmax = max(abs(round(log2(abs(Kp_target(row,idx))))));
+    if Dmax - Dmin > 7
+        Dp(row) = Dmax;
+    else
+        Dp(row) = Dmin + 7;
+    end
+    Kp(row,:) = Kp_target(row,:).*2.^Dp(row);
+    if any(abs(Kp(row,:)) > 120)
+        Dp(row) = Dp(row) - ceil(max(log2(abs(Kp(row,idx))/120)));
+        Kp(row,:) = Kp_target(row,:).*2.^Dp(row);
+    end
+end
+fprintf('Proportional gain matrix computed\n');
 
 %% Set gains
 for row = 1:size(K,1)
     for col = 1:size(K,2)
         d.control.gains(row,col).set(round(K(row,col)));
+        d.control.prop_gains(row,col).set(round(Kp(row,col)));
     end
     d.control.divisors(row).set(D(row));
+    d.control.prop_divisors(row).set(Dp(row));
 end
 d.pwm.set(zero_voltages + Z);
 d.upload;

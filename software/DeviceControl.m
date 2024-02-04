@@ -188,24 +188,20 @@ classdef DeviceControl < handle
             %SETDEFAULTS Sets parameter values to their defaults
             %
             %   SELF = SETDEFAULTS(SELF) sets default values for SELF
-             self.ext_o.set(0);
-             self.led_o.set(0);
-             self.phase_inc.set(4e6); 
-             self.phase_offset.set(0); 
-             self.dds2_phase_offset.set(0);
-            for nn = 1:numel(self.pwm)
-                self.pwm(nn).set(0);
-            end
-             self.log2_rate.set(13);
-             self.cic_shift.set(-3);
-             self.output_scale.set(1);
-             self.numSamples.set(4000);
-             self.control.setDefaults;
-             for nn = 1:numel(self.fifo_route)
-                self.fifo_route(nn).set(0);
-             end
-            
-             self.auto_retry = true;
+            self.ext_o.set(0);
+            self.led_o.set(0);
+            self.phase_inc.set(4e6); 
+            self.phase_offset.set(154); 
+            self.dds2_phase_offset.set(161);
+            self.pwm.set([0.3,0.65,0.88]);
+            self.log2_rate.set(13);
+            self.cic_shift.set(-3);
+            self.output_scale.set(1);
+            self.numSamples.set(4000);
+            self.control.setDefaults;
+            self.fifo_route.set(0);
+
+            self.auto_retry = true;
         end
 
         function r = dt(self)
@@ -559,7 +555,11 @@ classdef DeviceControl < handle
             for nn = 1:numel(p)
                 if isfield(s,p{nn})
                     if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController')
-                        self.(p{nn}).loadstruct(s.(p{nn}));
+                        try
+                            self.(p{nn}).loadstruct(s.(p{nn}));
+                        catch
+                            
+                        end
                     end
                 end
             end

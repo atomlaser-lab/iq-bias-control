@@ -42,7 +42,7 @@ constant EXP_WIDTH      :   natural :=  26;
 constant GAIN_WIDTH     :   natural :=  8;
 constant MULT_WIDTH     :   natural :=  EXP_WIDTH + GAIN_WIDTH;
 
-type t_state_local          is (idle,multiplying,dividing,summing,outputting);
+type t_state_local          is (idle,multiplying,dividing,summing,combining,outputting);
 subtype t_input_local       is signed(EXP_WIDTH-1 downto 0);
 subtype t_gain_local        is std_logic_vector(GAIN_WIDTH-1 downto 0);
 subtype t_mult_local        is signed(MULT_WIDTH-1 downto 0);
@@ -68,6 +68,7 @@ signal int_i, prop_i            :   t_input_local_array(2 downto 0);
 signal int_o, prop_o            :   t_output_2d(2 downto 0,2 downto 0);
 signal int_sum, prop_sum        :   t_mult_local_array(2 downto 0);
 signal int_accum, prop_accum    :   t_mult_local_array(2 downto 0);
+signal pid_o                    :   t_mult_local_array(2 downto 0);
 signal mult_int_i, mult_prop_i  :   std_logic_vector(EXP_WIDTH - 1 downto 0);
 signal gain_int, gain_prop      :   t_gain_local;
 signal mult_int_o, mult_prop_o  :   std_logic_vector(MULT_WIDTH - 1 downto 0);
@@ -187,15 +188,23 @@ begin
                     end if;
 
                 when summing =>
+                    state <= combining;
+                    if hold_i = '0' then
+                        for I in 0 to 2 loop
+                            int_accum(I) <= int_accum(I) + int_sum(I);
+                            prop_accum(I) <= prop_accum(I) + prop_sum(I);
+                        end loop;
+                    end if;
+                    
+                when combining =>
                     state <= outputting;
                     for I in 0 to 2 loop
-                        int_accum(I) <= int_accum(I) + int_sum(I);
-                        prop_accum(I) <= prop_accum(I) + prop_sum(I);
+                        pid_o(I) <= shift_right(int_accum(I),to_integer(int_divisors(I))) + shift_right(prop_accum(I),to_integer(prop_divisors(I)));
                     end loop;
 
                 when outputting =>
                     for I in 0 to 2 loop
-                        control_signal_o(I) <= resize(shift_right(int_accum(I),to_integer(int_divisors(I))) + shift_right(prop_accum(I),to_integer(prop_divisors(I))),t_pwm_exp'length);
+                        control_signal_o(I) <= resize(pid_o(I),t_pwm_exp'length);
                     end loop;
                     valid_o <= '1';
                     state <= idle;
