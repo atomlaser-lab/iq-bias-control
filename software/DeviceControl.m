@@ -377,7 +377,7 @@ classdef DeviceControl < handle
             end
         end
         
-        function self = getOpenLoopResponse(self,numSamples,jump_index,jump_amount)
+        function self = getVoltageStepResponse(self,numSamples,jump_index,jump_amount)
             %GETDEMODULATEDDATA Fetches demodulated data from the device
             %
             %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of demodulated data
@@ -652,6 +652,16 @@ classdef DeviceControl < handle
             for nn = 1:size(D,4)
                 tmp = raw((nn - 1)*numVoltages^3 + (1:(numVoltages^3)));
                 D(:,:,:,nn) = reshape(double(tmp),numVoltages*[1,1,1]);
+            end
+        end
+        
+        function app = get_running_app_instance
+            h = findall(groot,'type','figure');
+            for nn = 1:numel(h)
+                if strcmpi(h(nn).Name,'IQ Bias Control')
+                    app = h(nn).RunningAppInstance;
+                    break;
+                end
             end
         end
     end
