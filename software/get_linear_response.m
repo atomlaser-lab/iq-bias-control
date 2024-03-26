@@ -6,6 +6,7 @@ end
 textprogressbar('RESET');
 textprogressbar('Measuring linear responses...');
 data_lin = zeros(numel(V),4,3);
+tic;
 for mm = 1:d.NUM_PWM
     d.pwm.set(zero_voltages);
     for nn = 1:numel(V)

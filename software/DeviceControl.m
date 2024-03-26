@@ -345,7 +345,7 @@ classdef DeviceControl < handle
             %
             %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
             %   users only: see the readme
-            
+            numSamples = round(numSamples);
             if nargin < 3
                 saveType = 1;
             end
@@ -353,7 +353,7 @@ classdef DeviceControl < handle
                 for jj = 1:10
                     try
                         self.conn.write(0,'mode','command','cmd',...
-                            {'./saveData','-n',sprintf('%d',round(numSamples)),'-t',sprintf('%d',saveType)},...
+                            {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType)},...
                             'return_mode','file');
                         raw = typecast(self.conn.recvMessage,'uint8');
                         d = self.convertData(raw);
@@ -368,7 +368,7 @@ classdef DeviceControl < handle
                 end
             else
                 self.conn.write(0,'mode','command','cmd',...
-                    {'./saveData','-n',sprintf('%d',round(numSamples)),'-t',sprintf('%d',saveType)},...
+                    {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType)},...
                     'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
                 d = self.convertData(raw);
@@ -400,11 +400,12 @@ classdef DeviceControl < handle
                     error('Only allowed values of jump_index are 1, 2, and 3!');
                 end
             end
+            numSamples = round(numSamples);
             jump_amount = round(jump_amount/self.CONV_PWM);
             Vx = self.pwm(1).intValue;
             Vy = self.pwm(2).intValue;
             Vz = self.pwm(3).intValue;
-            write_arg = {'./analyze_jump_response','-n',sprintf('%d',round(numSamples)),'-j',sprintf('%d',round(jump_amount)),...
+            write_arg = {'./analyze_jump_response','-n',sprintf('%d',numSamples),'-j',sprintf('%d',round(jump_amount)),...
                             '-i',sprintf('%d',round(jump_index)),'-x',sprintf('%d',round(Vx)),...
                             '-y',sprintf('%d',round(Vy)),'-z',sprintf('%d',round(Vz))};
             if self.auto_retry
@@ -438,12 +439,13 @@ classdef DeviceControl < handle
             %   samples from the device SELF
             %
             %   SELF = GETRAM(SELF,N) Retrieves N samples from device
+            numSamples = round(numSamples);
             self.numSamples.set(numSamples).write;
             self.trigReg.set(1,[0,0]).write;
             self.trigReg.set(0,[0,0]);
             
             self.conn.write(0,'mode','command','cmd',...
-                {'./fetchRAM',sprintf('%d',round(numSamples))},...
+                {'./fetchRAM',sprintf('%d',numSamples)},...
                 'return_mode','file');
             raw = typecast(self.conn.recvMessage,'uint8');
             if strcmpi(self.jumpers,'hv')

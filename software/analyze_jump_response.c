@@ -55,6 +55,7 @@ int main(int argc, char **argv)
   uint32_t i, incr = 0;
   uint8_t saveType = 2;
   uint32_t saveFactor = 4;
+  uint8_t allow_jump = 1;
   uint32_t tmp;
   uint32_t *data;
   uint8_t debugFlag = 0;
@@ -128,7 +129,8 @@ int main(int argc, char **argv)
   // Record data
   start_fifo(cfg);
   for (i = 0;i < data_size;i += saveFactor) {
-    if (i == (data_size >> 2)) {
+    if ((i >= (data_size >> 2)) & (allow_jump == 1)) {
+        allow_jump = 0;
         switch (jump_index) {
             case 1:
                 write_to_pwm(cfg,Vx + Vjump,Vy,Vz,0);

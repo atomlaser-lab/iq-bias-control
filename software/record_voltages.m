@@ -8,7 +8,7 @@ d.fifo_route.set([1,1,1,1]);
 d.upload;
 
 time_step = 15;
-total_time = 3600*4;
+total_time = 3600*6;
 num_samples = ceil(total_time/time_step);
 tmr = timer('name','voltage-recorder','period',time_step,'TasksToExecute',num_samples,'ExecutionMode','fixedDelay');
 tmr.UserData.date = [];
