@@ -17,6 +17,7 @@ classdef DeviceControl < handle
         ext_i                   %Read-only for getting current digital input values
         led_o                   %LED control
         phase_inc               %Modulation frequency [Hz]
+        phase_correction        %Correction to output phase to match high-frequency signal [deg]
         phase_offset            %Phase offset for demodulation of fundamental [deg]
         dds2_phase_offset       %Phase offset for demodulation at 2nd harmonic [deg]
         log2_rate               %Log2(CIC filter rate)
@@ -36,6 +37,7 @@ classdef DeviceControl < handle
         filterReg               %Register for CIC filter control
         adcReg                  %Read-only register for getting current ADC data
         ddsPhaseIncReg          %Register for modulation frequency
+        ddsPhaseCorrectionReg   %Register for the output phase correction
         ddsPhaseOffsetReg       %Register for phase offset at fundamental
         dds2PhaseOffsetReg      %Register for phase offset at 2nd harmonic
         numSamplesReg           %Register for storing number of samples of ADC data to fetch
@@ -97,6 +99,7 @@ classdef DeviceControl < handle
             self.ddsPhaseIncReg = DeviceRegister('14',self.conn);
             self.ddsPhaseOffsetReg = DeviceRegister('18',self.conn);
             self.dds2PhaseOffsetReg = DeviceRegister('20',self.conn);
+            self.ddsPhaseCorrectionReg = DeviceRegister('30',self.conn);
             self.pwmReg = DeviceRegister('2C',self.conn);
             self.numSamplesReg = DeviceRegister('100000',self.conn);
             %
@@ -146,6 +149,9 @@ classdef DeviceControl < handle
             self.dds2_phase_offset = DeviceParameter([0,31],self.dds2PhaseOffsetReg,'uint32')...
                 .setLimits('lower',-360,'upper', 360)...
                 .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
+            self.phase_correction = DeviceParameter([0,31],self.ddsPhaseCorrectionReg,'uint32')...
+                .setLimits('lower',-360,'upper', 360)...
+                .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
             self.output_scale = DeviceParameter([16,23],self.filterReg,'uint32')...
                 .setLimits('lower',0,'upper',1)...
                 .setFunctions('to',@(x) x*(2^8 - 1),'from',@(x) x/(2^8 - 1));
@@ -191,6 +197,7 @@ classdef DeviceControl < handle
              self.ext_o.set(0);
              self.led_o.set(0);
              self.phase_inc.set(4e6); 
+             self.phase_correction.set(0);
              self.phase_offset.set(154.8); 
              self.dds2_phase_offset.set(161);
              self.pwm.set([0.2865,0.6272,0.8446]);
@@ -504,6 +511,7 @@ classdef DeviceControl < handle
             self.ddsPhaseIncReg.print('phaseIncReg',strwidth);
             self.ddsPhaseOffsetReg.print('phaseOffsetReg',strwidth);
             self.dds2PhaseOffsetReg.print('dds2phaseOffsetReg',strwidth);
+            self.ddsPhaseCorrectionReg.print('ddsPhaseCorrectionReg',strwidth);
             self.pwmReg.print('pwmReg',strwidth);
             self.controlRegs.print('controlRegs',strwidth);
             self.gainRegs.print('gainRegs',strwidth);
@@ -517,6 +525,7 @@ classdef DeviceControl < handle
             self.adc(1).print('ADC 1',strwidth,'%.3f');
             self.adc(2).print('ADC 2',strwidth,'%.3f');
             self.phase_inc.print('Phase Increment',strwidth,'%.3e');
+            self.phase_correction.print('Phase Correction',strwidth,'%.3f');
             self.phase_offset.print('Phase Offset',strwidth,'%.3f');
             self.dds2_phase_offset.print('dds2 Phase Offset',strwidth,'%.3f');
             for nn = 1:numel(self.pwm)
