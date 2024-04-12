@@ -213,7 +213,7 @@ V = dV*(-10:10);
 check_app;
 figure(fig_offset + 5);clf;
 [G,zero_voltages,data_lin] = get_linear_response(d,zero_voltages,V,Npoints);
-d.pwm.set(zero_voltages).write;
+% d.pwm.set(zero_voltages).write;
 update_app_display;
 %% Redo linear measurement with new zero voltage values
 check_app;

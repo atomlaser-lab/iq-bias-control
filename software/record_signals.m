@@ -7,7 +7,8 @@ d.fifo_route.set([0,0,0,0]);
 d.upload;
 
 time_step = 60;
-total_time = 3600*4;
+%total_time = 3600*24*4;
+total_time = 1800;
 num_samples = ceil(total_time/time_step);
 tmr = timer('name','signal-recorder','period',time_step,'TasksToExecute',num_samples,'ExecutionMode','fixedDelay');
 tmr.UserData.date = [];
@@ -33,10 +34,10 @@ else
     obj.UserData.date(obj.UserData.sample) = datetime;
 end
 d = obj.UserData.d;
-d.fifo_route.set([0,0,0,0]);
+d.fifo_route.set([0,0,0,0]).write;
 obj.UserData.d.getDemodulatedData(1e3);
 obj.UserData.rp_signals(obj.UserData.sample,:) = mean(obj.UserData.d.data(:,1:3),1);
-d.fifo_route.set([1,1,1,1]);
+d.fifo_route.set([1,1,1,1]).write;
 obj.UserData.d.getDemodulatedData(1e3);
 obj.UserData.bias_voltages(obj.UserData.sample,:) = mean(obj.UserData.d.data(:,1:3),1)*DeviceControl.CONV_PWM;
 
@@ -64,7 +65,7 @@ end
 function timer_stop_fcn(obj,~)
 data = obj.UserData;
 data.sa = [];data.d = [];
-save(['signal-series-',date],'data');
+save(['signal-series-',char(datetime)],'data');
 obj.UserData.d.fifo_route.set([0,0,0,0]).write;
 end
 
