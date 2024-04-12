@@ -141,7 +141,7 @@ dds_phase_i(1) <= std_logic_vector(phase_offsets(0)) & std_logic_vector(modulati
 dds_phase_i(2) <= std_logic_vector(phase_offsets(1)) & std_logic_vector(shift_left(modulation_freq,1));
 dds_phase_i(3) <= std_logic_vector(phase_offsets(2)) & std_logic_vector(modulation_freq);
 -- Procedurally generate all DDS instances
-DDS_GEN: for I in 0 to dds_phase_i'length generate
+DDS_GEN: for I in 0 to dds_phase_i'length - 1 generate
     DDS_X: DDS1
     PORT MAP (
         aclk                     => clk,
