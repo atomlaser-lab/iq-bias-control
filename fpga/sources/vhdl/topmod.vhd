@@ -77,7 +77,7 @@ component Demodulator is
         -- Registers
         --
         filter_reg_i    :   in  t_param_reg;
-        dds_regs_i      :   in  t_param_reg_array(2 downto 0);
+        dds_regs_i      :   in  t_param_reg_array(3 downto 0);
         --
         -- Input and output data
         --
@@ -156,7 +156,8 @@ signal filterReg            :   t_param_reg;
 signal dds_phase_inc_reg    :   t_param_reg;
 signal dds_phase_off_reg    :   t_param_reg;
 signal dds2_phase_off_reg   :   t_param_reg;
-signal dds_regs             :   t_param_reg_array(2 downto 0);
+signal dds_phase_corr_reg   :   t_param_reg;
+signal dds_regs             :   t_param_reg_array(3 downto 0);
 -- PWM register
 signal pwmReg               :   t_param_reg;
 -- FIFO register
@@ -253,7 +254,7 @@ led_o <= outputReg(15 downto 8);
 -- Modulator/demodulator component
 --
 adc <= resize(signed(adcData_i(15 downto 0)), adc'length);
-dds_regs <= (0 => dds_phase_inc_reg, 1 => dds_phase_off_reg, 2 => dds2_phase_off_reg);
+dds_regs <= (0 => dds_phase_inc_reg, 1 => dds_phase_off_reg, 2 => dds2_phase_off_reg, 3 => dds_phase_corr_reg);
 -- 
 
 Main_Demodulator: Demodulator
@@ -435,6 +436,7 @@ begin
                             when X"000018" => rw(bus_m,bus_s,comState,dds_phase_off_reg);
                             when X"000020" => rw(bus_m,bus_s,comState,dds2_phase_off_reg);
                             when X"00002C" => rw(bus_m,bus_s,comState,pwmReg);
+                            when X"000030" => rw(bus_m,bus_s,comState,dds_phase_corr_reg);
                             --
                             -- PID registers
                             --
