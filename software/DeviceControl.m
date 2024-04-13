@@ -23,7 +23,7 @@ classdef DeviceControl < handle
         log2_rate               %Log2(CIC filter rate)
         cic_shift               %Log2(Additional digital gain after filter)
         numSamples              %Number of samples to collect from recording raw ADC signals
-        output_scale            %Output scaling from 0 to 1
+        output_scale            %Output scaling from 0 to 1, two-element vector
         pwm                     %Array of 4 PWM outputs
         control                 %Coupled integral control
         fifo_route              %Array of 4 FIFO routing options
@@ -153,6 +153,9 @@ classdef DeviceControl < handle
                 .setLimits('lower',-360,'upper', 360)...
                 .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
             self.output_scale = DeviceParameter([16,23],self.filterReg,'uint32')...
+                .setLimits('lower',0,'upper',1)...
+                .setFunctions('to',@(x) x*(2^8 - 1),'from',@(x) x/(2^8 - 1));
+            self.output_scale(2) = DeviceParameter([24,31],self.filterReg,'uint32')...
                 .setLimits('lower',0,'upper',1)...
                 .setFunctions('to',@(x) x*(2^8 - 1),'from',@(x) x/(2^8 - 1));
             %
@@ -533,7 +536,9 @@ classdef DeviceControl < handle
             end
             self.log2_rate.print('Log2 Rate',strwidth,'%.0f');
             self.cic_shift.print('CIC shift',strwidth,'%.0f');
-            self.output_scale.print('Output scale',strwidth,'%.3f');
+            for nn = 1:numel(self.output_scale)
+                self.output_scale(nn).print(sprintf('Output scale %d',nn),strwidth,'%.3f');
+            end
             for nn = 1:numel(self.fifo_route)
                 self.fifo_route(nn).print(sprintf('FIFO Route %d',nn),strwidth,'%d');
             end
