@@ -119,7 +119,7 @@ signal filterConfig, filterConfig_old   :   std_logic_vector(15 downto 0);
 signal valid_config                     :   std_logic;
 signal filter_o                         :   t_cic_o_array(NUM_DEMOD_SIGNALS - 1 downto 0);
 signal valid_filter_o                   :   std_logic_vector(NUM_DEMOD_SIGNALS - 1 downto 0);
-signal dds_output_scale                 :   std_logic_vector(7 downto 0);
+signal dds_output_scale1, dds_output_scale2 :   std_logic_vector(7 downto 0);
 
 begin
 --
@@ -127,7 +127,8 @@ begin
 --
 cicLog2Rate <= unsigned(filter_reg_i(3 downto 0));
 setShift <= signed(filter_reg_i(11 downto 4));
-dds_output_scale <= filter_reg_i(23 downto 16);
+dds_output_scale1 <= filter_reg_i(23 downto 16);
+dds_output_scale2 <= filter_reg_i(31 downto 24);
 
 modulation_freq <= unsigned(dds_regs_i(0));
 phase_offsets(0) <= unsigned(dds_regs_i(1));
@@ -162,14 +163,14 @@ OutputMultiplierCos : Output_Scaling_Multiplier
 port map(
     clk     =>  clk,
     A       =>  std_logic_vector(dds_cos(0)),
-    B       =>  dds_output_scale,
+    B       =>  dds_output_scale1,
     P       =>  dds_cos_scale
 );
 OutputMultiplierSin : Output_Scaling_Multiplier
 port map(
     clk     =>  clk,
     A       =>  std_logic_vector(dds_sin(3)),
-    B       =>  dds_output_scale,
+    B       =>  dds_output_scale2,
     P       =>  dds_sin_scale
 );
 -- Re-scale the outputs so that a scale factor of 255 gives full-scale output
