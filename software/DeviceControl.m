@@ -16,10 +16,10 @@ classdef DeviceControl < handle
         adc                     %Read-only for getting current ADC values
         ext_i                   %Read-only for getting current digital input values
         led_o                   %LED control
-        phase_inc               %Modulation frequency [Hz]
-        phase_correction        %Correction to output phase to match high-frequency signal [deg]
-        phase_offset            %Phase offset for demodulation of fundamental [deg]
-        dds2_phase_offset       %Phase offset for demodulation at 2nd harmonic [deg]
+        modulation_freq_i       %Modulation frequency I [Hz]
+        modulation_freq_q       %Modulation frequency Q [Hz]
+        phase_offset_i          %Phase offset for demodulation of fundamental I [deg]
+        phase_offset_q          %Phase offset for demodulation of fundamental Q [deg]
         log2_rate               %Log2(CIC filter rate)
         cic_shift               %Log2(Additional digital gain after filter)
         numSamples              %Number of samples to collect from recording raw ADC signals
@@ -36,10 +36,10 @@ classdef DeviceControl < handle
         inputReg                %UNUSED
         filterReg               %Register for CIC filter control
         adcReg                  %Read-only register for getting current ADC data
-        ddsPhaseIncReg          %Register for modulation frequency
-        ddsPhaseCorrectionReg   %Register for the output phase correction
-        ddsPhaseOffsetReg       %Register for phase offset at fundamental
-        dds2PhaseOffsetReg      %Register for phase offset at 2nd harmonic
+        ddsModFreqIReg          %Register for I modulation frequency
+        ddsModFreqQReg          %Register for Q modulation frequency
+        ddsIPhaseOffsetReg      %Register for phase offset at fundamental
+        ddsQPhaseOffsetReg      %Register for phase offset at 2nd harmonic
         numSamplesReg           %Register for storing number of samples of ADC data to fetch
         pwmReg                  %Register for PWM signals
         auxReg                  %Auxiliary register
@@ -96,10 +96,10 @@ classdef DeviceControl < handle
             self.filterReg = DeviceRegister('8',self.conn);
             self.adcReg = DeviceRegister('C',self.conn,true);
             self.inputReg = DeviceRegister('10',self.conn,true);
-            self.ddsPhaseIncReg = DeviceRegister('14',self.conn);
-            self.ddsPhaseOffsetReg = DeviceRegister('18',self.conn);
-            self.dds2PhaseOffsetReg = DeviceRegister('20',self.conn);
-            self.ddsPhaseCorrectionReg = DeviceRegister('30',self.conn);
+            self.ddsModFreqIReg = DeviceRegister('14',self.conn);
+            self.ddsModFreqQReg = DeviceRegister('18',self.conn);
+            self.ddsIPhaseOffsetReg = DeviceRegister('20',self.conn);
+            self.ddsQPhaseOffsetReg = DeviceRegister('30',self.conn);
             self.pwmReg = DeviceRegister('2C',self.conn);
             self.numSamplesReg = DeviceRegister('100000',self.conn);
             %
@@ -140,16 +140,16 @@ classdef DeviceControl < handle
             %
             % Modulation settings
             % 
-            self.phase_inc = DeviceParameter([0,31],self.ddsPhaseIncReg,'uint32')...
+            self.modulation_freq_i = DeviceParameter([0,31],self.ddsModFreqIReg,'uint32')...
                 .setLimits('lower',0,'upper', 50e6)...
                 .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
-            self.phase_offset = DeviceParameter([0,31],self.ddsPhaseOffsetReg,'uint32')...
+            self.modulation_freq_q = DeviceParameter([0,31],self.ddsModFreqQReg,'uint32')...
+                .setLimits('lower',0,'upper', 50e6)...
+                .setFunctions('to',@(x) x/self.CLK*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*self.CLK);
+            self.phase_offset_i = DeviceParameter([0,31],self.ddsIPhaseOffsetReg,'uint32')...
                 .setLimits('lower',-360,'upper', 360)...
                 .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
-            self.dds2_phase_offset = DeviceParameter([0,31],self.dds2PhaseOffsetReg,'uint32')...
-                .setLimits('lower',-360,'upper', 360)...
-                .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
-            self.phase_correction = DeviceParameter([0,31],self.ddsPhaseCorrectionReg,'uint32')...
+            self.phase_offset_q = DeviceParameter([0,31],self.ddsQPhaseOffsetReg,'uint32')...
                 .setLimits('lower',-360,'upper', 360)...
                 .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
             self.output_scale = DeviceParameter([16,23],self.filterReg,'uint32')...
@@ -196,10 +196,10 @@ classdef DeviceControl < handle
             %   SELF = SETDEFAULTS(SELF) sets default values for SELF
              self.ext_o.set(0);
              self.led_o.set(0);
-             self.phase_inc.set(4e6); 
-             self.phase_correction.set(0);
-             self.phase_offset.set(154.8); 
-             self.dds2_phase_offset.set(161);
+             self.modulation_freq_i.set(4e6); 
+             self.modulation_freq_q.set(3e6);
+             self.phase_offset_i.set(0); 
+             self.phase_offset_q.set(0);
              self.pwm.set([0.2865,0.6272,0.8446]);
              self.log2_rate.set(13);
              self.cic_shift.set(-3);
@@ -508,10 +508,10 @@ classdef DeviceControl < handle
             self.inputReg.print('inputReg',strwidth);
             self.filterReg.print('filterReg',strwidth);
             self.adcReg.print('adcReg',strwidth);
-            self.ddsPhaseIncReg.print('phaseIncReg',strwidth);
-            self.ddsPhaseOffsetReg.print('phaseOffsetReg',strwidth);
-            self.dds2PhaseOffsetReg.print('dds2phaseOffsetReg',strwidth);
-            self.ddsPhaseCorrectionReg.print('ddsPhaseCorrectionReg',strwidth);
+            self.ddsModFreqIReg.print('ddsModFreqIReg',strwidth);
+            self.ddsModFreqQReg.print('ddsModFreqQReg',strwidth);
+            self.ddsIPhaseOffsetReg.print('ddsIPhaseOffsetReg',strwidth);
+            self.ddsQPhaseOffsetReg.print('ddsQPhaseOffsetReg',strwidth);
             self.pwmReg.print('pwmReg',strwidth);
             self.controlRegs.print('controlRegs',strwidth);
             self.gainRegs.print('gainRegs',strwidth);
@@ -524,10 +524,10 @@ classdef DeviceControl < handle
             self.ext_i.print('External input',strwidth,'%02x');
             self.adc(1).print('ADC 1',strwidth,'%.3f');
             self.adc(2).print('ADC 2',strwidth,'%.3f');
-            self.phase_inc.print('Phase Increment',strwidth,'%.3e');
-            self.phase_correction.print('Phase Correction',strwidth,'%.3f');
-            self.phase_offset.print('Phase Offset',strwidth,'%.3f');
-            self.dds2_phase_offset.print('dds2 Phase Offset',strwidth,'%.3f');
+            self.modulation_freq_i.print('Modulation freq I',strwidth,'%.3e');
+            self.modulation_freq_q.print('Modulation freq Q',strwidth,'%.3e');
+            self.phase_offset_i.print('Phase Offset I',strwidth,'%.3f');
+            self.phase_offset_q.print('Phase Offset Q',strwidth,'%.3f');
             for nn = 1:numel(self.pwm)
                 self.pwm(nn).print(sprintf('PWM %d',nn),strwidth,'%.3f');
             end
