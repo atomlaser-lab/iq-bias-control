@@ -130,8 +130,8 @@ plot(ph,range(data3(:,:,2),1),'sq-');
 xlabel('f demodulation phase [deg]');
 [~,idx] = max(range(data3(:,:,2),1));
 nlf = nonlinfit(ph,range(data3(:,:,2),1));
-nlf.setFitFunc(@(A,ph0,x) A*abs(cosd(x - ph0)));
-nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[0,180,mod(ph(idx),180)]);
+nlf.setFitFunc(@(A,ph0,y0,x) A*abs(cosd(x - ph0)) + y0);
+nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[0,180,mod(ph(idx),180)],'y0',[0,0.5*max(nlf.y),min(nlf.y)]);
 nlf.fit;
 hold on
 plot(nlf.x,nlf.f(nlf.x),'--');
@@ -238,7 +238,7 @@ fprintf('Finished measuring dynamic responses in %.1f s\n',t);
 % Using a target low-pass frequency (in Hz), we now compute the feedback
 % matrix K and its integer values taking into account the row-wise divisors
 %
-target_low_pass_freqs = 1;
+target_low_pass_freqs = 3;
 % target_low_pass_freqs = 0.5*response_freqs;
 Ki_target = 2*pi*target_low_pass_freqs*d.dt()/DeviceControl.CONV_PWM;
 

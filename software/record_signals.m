@@ -6,9 +6,9 @@ d.fetch;
 d.fifo_route.set([0,0,0,0]);
 d.upload;
 
-time_step = 60;
-%total_time = 3600*24*4;
-total_time = 1800;
+time_step = 20;
+hours_to_record = 18;
+total_time = round(3600*hours_to_record);
 num_samples = ceil(total_time/time_step);
 tmr = timer('name','signal-recorder','period',time_step,'TasksToExecute',num_samples,'ExecutionMode','fixedDelay');
 tmr.UserData.date = [];
@@ -49,15 +49,15 @@ if numel(obj.UserData.date) > 1
     subplot(1,3,1);
     plot(obj.UserData.date,obj.UserData.bias_voltages,'.-');
     plot_format('','Bias voltage [V]','',10);
-    legend({'DC1','DC2','DC3'});
+    legend({'DC1','DC2','DC3'},'location','west');
     subplot(1,3,2);
     plot(obj.UserData.date,obj.UserData.rp_signals,'.-');
-    legend({'1f I','1f Q','2f I'});
+    legend({'1f I','1f Q','2f I'},'location','west');
     plot_format('','RP Signals [arb units]','',10);
     subplot(1,3,3);
     plot(obj.UserData.date,obj.UserData.sideband_power,'.-');
     plot_format('','Sideband power [dBm]','',10);
-    legend({'-1','0','+1'});
+    legend({'-1','0','+1'},'location','west');
 end
 
 end
@@ -65,8 +65,10 @@ end
 function timer_stop_fcn(obj,~)
 data = obj.UserData;
 data.sa = [];data.d = [];
-save(['signal-series-',char(datetime)],'data');
+t = datetime('now','format','y-M-d-HH-mm-ss');
+save(['signal-series-',char(t)],'data');
 obj.UserData.d.fifo_route.set([0,0,0,0]).write;
+fprintf('Data acquisition completed\n');
 end
 
 
