@@ -5,7 +5,7 @@ if nargin < 4
 end
 textprogressbar('RESET');
 textprogressbar('Measuring linear responses...');
-data_lin = zeros(numel(V),4,3);
+data_lin = zeros(numel(V),3,3);
 tic;
 for mm = 1:d.NUM_PWM
     d.pwm.set(zero_voltages);

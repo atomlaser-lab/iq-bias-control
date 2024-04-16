@@ -54,7 +54,7 @@ int main(int argc, char **argv)
 
   uint32_t i, incr = 0;
   uint8_t saveType = 2;
-  uint32_t saveFactor = 4;
+  uint32_t saveFactor = 3;
   uint8_t allow_jump = 1;
   uint32_t tmp;
   uint32_t *data;
@@ -150,7 +150,7 @@ int main(int argc, char **argv)
     *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC1));
     *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC2));
     *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC3));
-    *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC4));
+  //  *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC4));
   }
   stop_fifo(cfg);
   write_to_pwm(cfg,Vx,Vy,Vz,0);

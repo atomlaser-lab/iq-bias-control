@@ -2,7 +2,7 @@
 % Script for automatically determining feedback parameters
 %
 
-
+Nsignals = 3;
 Vcoarse = 0:0.1:1;
 Vfine = 0:0.025:1;
 ph = 0:10:360;
@@ -13,7 +13,7 @@ fig_offset = 1500;
 % d.pwm(1).set(0.5).write;
 % d.pwm(2).set(0.5).write;
 
-%% Scan over 2f demodulation phase and DC3 bias
+%% Scan over f1 + f2 demodulation phase and DC3 bias
 %
 % First we want to find the DC3 V-pi value, but we also need to avoid
 % cross-coupling to the wrong quadrature of measurement.  So we scan over
@@ -23,14 +23,14 @@ fig_offset = 1500;
 check_app;
 textprogressbar('RESET');
 textprogressbar('Finding optimum 2f phase...');
-data = zeros(numel(Vcoarse),numel(ph),4);
+data = zeros(numel(Vcoarse),numel(ph),Nsignals);
 tic;
 for row = 1:numel(Vcoarse)
 %     fprintf('DC3 = %.3f V (%d/%d)\n',Vcoarse(row),row,numel(Vcoarse));
     textprogressbar(round(row/numel(Vcoarse)*100));
     d.pwm(3).set(Vcoarse(row)).write;
     for col = 1:numel(ph)
-        d.dds2_phase_offset.set(ph(col)).write;
+        d.phase_offset_iq.set(ph(col)).write;
         data(row,col,:) = get_data(d,Npoints);
     end
 end
@@ -47,11 +47,11 @@ nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[0,200,ph(idx)]);
 nlf.fit;
 hold on
 plot(nlf.x,nlf.f(nlf.x),'--');
-optimum_2f_phase = nlf.c(2,1);
-plot_format('Phase [deg]','Signal',sprintf('Optimum 2f phase = %.1f',optimum_2f_phase),10);
-textprogressbar(sprintf('\nOptimum 2f phase is %.1f deg. Time taken = %.1f s\n',optimum_2f_phase,t));
+optimum_iq_phase = nlf.c(2,1);
+plot_format('Phase [deg]','Signal',sprintf('Optimum 2f phase = %.1f',optimum_iq_phase),10);
+textprogressbar(sprintf('\nOptimum 2f phase is %.1f deg. Time taken = %.1f s\n',optimum_iq_phase,t));
 % Fix 2f demodulation phase
-d.dds2_phase_offset.set(optimum_2f_phase).write;
+d.phase_offset_iq.set(optimum_iq_phase).write;
 update_app_display;
 
 %% Scan over DC3 bias at optimum demodulation phase
@@ -62,7 +62,7 @@ update_app_display;
 check_app;
 textprogressbar('RESET');
 textprogressbar('Finding optimum DC3 bias...');
-data2 = zeros(numel(Vfine),4);
+data2 = zeros(numel(Vfine),Nsignals);
 tic;
 for row = 1:numel(Vfine)
     textprogressbar(round(row/numel(Vfine)*100));
@@ -83,6 +83,7 @@ nlf.bounds2('A',[-2*max(nlf.y),2*max(nlf.y),max(nlf.y)],'s',[0.25,5,1.5],'x0',[0
 nlf.fit;
 figure(fig_offset + 1);clf;
 nlf.plot('plotresiduals',0);
+grid on;
 
 approx_zero_voltages = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
 zero_crossing_voltages_2f = get_zero_crossing_voltages(nlf,approx_zero_voltages);
@@ -93,14 +94,14 @@ textprogressbar(sprintf('\nDC3 biases = [%.3f,%.3f] V. Time taken = %.1f s',zero
 check_app;
 d.pwm(3).set(zero_crossing_voltages_2f(2)).write;
 update_app_display;
-%% Scan over DC2 and 1f demodulation phase
+%% Scan over DC1 and f1 demodulation phase
 %
 % We first get the old voltages to store them later.  Then we scan over the
 % DC2 voltage and the 1f demodulation phase to find the phase that
 % maximally decouples the effects of DC1 and DC2
 %
-old_voltages = [d.pwm(1).get,d.pwm(2).get];
-data3 = zeros(numel(Vcoarse),numel(ph),4);
+old_voltages = [d.pwm(1).get,d.pwm(2).get,d.pwm(3).get];
+data3 = zeros(numel(Vcoarse),numel(ph),Nsignals);
 check_app;
 textprogressbar('RESET');
 textprogressbar('Determining optimum 1f phase...');
@@ -108,17 +109,16 @@ tic;
 for row = 1:numel(Vcoarse)
 %     fprintf('DC2 = %.3f V (%d/%d)\n',Vcoarse(row),row,numel(Vcoarse));
     textprogressbar(round(row/numel(Vcoarse)*100));
-    d.pwm(2).set(Vcoarse(row)).write;
+    d.pwm(1).set(Vcoarse(row)).write;
     for col = 1:numel(ph)
-        d.phase_offset.set(ph(col)).write;
+        d.phase_offset_i.set(ph(col)).write;
         data3(row,col,:) = get_data(d,1e3);
     end
 end
 t = toc;
-d.pwm(1).set(old_voltages(1)).write;
-d.pwm(2).set(old_voltages(2)).write;
+d.pwm.set(old_voltages).write;
 
-%% Analyze scan over 1f data to get optimum demodulation phase
+%% Analyze scan over f1 data to get optimum demodulation phase
 %
 % I'm looking for the phase that results in a maximum amplitude of the 1f Q
 % modulation and a simultaneous minimum in the 1f I modulation
@@ -128,27 +128,77 @@ plot(ph,range(data3(:,:,1),1),'o-');
 hold on
 plot(ph,range(data3(:,:,2),1),'sq-');
 xlabel('f demodulation phase [deg]');
-[~,idx] = max(range(data3(:,:,2),1));
-nlf = nonlinfit(ph,range(data3(:,:,2),1));
+[~,idx] = max(range(data3(:,:,1),1));
+nlf = nonlinfit(ph,range(data3(:,:,1),1));
 nlf.setFitFunc(@(A,ph0,x) A*abs(cosd(x - ph0)));
 nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[0,180,mod(ph(idx),180)]);
 nlf.fit;
 hold on
 plot(nlf.x,nlf.f(nlf.x),'--');
-optimum_1f_phase = nlf.c(2,1);
-plot_format('Phase [deg]','Signal',sprintf('Optimum 1f phase = %.1f',optimum_1f_phase),10);
+optimum_i_phase = nlf.c(2,1);
+plot_format('Phase [deg]','Signal',sprintf('Optimum f1 phase = %.1f',optimum_i_phase),10);
 % 
 % % Fix 1f demodulation phase
 check_app;
-d.phase_offset.set(optimum_1f_phase).write;
-textprogressbar(sprintf('\nOptimum 1f phase = %.1f deg. Time taken = %.1f s',optimum_1f_phase,t));
+d.phase_offset_i.set(optimum_i_phase).write;
+textprogressbar(sprintf('\nOptimum 1f phase = %.1f deg. Time taken = %.1f s',optimum_i_phase,t));
+update_app_display;
+
+%% Scan over DC2 and f2 demodulation phase
+%
+% We first get the old voltages to store them later.  Then we scan over the
+% DC2 voltage and the 1f demodulation phase to find the phase that
+% maximally decouples the effects of DC1 and DC2
+%
+old_voltages = [d.pwm(1).get,d.pwm(2).get,d.pwm(3).get];
+data3b = zeros(numel(Vcoarse),numel(ph),Nsignals);
+check_app;
+textprogressbar('RESET');
+textprogressbar('Determining optimum 1f phase...');
+tic;
+for row = 1:numel(Vcoarse)
+%     fprintf('DC2 = %.3f V (%d/%d)\n',Vcoarse(row),row,numel(Vcoarse));
+    textprogressbar(round(row/numel(Vcoarse)*100));
+    d.pwm(2).set(Vcoarse(row)).write;
+    for col = 1:numel(ph)
+        d.phase_offset_q.set(ph(col)).write;
+        data3b(row,col,:) = get_data(d,1e3);
+    end
+end
+t = toc;
+d.pwm.set(old_voltages).write;
+
+%% Analyze scan over f2 data to get optimum demodulation phase
+%
+% I'm looking for the phase that results in a maximum amplitude of the 1f Q
+% modulation and a simultaneous minimum in the 1f I modulation
+%
+figure(fig_offset + 8);clf;
+plot(ph,range(data3b(:,:,1),1),'o-');
+hold on
+plot(ph,range(data3b(:,:,2),1),'sq-');
+xlabel('f demodulation phase [deg]');
+[~,idx] = max(range(data3b(:,:,2),1));
+nlf = nonlinfit(ph,range(data3b(:,:,2),1));
+nlf.setFitFunc(@(A,ph0,x) A*abs(cosd(x - ph0)));
+nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'ph0',[0,180,mod(ph(idx),180)]);
+nlf.fit;
+hold on
+plot(nlf.x,nlf.f(nlf.x),'--');
+optimum_q_phase = nlf.c(2,1);
+plot_format('Phase [deg]','Signal',sprintf('Optimum f2 phase = %.1f',optimum_q_phase),10);
+% 
+% % Fix 1f demodulation phase
+check_app;
+d.phase_offset_q.set(optimum_q_phase).write;
+textprogressbar(sprintf('\nOptimum f2 phase = %.1f deg. Time taken = %.1f s',optimum_q_phase,t));
 update_app_display;
 %% Fine scan over DC1 and DC2 individually
 %
 % We then want to find the approximate voltages at which the 1f I and Q
 % signals are zero
 %
-data12 = zeros(numel(Vfine),4,2);
+data12 = zeros(numel(Vfine),Nsignals,2);
 check_app;
 textprogressbar('RESET');
 textprogressbar('Measuring DC1 and DC2 biases...');
@@ -162,8 +212,7 @@ for col = 1:2
         data12(row,:,col) = get_data(d,1e3);
     end
 end
-d.pwm(1).set(old_voltages(1)).write;
-d.pwm(2).set(old_voltages(2)).write;
+d.pwm.set(old_voltages).write;
 t = toc;
 %% Analyze fine scan over DC1 and DC2
 %
@@ -200,7 +249,7 @@ textprogressbar(sprintf('\nDC1 biases = [%.3f,%.3f] V, DC2 biases = [%.3f,%.3f] 
 %% Set DC1 and DC2 to zero-crossing values
 check_app;
 d.pwm(1).set(zero_crossing_voltages_DC1(1)).write;
-d.pwm(2).set(zero_crossing_voltages_DC2(2)).write;
+d.pwm(2).set(zero_crossing_voltages_DC2(1)).write;
 update_app_display;
 %% Measure linear responses around zero crossing values
 %
