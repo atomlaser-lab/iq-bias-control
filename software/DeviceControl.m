@@ -20,6 +20,7 @@ classdef DeviceControl < handle
         modulation_freq_q       %Modulation frequency Q [Hz]
         phase_offset_i          %Phase offset for demodulation of fundamental I [deg]
         phase_offset_q          %Phase offset for demodulation of fundamental Q [deg]
+        phase_offset_iq         %Phase offset for demodulation of I + Q frequency [deg]
         log2_rate               %Log2(CIC filter rate)
         cic_shift               %Log2(Additional digital gain after filter)
         numSamples              %Number of samples to collect from recording raw ADC signals
@@ -40,6 +41,7 @@ classdef DeviceControl < handle
         ddsModFreqQReg          %Register for Q modulation frequency
         ddsIPhaseOffsetReg      %Register for phase offset at fundamental
         ddsQPhaseOffsetReg      %Register for phase offset at 2nd harmonic
+        ddsIQPhaseOffsetReg     %Register for phase offset at 2nd harmonic
         numSamplesReg           %Register for storing number of samples of ADC data to fetch
         pwmReg                  %Register for PWM signals
         auxReg                  %Auxiliary register
@@ -96,11 +98,13 @@ classdef DeviceControl < handle
             self.filterReg = DeviceRegister('8',self.conn);
             self.adcReg = DeviceRegister('C',self.conn,true);
             self.inputReg = DeviceRegister('10',self.conn,true);
-            self.ddsModFreqIReg = DeviceRegister('14',self.conn);
-            self.ddsModFreqQReg = DeviceRegister('18',self.conn);
-            self.ddsIPhaseOffsetReg = DeviceRegister('20',self.conn);
-            self.ddsQPhaseOffsetReg = DeviceRegister('30',self.conn);
-            self.pwmReg = DeviceRegister('2C',self.conn);
+            self.pwmReg = DeviceRegister('14',self.conn);
+            self.ddsModFreqIReg = DeviceRegister('20',self.conn);
+            self.ddsModFreqQReg = DeviceRegister('24',self.conn);
+            self.ddsIPhaseOffsetReg = DeviceRegister('28',self.conn);
+            self.ddsQPhaseOffsetReg = DeviceRegister('2C',self.conn);
+            self.ddsIQPhaseOffsetReg = DeviceRegister('30',self.conn);
+            
             self.numSamplesReg = DeviceRegister('100000',self.conn);
             %
             % PID registers: there are 3 PIDs with IQBiasPID.NUM_REGS registers
@@ -152,6 +156,9 @@ classdef DeviceControl < handle
             self.phase_offset_q = DeviceParameter([0,31],self.ddsQPhaseOffsetReg,'uint32')...
                 .setLimits('lower',-360,'upper', 360)...
                 .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
+            self.phase_offset_iq = DeviceParameter([0,31],self.ddsIQPhaseOffsetReg,'uint32')...
+                .setLimits('lower',-360,'upper', 360)...
+                .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
             self.output_scale = DeviceParameter([16,23],self.filterReg,'uint32')...
                 .setLimits('lower',0,'upper',1)...
                 .setFunctions('to',@(x) x*(2^8 - 1),'from',@(x) x/(2^8 - 1));
@@ -200,6 +207,7 @@ classdef DeviceControl < handle
              self.modulation_freq_q.set(3e6);
              self.phase_offset_i.set(0); 
              self.phase_offset_q.set(0);
+             self.phase_offset_iq.set(0);
              self.pwm.set([0.2865,0.6272,0.8446]);
              self.log2_rate.set(13);
              self.cic_shift.set(-3);
@@ -607,7 +615,7 @@ classdef DeviceControl < handle
         function d = convertData(raw)
             raw = raw(:);
             Nraw = numel(raw);
-            numStreams = 4;
+            numStreams = 3;
             d = zeros(Nraw/(numStreams*4),numStreams,'int32');
             
             raw = reshape(raw,4*numStreams,Nraw/(4*numStreams));

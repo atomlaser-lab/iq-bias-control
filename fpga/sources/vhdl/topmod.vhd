@@ -77,7 +77,7 @@ component Demodulator is
         -- Registers
         --
         filter_reg_i    :   in  t_param_reg;
-        dds_regs_i      :   in  t_param_reg_array(3 downto 0);
+        dds_regs_i      :   in  t_param_reg_array(4 downto 0);
         --
         -- Input and output data
         --
@@ -153,11 +153,7 @@ signal triggers             :   t_param_reg;
 signal outputReg            :   t_param_reg;
 signal filterReg            :   t_param_reg;
 -- DDS registers
-signal dds_phase_inc_reg    :   t_param_reg;
-signal dds_phase_off_reg    :   t_param_reg;
-signal dds2_phase_off_reg   :   t_param_reg;
-signal dds_phase_corr_reg   :   t_param_reg;
-signal dds_regs             :   t_param_reg_array(3 downto 0);
+signal dds_regs             :   t_param_reg_array(4 downto 0);
 -- PWM register
 signal pwmReg               :   t_param_reg;
 -- FIFO register
@@ -170,8 +166,8 @@ signal pwm_limit_regs       :   t_param_reg_array(3 downto 0);
 -- DDS signals
 --
 signal dac_o                :   t_dac_array(1 downto 0);
-signal filtered_data        :   t_meas_array(3 downto 0);
-signal filter_valid         :   std_logic_vector(3 downto 0);
+signal filtered_data        :   t_meas_array(2 downto 0);
+signal filter_valid         :   std_logic_vector(filtered_data'length - 1 downto 0);
 --
 -- ADC signals
 --
@@ -254,7 +250,6 @@ led_o <= outputReg(15 downto 8);
 -- Modulator/demodulator component
 --
 adc <= resize(signed(adcData_i(15 downto 0)), adc'length);
-dds_regs <= (0 => dds_phase_inc_reg, 1 => dds_phase_off_reg, 2 => dds2_phase_off_reg, 3 => dds_phase_corr_reg);
 -- 
 
 Main_Demodulator: Demodulator
@@ -383,10 +378,9 @@ begin
         triggers <= (others => '0');
         outputReg <= (others => '0');
         filterReg <= X"0000000a";
-        dds_phase_off_reg <= (others => '0');
-        dds_phase_inc_reg <= std_logic_vector(to_unsigned(34359738, 32)); -- 1 MHz with 32 bit DDS and 125 MHz clk freq
-        --dds2 
-        dds2_phase_off_reg <= (others => '0');
+        dds_regs(0) <= std_logic_vector(to_unsigned(34359738, 32)); -- 1 MHz with 32 bit DDS and 125 MHz clk freq
+        dds_regs(1) <= std_logic_vector(to_unsigned(34359738, 32)); -- 1 MHz with 32 bit DDS and 125 MHz clk freq
+        dds_regs(4 downto 2) <= (others => std_logic_vector(to_unsigned(0,32)));
         pwmReg <= (others => '0');
         
         for I in 0 to pid_regs'length - 1 loop
@@ -432,11 +426,12 @@ begin
                             when X"000008" => rw(bus_m,bus_s,comState,filterReg);
                             when X"00000C" => readOnly(bus_m,bus_s,comState,adcData_i);
                             when X"000010" => readOnly(bus_m,bus_s,comState,ext_i);
-                            when X"000014" => rw(bus_m,bus_s,comState,dds_phase_inc_reg);
-                            when X"000018" => rw(bus_m,bus_s,comState,dds_phase_off_reg);
-                            when X"000020" => rw(bus_m,bus_s,comState,dds2_phase_off_reg);
-                            when X"00002C" => rw(bus_m,bus_s,comState,pwmReg);
-                            when X"000030" => rw(bus_m,bus_s,comState,dds_phase_corr_reg);
+                            when X"000014" => rw(bus_m,bus_s,comState,pwmReg);
+                            when X"000020" => rw(bus_m,bus_s,comState,dds_regs(0));
+                            when X"000024" => rw(bus_m,bus_s,comState,dds_regs(1));
+                            when X"000028" => rw(bus_m,bus_s,comState,dds_regs(2));
+                            when X"00002C" => rw(bus_m,bus_s,comState,dds_regs(3));
+                            when X"000030" => rw(bus_m,bus_s,comState,dds_regs(4));
                             --
                             -- PID registers
                             --
@@ -456,7 +451,7 @@ begin
                             when X"000088" => fifoRead(bus_m,bus_s,comState,fifo_bus(0).m,fifo_bus(0).s);
                             when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
                             when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
-                            when X"000094" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(3).s);
+--                            when X"000094" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(3).s);
                             --
                             -- Memory signals
                             --
