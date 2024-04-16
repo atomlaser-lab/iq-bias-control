@@ -16,7 +16,7 @@ entity Demodulator is
         -- Registers
         --
         filter_reg_i    :   in  t_param_reg;
-        dds_regs_i      :   in  t_param_reg_array(3 downto 0);
+        dds_regs_i      :   in  t_param_reg_array(4 downto 0);
         --
         -- Input and output data
         --
@@ -98,11 +98,11 @@ type t_cic_o_array is array(natural range <>) of std_logic_vector(CIC_OUTPUT_WID
 --
 -- DDS signals
 --
-signal modulation_freq                  :   t_phase_array(1 downto 0);
-signal phase_offsets                    :   t_phase_array(1 downto 0);
-signal dds_phase_i                      :   t_dds_phase_combined_slv_array(3 downto 0);
-signal dds_o                            :   t_dds_o_slv_array(3 downto 0);
-signal dds_cos, dds_sin                 :   t_dds_array(3 downto 0);
+signal modulation_freq                  :   t_phase_array(2 downto 0);
+signal phase_offsets                    :   t_phase_array(2 downto 0);
+signal dds_phase_i                      :   t_dds_phase_combined_slv_array(4 downto 0);
+signal dds_o                            :   t_dds_o_slv_array(4 downto 0);
+signal dds_cos, dds_sin                 :   t_dds_array(4 downto 0);
 signal dds_cos_scale, dds_sin_scale     :   std_logic_vector(17 downto 0);
 --
 -- Multiplier signals
@@ -131,9 +131,11 @@ dds_output_scale <= filter_reg_i(23 downto 16);
 
 modulation_freq(0) <= unsigned(dds_regs_i(0));  --Modulation freq. for I arm
 modulation_freq(1) <= unsigned(dds_regs_i(1));  --Modulation freq. for Q arm
+modulation_freq(2) <= modulation_freq(0) + modulation_freq(1);
 
 phase_offsets(0) <= unsigned(dds_regs_i(2));    --Demodulation phase for f1 signal
 phase_offsets(1) <= unsigned(dds_regs_i(3));    --Demodulation phase for f2 signal
+phase_offsets(2) <= unsigned(dds_regs_i(4));    --Demodulation phase for the f1 + f2 signal
 --
 -- Generate DDS signals.  Note dds_phase_i(2) has a doubled frequency
 --
@@ -141,6 +143,8 @@ dds_phase_i(0) <= X"00000000" & std_logic_vector(modulation_freq(0));           
 dds_phase_i(1) <= std_logic_vector(phase_offsets(0)) & std_logic_vector(modulation_freq(0));--I arm demodulation signal
 dds_phase_i(2) <= X"00000000" & std_logic_vector(modulation_freq(1));                       --Q arm driving signal
 dds_phase_i(3) <= std_logic_vector(phase_offsets(1)) & std_logic_vector(modulation_freq(1));--Q arm demodulation signal
+dds_phase_i(4) <= std_logic_vector(phase_offsets(2)) & std_logic_vector(modulation_freq(2));--I + Q demodulation signal
+
 -- Procedurally generate all DDS instances
 DDS_GEN: for I in 0 to dds_phase_i'length - 1 generate
     DDS_X: DDS1
@@ -182,7 +186,7 @@ dac_o(1) <= resize(shift_right(signed(dds_sin_scale),dds_sin_scale'length - DAC_
 --
 adc_reduced <= resize(data_i,adc_reduced'length);
 
-DDSMult1 : Multiplier1
+DDSMult_I : Multiplier1
   PORT MAP (
     CLK => clk,
     A => std_logic_vector(adc_reduced),
@@ -190,30 +194,21 @@ DDSMult1 : Multiplier1
     P => mult_o(0)
   );
   
-DDSMult2 : Multiplier1
-  PORT MAP (
-    CLK => clk,
-    A => std_logic_vector(adc_reduced),
-    B => std_logic_vector(dds_cos(1)),
-    P => mult_o(1)
-  );
-DDSMult3 : Multiplier1
-  PORT MAP (
-    CLK => clk,
-    A => std_logic_vector(adc_reduced),
-    B => std_logic_vector(dds_sin(3)),
-    P => mult_o(2)
-  );
--- Only use if the quadrature phase part of the 2nd harmonic signal is to be captured
-MULT_GEN: if NUM_DEMOD_SIGNALS = 4 generate
-DDSMult4 : Multiplier1
+DDSMult_Q : Multiplier1
   PORT MAP (
     CLK => clk,
     A => std_logic_vector(adc_reduced),
     B => std_logic_vector(dds_cos(3)),
-    P => mult_o(3)
+    P => mult_o(1)
   );
-  end generate MULT_GEN;
+
+DDSMult_IQ : Multiplier1
+  PORT MAP (
+    CLK => clk,
+    A => std_logic_vector(adc_reduced),
+    B => std_logic_vector(dds_sin(4)),
+    P => mult_o(2)
+  );
 
 --
 -- Implement filters
