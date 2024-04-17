@@ -11,10 +11,7 @@
 
 #define MAP_SIZE  262144UL
 #define MEM_LOC   0x40000000
-#define DATA_LOC1 0x00000088
-#define DATA_LOC2 0x0000008C
-#define DATA_LOC3 0x00000090
-#define DATA_LOC4 0x00000094
+#define DATA_LOC 0x00000088
 #define FIFO_LOC  0x00000084
 #define PWM_LOC   0x0000002C
 
@@ -67,8 +64,11 @@ int main(int argc, char **argv)
    * Parse the input arguments
    */
   int c;
-  while ((c = getopt(argc,argv,"j:n:x:y:z:i:f")) != -1) {
+  while ((c = getopt(argc,argv,"s:j:n:x:y:z:i:f")) != -1) {
     switch (c) {
+        case 's':
+            saveFactor = atoi(optarg);
+            break;
         case 'j':
             Vjump = atoi(optarg);
             break;
@@ -146,11 +146,9 @@ int main(int argc, char **argv)
         }
         
     }
-    incr = 0;
-    *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC1));
-    *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC2));
-    *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC3));
-    *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC4));
+    for (incr = 0;incr < saveFactor;incr++) {
+        *(data + i + incr) = *((uint32_t *)(cfg + DATA_LOC + (incr << 2)));
+    }
   }
   stop_fifo(cfg);
   write_to_pwm(cfg,Vx,Vy,Vz,0);

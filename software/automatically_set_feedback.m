@@ -5,7 +5,7 @@
 
 Vcoarse = 0:0.1:1;
 Vfine = 0:0.025:1;
-ph = 0:10:360;
+ph = 70:20:270;
 Npoints = 1e3;
 fig_offset = 1500;
 
@@ -213,7 +213,7 @@ V = dV*(-10:10);
 check_app;
 figure(fig_offset + 5);clf;
 [G,zero_voltages,data_lin] = get_linear_response(d,zero_voltages,V,Npoints);
-% d.pwm.set(zero_voltages).write;
+d.pwm.set(zero_voltages).write;
 update_app_display;
 %% Redo linear measurement with new zero voltage values
 check_app;

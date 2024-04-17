@@ -58,6 +58,7 @@ classdef DeviceControl < handle
         PARAM_WIDTH = 32;
         PWM_WIDTH = 10;
         NUM_PWM = 3;
+        NUM_MEAS = 4;
         %
         % Conversion values going from integer values to volts
         %
@@ -356,12 +357,11 @@ classdef DeviceControl < handle
             if nargin < 3
                 saveType = 1;
             end
+            write_arg = {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)};
             if self.auto_retry
                 for jj = 1:10
                     try
-                        self.conn.write(0,'mode','command','cmd',...
-                            {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType)},...
-                            'return_mode','file');
+                        self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                         raw = typecast(self.conn.recvMessage,'uint8');
                         d = self.convertData(raw);
                         self.data = d;
@@ -375,7 +375,7 @@ classdef DeviceControl < handle
                 end
             else
                 self.conn.write(0,'mode','command','cmd',...
-                    {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType)},...
+                    {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)},...
                     'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
                 d = self.convertData(raw);
@@ -413,7 +413,7 @@ classdef DeviceControl < handle
             Vy = self.pwm(2).intValue;
             Vz = self.pwm(3).intValue;
             write_arg = {'./analyze_jump_response','-n',sprintf('%d',numSamples),'-j',sprintf('%d',round(jump_amount)),...
-                            '-i',sprintf('%d',round(jump_index)),'-x',sprintf('%d',round(Vx)),...
+                            '-i',sprintf('%d',round(jump_index)),'-x',sprintf('%d',round(Vx)),'-s',sprintf('%d',DeviceControl.NUM_MEAS),...
                             '-y',sprintf('%d',round(Vy)),'-z',sprintf('%d',round(Vz))};
             if self.auto_retry
                 for jj = 1:10
@@ -607,7 +607,7 @@ classdef DeviceControl < handle
         function d = convertData(raw)
             raw = raw(:);
             Nraw = numel(raw);
-            numStreams = 4;
+            numStreams = DeviceControl.NUM_MEAS;
             d = zeros(Nraw/(numStreams*4),numStreams,'int32');
             
             raw = reshape(raw,4*numStreams,Nraw/(4*numStreams));

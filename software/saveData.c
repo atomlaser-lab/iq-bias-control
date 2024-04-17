@@ -11,10 +11,7 @@
 
 #define MAP_SIZE 262144UL
 #define MEM_LOC 0x40000000
-#define DATA_LOC1 0x00000088
-#define DATA_LOC2 0x0000008C
-#define DATA_LOC3 0x00000090
-#define DATA_LOC4 0x00000094
+#define DATA_LOC 0x00000088
 #define FIFO_LOC 0x00000084
  
 int main(int argc, char **argv)
@@ -39,13 +36,16 @@ int main(int argc, char **argv)
    * Parse the input arguments
    */
   int c;
-  while ((c = getopt(argc,argv,"n:t:f")) != -1) {
+  while ((c = getopt(argc,argv,"n:t:f:s")) != -1) {
     switch (c) {
       case 'n':
         numSamples = atoi(optarg);
         break;
       case 't':
         saveType = atoi(optarg);
+        break;
+      case 's':
+        saveFactor = atoi(optarg);
         break;
       case 'f':
         debugFlag = 1;
@@ -107,23 +107,17 @@ int main(int argc, char **argv)
   if (saveType != 2) {
     // This is if we are not saving to file, but saving to memory instead
     for (i = 0;i<dataSize;i += saveFactor) {
-      incr = 0;
-      *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC1));
-      *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC2));
-      *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC3));
-      *(data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC4));
+      for (incr = 0;incr < saveFactor;incr++) {
+        *(data + i + incr) = *((uint32_t *)(cfg + DATA_LOC + (incr << 2)));
+      }
     }
   } else {
     // This is for if we are saving to file
     for (i = 0;i<dataSize;i += saveFactor) {
-      tmp = *((uint32_t *)(cfg + DATA_LOC1));
-      fwrite(&tmp,4,1,ptr);
-      tmp = *((uint32_t *)(cfg + DATA_LOC2));
-      fwrite(&tmp,4,1,ptr);
-      tmp = *((uint32_t *)(cfg + DATA_LOC3));
-      fwrite(&tmp,4,1,ptr);
-      tmp = *((uint32_t *)(cfg + DATA_LOC4));
-      fwrite(&tmp,4,1,ptr);
+      for (incr = 0;incr < saveFactor;incr++) {
+        tmp = *((uint32_t *)(cfg + DATA_LOC + (incr << 2)));
+        fwrite(&tmp,4,1,ptr);
+      }
     }
   }
   
