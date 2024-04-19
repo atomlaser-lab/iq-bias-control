@@ -13,6 +13,7 @@ classdef DeviceControl < handle
         %
         triggers                %Triggers -- currently unused
         ext_o                   %External output signals -- currently unused
+        adc_select              %Select which ADC to use
         adc                     %Read-only for getting current ADC values
         ext_i                   %Read-only for getting current digital input values
         led_o                   %LED control
@@ -31,6 +32,7 @@ classdef DeviceControl < handle
     
     properties(SetAccess = protected)
         % R/W registers
+        topReg                  %Top-level register
         trigReg                 %Register for software trigger signals
         outputReg               %Register for external output control (digital and LED)
         inputReg                %UNUSED
@@ -92,6 +94,7 @@ classdef DeviceControl < handle
             %
             % Registers
             %
+            self.topReg = DeviceRegister('40',self.conn);
             self.trigReg = DeviceRegister('0',self.conn);
             self.outputReg = DeviceRegister('4',self.conn);
             self.filterReg = DeviceRegister('8',self.conn);
@@ -123,6 +126,9 @@ classdef DeviceControl < handle
             % Auxiliary register for all and sundry
             %
             self.auxReg = DeviceRegister('100004',self.conn);
+            %
+            % ADC Selector
+            self.adc_select = DeviceParameter([0,0],self.topReg);
             %
             % Digital and LED input/output parameters
             %
@@ -195,23 +201,24 @@ classdef DeviceControl < handle
             %SETDEFAULTS Sets parameter values to their defaults
             %
             %   SELF = SETDEFAULTS(SELF) sets default values for SELF
-             self.ext_o.set(0);
-             self.led_o.set(0);
-             self.phase_inc.set(4e6); 
-             self.phase_correction.set(0);
-             self.phase_offset.set(154.8); 
-             self.dds2_phase_offset.set(161);
-             self.pwm.set([0.2865,0.6272,0.8446]);
-             self.log2_rate.set(13);
-             self.cic_shift.set(-3);
-             self.output_scale.set(1);
-             self.numSamples.set(4000);
-             self.control.setDefaults;
-             for nn = 1:numel(self.fifo_route)
-                self.fifo_route(nn).set(0);
-             end
-            
-             self.auto_retry = true;
+            self.adc_select.set(0);
+            self.ext_o.set(0);
+            self.led_o.set(0);
+            self.phase_inc.set(4e6); 
+            self.phase_correction.set(0);
+            self.phase_offset.set(154.8); 
+            self.dds2_phase_offset.set(161);
+            self.pwm.set([0.2865,0.6272,0.8446]);
+            self.log2_rate.set(13);
+            self.cic_shift.set(-3);
+            self.output_scale.set(1);
+            self.numSamples.set(4000);
+            self.control.setDefaults;
+            for nn = 1:numel(self.fifo_route)
+            self.fifo_route(nn).set(0);
+            end
+
+            self.auto_retry = true;
         end
 
         function r = dt(self)
@@ -504,6 +511,7 @@ classdef DeviceControl < handle
             strwidth = 20;
             fprintf(1,'DeviceControl object with properties:\n');
             fprintf(1,'\t Registers\n');
+            self.topReg.print('topReg',strwidth);
             self.outputReg.print('outputReg',strwidth);
             self.inputReg.print('inputReg',strwidth);
             self.filterReg.print('filterReg',strwidth);
@@ -519,6 +527,7 @@ classdef DeviceControl < handle
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Parameters\n');
             
+            self.adc_select.print('ADC select',strwidth,'%.0f');
             self.led_o.print('LEDs',strwidth,'%02x');
             self.ext_o.print('External output',strwidth,'%02x');
             self.ext_i.print('External input',strwidth,'%02x');
