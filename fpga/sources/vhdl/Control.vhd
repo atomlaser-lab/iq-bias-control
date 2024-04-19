@@ -162,9 +162,11 @@ begin
 
                 when summing =>
                     state <= outputting;
-                    for I in 0 to 2 loop
-                        pidAccumulate(I) <= pidAccumulate(I) + pidSum(I);
-                    end loop;
+                    if hold_i = '0' then
+                        for I in 0 to 2 loop
+                            pidAccumulate(I) <= pidAccumulate(I) + pidSum(I);
+                        end loop;
+                    end if;
 
                 when outputting =>
                     for I in 0 to 2 loop

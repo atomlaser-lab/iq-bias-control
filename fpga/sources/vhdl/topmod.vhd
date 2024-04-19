@@ -149,6 +149,7 @@ signal reset                :   std_logic;
 --
 -- Registers
 --
+signal topReg               :   t_param_reg;
 signal triggers             :   t_param_reg;
 signal outputReg            :   t_param_reg;
 signal filterReg            :   t_param_reg;
@@ -253,7 +254,7 @@ led_o <= outputReg(15 downto 8);
 --
 -- Modulator/demodulator component
 --
-adc <= resize(signed(adcData_i(15 downto 0)), adc'length);
+adc <= resize(signed(adcData_i(15 downto 0)), adc'length) when topReg(0) = '0' else resize(signed(adcData_i(31 downto 16)), adc'length);
 dds_regs <= (0 => dds_phase_inc_reg, 1 => dds_phase_off_reg, 2 => dds2_phase_off_reg, 3 => dds_phase_corr_reg);
 -- 
 
@@ -437,6 +438,7 @@ begin
                             when X"000020" => rw(bus_m,bus_s,comState,dds2_phase_off_reg);
                             when X"00002C" => rw(bus_m,bus_s,comState,pwmReg);
                             when X"000030" => rw(bus_m,bus_s,comState,dds_phase_corr_reg);
+                            when X"000040" => rw(bus_m,bus_s,comState,topReg);
                             --
                             -- PID registers
                             --
