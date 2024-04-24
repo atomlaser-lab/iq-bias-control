@@ -1,5 +1,6 @@
 function [tc,G,c,res] = get_voltage_step_response(d,num_samples,jump_amount,jump_index)
 
+num_samples = round(num_samples);
 if nargin < 4
     c = zeros(6,3,3);
     res = zeros(num_samples,3,3);

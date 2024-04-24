@@ -5,7 +5,7 @@
 
 Vcoarse = 0:0.1:1;
 Vfine = 0:0.025:1;
-ph = 70:20:270;
+ph = 10:20:270;
 Npoints = 1e3;
 fig_offset = 1500;
 
@@ -183,7 +183,7 @@ legend('I-phase, DC1','Q-phase, DC2');
 nlf = nonlinfit(Vfine,data12(:,1,1));
 nlf.ex = nlf.x >= 1 | nlf.x < 0.1;
 nlf.setFitFunc(@(A,s,x0,x) A*sin(2*pi*(x - x0)/s));
-nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'s',[0.25,5,1.5],'x0',[0,3*max(nlf.x),0.4]);
+nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'s',[0.25,5,1.5],'x0',[0,3*max(nlf.x),0.8]);
 nlf.fit;
 plot(nlf.x,nlf.f(nlf.x),'b--','handlevisibility','off');
 approx_zero_crossing_voltages_DC1 = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
@@ -199,8 +199,8 @@ textprogressbar(sprintf('\nDC1 biases = [%.3f,%.3f] V, DC2 biases = [%.3f,%.3f] 
 
 %% Set DC1 and DC2 to zero-crossing values
 check_app;
-d.pwm(1).set(zero_crossing_voltages_DC1(1)).write;
-d.pwm(2).set(zero_crossing_voltages_DC2(2)).write;
+d.pwm(1).set(min(zero_crossing_voltages_DC1)).write;
+d.pwm(2).set(max(zero_crossing_voltages_DC2)).write;
 update_app_display;
 %% Measure linear responses around zero crossing values
 %
@@ -281,9 +281,10 @@ function r = get_data(d,N)
 end
 
 function r = get_zero_crossing_voltages(nlf,x0)
+    idx = find(diff(sign(nlf.y)) ~= 0);
     r = [0,0];
-    for nn = 1:numel(x0)
-        r(nn) = fsolve(@(x) interp1(nlf.x,nlf.y,x,'pchip'),x0(nn),optimset('display','off'));
+    for nn = 1:numel(idx)
+        r(nn) = fsolve(@(x) interp1(nlf.x,nlf.y,x,'pchip'),nlf.x(idx(nn)),optimset('display','off'));
     end
 end
 

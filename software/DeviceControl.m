@@ -352,6 +352,15 @@ classdef DeviceControl < handle
             end
             r = x/c;
         end
+        
+        function correct_pwm(self)
+            old_route = self.fifo_route.get;
+            self.fifo_route.set(ones(size(old_route))).write;
+            self.getDemodulatedData(100e-3/self.dt());
+            new_pwm = mean(self.data,1)*self.CONV_PWM;
+            self.pwm.set(new_pwm).write;
+            self.fifo_route.set(old_route).write;
+        end
 
         function self = getDemodulatedData(self,numSamples,saveType)
             %GETDEMODULATEDDATA Fetches demodulated data from the device

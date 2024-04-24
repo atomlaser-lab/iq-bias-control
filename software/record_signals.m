@@ -2,12 +2,13 @@
 % Monitors applied DC biases, measurements of auxiliary demodulated
 % signals, and spectrum analyzer sideband powers over time
 %
+check_app;
 d.fetch;
 d.fifo_route.set([0,0,0,0]);
 d.upload;
 
 time_step = 20;
-hours_to_record = 18;
+hours_to_record = .5;
 total_time = round(3600*hours_to_record);
 num_samples = ceil(total_time/time_step);
 tmr = timer('name','signal-recorder','period',time_step,'TasksToExecute',num_samples,'ExecutionMode','fixedDelay');
@@ -18,6 +19,7 @@ tmr.UserData.rp_signals = [];
 tmr.UserData.sideband_power = [];
 tmr.UserData.d = d;
 tmr.UserData.sa = sa;
+tmr.UserData.rp_modulation_frequency = 4e6;
 tmr.UserData.modulation_frequency = 3.4e9;
 tmr.UserData.aom_frequency = 80e6;
 tmr.UserData.rbw = 100e3;
@@ -42,7 +44,7 @@ obj.UserData.d.getDemodulatedData(1e3);
 obj.UserData.bias_voltages(obj.UserData.sample,:) = mean(obj.UserData.d.data(:,1:3),1)*DeviceControl.CONV_PWM;
 
 obj.UserData.sideband_power(obj.UserData.sample,:) = get_sideband_power(obj.UserData.sa,...
-    obj.UserData.modulation_frequency,obj.UserData.aom_frequency,obj.UserData.rbw);
+    obj.UserData.modulation_frequency,obj.UserData.aom_frequency,obj.UserData.rp_modulation_frequency,obj.UserData.rbw);
 
 if numel(obj.UserData.date) > 1
     figure(1442);clf;
@@ -71,5 +73,8 @@ obj.UserData.d.fifo_route.set([0,0,0,0]).write;
 fprintf('Data acquisition completed\n');
 end
 
-
+function check_app
+    app = DeviceControl.get_running_app_instance();
+    app.set_timer('off');
+end
 
