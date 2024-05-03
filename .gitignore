@@ -1,3 +1,5 @@
 matlab/*.mat
 *.asv
 software/instrsupport.txt
+board-design/**/*.zip
+board-design/\#*
