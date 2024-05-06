@@ -127,8 +127,8 @@ plot(V2,data12(:,1,1),'b.');
 hold on
 plot(V2,data12(:,2,2),'r.');
 
-% plot(V2,data12(:,3,1)*1e2,'bsq','markersize',4);
-% plot(V2,data12(:,3,2)*1e2,'rsq','markersize',4);
+plot(V2,data12(:,3,1)*1e2,'bsq','markersize',4);
+plot(V2,data12(:,3,2)*1e2,'rsq','markersize',4);
 grid on;
 plot_format('Voltage [V]','Signal','',10);
 legend('I-phase, DC1','Q-phase, DC2');

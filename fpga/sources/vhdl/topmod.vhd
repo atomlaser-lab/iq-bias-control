@@ -46,27 +46,26 @@ ATTRIBUTE X_INTERFACE_PARAMETER of m_axis_tvalid: SIGNAL is "CLK_DOMAIN system_A
 
 component Control is
     Port ( 
-        clk             :   in  std_logic;
-        aresetn         :   in  std_logic;
+        clk                 :   in  std_logic;
+        aresetn             :   in  std_logic;
         -- Inputs
-       -- meas_i          :   in t_phase
-        filtered_data    :   in t_meas;
-        control_i       :   in  t_meas;
-        valid_i         :   in  std_logic;
+        meas_i              :   in  t_meas_array(2 downto 0);
+        control_i           :   in  t_meas_array(2 downto 0);
+        valid_i             :   in  std_logic;
         --
         -- Parameters
-        enable_i        :   in  std_logic;
-        polarity_i      :   in  std_logic;
-        hold_i          :   in  std_logic;
-        gains           :   in  t_param_reg;
+        --
+        enable_i            :   in  std_logic;
+        hold_i              :   in  std_logic;
+        gains_i             :   in  t_param_reg_array(2 downto 0);
         --
         -- Outputs
         --
-        valid_o         :   out std_logic;
-        --data_o          : out t_phase;
-        control_signal_o  : out signed(PWM_DATA_WIDTH -1 downto 0) 
+        valid_o             :   out std_logic;
+        control_signal_o    :   out t_pwm_exp_array(2 downto 0)
     );
 end component;
+
 component Demodulator is
     generic(
         NUM_DEMOD_SIGNALS : natural :=  3
@@ -78,7 +77,7 @@ component Demodulator is
         -- Registers
         --
         filter_reg_i    :   in  t_param_reg;
-        dds_regs_i      :   in  t_param_reg_array(2 downto 0);
+        dds_regs_i      :   in  t_param_reg_array(3 downto 0);
         --
         -- Input and output data
         --
@@ -124,18 +123,20 @@ component SaveADCData is
 end component;
 
 component PWM_Generator is
-  port(
-      --
-      -- Clocking
-      --
-      clk         :   in  std_logic;
-      aresetn     :   in  std_logic;
-      --
-      -- Input/outputs
-      --
-      data_i      :   in  t_pwm_array;
-      pwm_o       :   out std_logic_vector   
-  );
+    port(
+        --
+        -- Clocking
+        --
+        clk         :   in  std_logic;
+        clkx2       :   in  std_logic;
+        aresetn     :   in  std_logic;
+        --
+        -- Input/outputs
+        --
+        data_i      :   in  t_pwm_array;
+        valid_i     :   in  std_logic;
+        pwm_o       :   out std_logic_vector   
+    );
 end component;
 
 --
@@ -148,6 +149,7 @@ signal reset                :   std_logic;
 --
 -- Registers
 --
+signal topReg               :   t_param_reg;
 signal triggers             :   t_param_reg;
 signal outputReg            :   t_param_reg;
 signal filterReg            :   t_param_reg;
@@ -155,18 +157,16 @@ signal filterReg            :   t_param_reg;
 signal dds_phase_inc_reg    :   t_param_reg;
 signal dds_phase_off_reg    :   t_param_reg;
 signal dds2_phase_off_reg   :   t_param_reg;
-signal dds_regs             :   t_param_reg_array(2 downto 0);
+signal dds_phase_corr_reg   :   t_param_reg;
+signal dds_regs             :   t_param_reg_array(3 downto 0);
 -- PWM register
 signal pwmReg               :   t_param_reg;
 -- FIFO register
 signal fifoReg              :   t_param_reg;
 -- PID registers
 type t_pid_reg_array is array(natural range <>) of t_param_reg_array(2 downto 0);
-signal pid_regs             :   t_pid_reg_array(2 downto 0);
--- signal pid1_regs            :   t_param_reg_array(2 downto 0);
--- signal pid2_regs            :   t_param_reg_array(2 downto 0);
--- signal pid3_regs            :   t_param_reg_array(2 downto 0);
-
+signal pid_regs             :   t_param_reg_array(4 downto 0);
+signal pwm_limit_regs       :   t_param_reg_array(3 downto 0);
 --
 -- DDS signals
 --
@@ -204,23 +204,18 @@ signal memTrig      :   std_logic;
 -- PID signals
 --
 signal pid_control              :   t_meas_array(2 downto 0);
-signal enable, polarity         :   std_logic_vector(3 downto 0);
-signal hold                     :   std_logic_vector(2 downto 0);
+signal enable, soft_hold        :   std_logic;
+signal hold_i, hold             :   std_logic;
 --
 -- PWM signals
 --
-constant PWM_EXP_WIDTH  :   natural :=  PWM_DATA_WIDTH + 1;
-subtype t_pwm_exp is signed(PWM_EXP_WIDTH - 1 downto 0);
-type t_pwm_exp_array is array(natural range <>) of t_pwm_exp;
-type t_pwm_signed_array is array(natural range <>) of signed(PWM_DATA_WIDTH - 1 downto 0);
-
 signal pwm_data, pwm_data_i     :   t_pwm_array(3 downto 0);
-signal control_signal_o         :   t_pwm_signed_array(2 downto 0);
+signal control_signal_o         :   t_pwm_exp_array(2 downto 0);
 signal pwm_data_exp             :   t_pwm_exp_array(2 downto 0);
 signal pwm_sum                  :   t_pwm_exp_array(2 downto 0);
 signal pwm_limit                :   t_pwm_exp_array(3 downto 0);
 signal pwm_max, pwm_min         :   t_pwm_exp_array(2 downto 0);
-signal control_valid            :   std_logic_vector(3 downto 0);
+signal control_valid            :   std_logic;
 
 begin
 
@@ -243,9 +238,11 @@ pwm_data_i(2) <= resize(unsigned(std_logic_vector(pwm_limit(2))),PWM_DATA_WIDTH)
 pwm_data_i(3) <= pwm_data(3);
 PWM1: PWM_Generator
 port map(
-  clk     =>  adcClkx2,
+  clk     =>  adcClk,
+  clkx2   =>  adcClkx2,
   aresetn =>  aresetn,
   data_i  =>  pwm_data_i,
+  valid_i => '1',
   pwm_o   =>  pwm_o
 );
 -- 
@@ -257,8 +254,8 @@ led_o <= outputReg(15 downto 8);
 --
 -- Modulator/demodulator component
 --
-adc <= resize(signed(adcData_i(15 downto 0)), adc'length);
-dds_regs <= (0 => dds_phase_inc_reg, 1 => dds_phase_off_reg, 2 => dds2_phase_off_reg);
+adc <= resize(signed(adcData_i(15 downto 0)), adc'length) when topReg(0) = '0' else resize(signed(adcData_i(31 downto 16)), adc'length);
+dds_regs <= (0 => dds_phase_inc_reg, 1 => dds_phase_off_reg, 2 => dds2_phase_off_reg, 3 => dds_phase_corr_reg);
 -- 
 
 Main_Demodulator: Demodulator
@@ -279,41 +276,51 @@ port map(
 --
 -- Apply feedback
 --
-PID_GEN_X: for I in 0 to 2 generate
-    enable(I)       <= pid_regs(I)(0)(0);
-    polarity(I)     <= pid_regs(I)(0)(1);
-    hold(I)         <= pid_regs(I)(0)(2);
-    pid_control(I)  <= resize(signed(pid_regs(I)(0)(31 downto 16)),t_meas'length);
-    PID_Control_X : Control
-    port map(
-        clk               =>  adcClk,
-        aresetn           =>  aresetn,
-        filtered_data     =>  filtered_data(I),
-        control_i         =>  pid_control(I),
-        valid_i           =>  filter_valid(I),
-        enable_i          =>  enable(I),
-        polarity_i        =>  polarity(I),
-        hold_i            =>  hold(I),
-        gains             =>  pid_regs(I)(1),
-        valid_o           =>  control_valid(I),
-        control_signal_o  =>  control_signal_o(I)
-    );
+-- Top-level parameters
+enable <= pid_regs(0)(0);
+soft_hold <= pid_regs(0)(1);
+hold_i <= ext_i(0);
+hold <= soft_hold or hold_i;
+--
+-- Control signals
+--
+pid_control(0) <= resize(signed(pid_regs(0)(31 downto 16)),t_meas'length);
+pid_control(1) <= resize(signed(pid_regs(1)(15 downto 0)),t_meas'length);
+pid_control(2) <= resize(signed(pid_regs(1)(31 downto 16)),t_meas'length);
+--
+-- Control module
+--
+Coupled_Control : Control
+port map(
+    clk               =>  adcClk,
+    aresetn           =>  aresetn,
+    meas_i            =>  filtered_data(2 downto 0),
+    control_i         =>  pid_control,
+    valid_i           =>  filter_valid(0),
+    enable_i          =>  enable,
+    hold_i            =>  hold,
+    gains_i           =>  pid_regs(4 downto 2),
+    valid_o           =>  control_valid,
+    control_signal_o  =>  control_signal_o
+);
+
+
+
+PWM_LIMIT_GEN: for I in 0 to 2 generate
     -- Expand manual data to a signed 11 bit value
     pwm_data_exp(I) <= signed(std_logic_vector(resize(pwm_data(I),PWM_EXP_WIDTH)));
     -- Sum expanded manual data and control data
     pwm_sum(I) <= pwm_data_exp(I) + resize(control_signal_o(I),PWM_EXP_WIDTH);
     -- Parse limits, expand to 11 bits as signed values
-    pwm_min(I) <= signed(resize(unsigned(pid_regs(I)(2)(PWM_DATA_WIDTH - 1 downto 0)),PWM_EXP_WIDTH));
-    pwm_max(I) <= signed(resize(unsigned(pid_regs(I)(2)(2*PWM_DATA_WIDTH - 1 downto PWM_DATA_WIDTH)),PWM_EXP_WIDTH));
+    pwm_min(I) <= signed(resize(unsigned(pwm_limit_regs(I)(PWM_DATA_WIDTH - 1 downto 0)),PWM_EXP_WIDTH));
+    pwm_max(I) <= signed(resize(unsigned(pwm_limit_regs(I)(2*PWM_DATA_WIDTH - 1 downto PWM_DATA_WIDTH)),PWM_EXP_WIDTH));
     -- Limit the summed manual and control values to their max/min limits
     pwm_limit(I) <= pwm_sum(I) when pwm_sum(I) < pwm_max(I) and pwm_sum(I) > pwm_min(I) else
                     pwm_max(I) when pwm_sum(I) >= pwm_max(I) else
                     pwm_min(I) when pwm_sum(I) <= pwm_min(I);
 
-end generate PID_GEN_X;
+end generate PWM_LIMIT_GEN;
 pwm_limit(3) <= (others => '0');
-control_valid(3) <= control_valid(2);
-enable(3) <= '0';
 
 --
 -- Collect demodulated data at lower sampling rate in FIFO buffers
@@ -324,7 +331,7 @@ fifoReset <= fifoReg(1);
 fifo_route <= outputReg(19 downto 16);
 FIFO_GEN: for I in 0 to NUM_FIFOS - 1 generate
     fifoData(I) <= std_logic_vector(resize(filtered_data(I),FIFO_WIDTH)) when fifo_route(I) = '0' else std_logic_vector(resize(pwm_limit(I),FIFO_WIDTH));
-    fifoValid(I) <= ((filter_valid(I) and (not(fifo_route(I)) or not(enable(I)))) or (control_valid(I) and fifo_route(I) and enable(I))) and enableFIFO;
+    fifoValid(I) <= ((filter_valid(I) and (not(fifo_route(I)) or not(enable))) or (control_valid and fifo_route(I) and enable)) and enableFIFO;
     PhaseMeas_FIFO_NORMAL_X: FIFOHandler
     port map(
         wr_clk      =>  adcClk,
@@ -383,12 +390,13 @@ begin
         dds2_phase_off_reg <= (others => '0');
         pwmReg <= (others => '0');
         
-        for I in 0 to pid_regs(0)'length - 1 loop
-            pid_regs(0)(I) <= (others => '0');
-            pid_regs(1)(I) <= (others => '0');
-            pid_regs(2)(I) <= (others => '0');
+        for I in 0 to pid_regs'length - 1 loop
+            pid_regs(I) <= (others => '0');
         end loop;
-       -- new_register <= (others => '0'); -- dds2
+
+        for I in 0 to pwm_limit_regs'length - 1 loop
+            pwm_limit_regs(I) <= (others => '0');
+        end loop;
         --
         -- FIFO registers
         --
@@ -429,20 +437,19 @@ begin
                             when X"000018" => rw(bus_m,bus_s,comState,dds_phase_off_reg);
                             when X"000020" => rw(bus_m,bus_s,comState,dds2_phase_off_reg);
                             when X"00002C" => rw(bus_m,bus_s,comState,pwmReg);
+                            when X"000030" => rw(bus_m,bus_s,comState,dds_phase_corr_reg);
+                            when X"000040" => rw(bus_m,bus_s,comState,topReg);
                             --
                             -- PID registers
                             --
-                            when X"000100" => rw(bus_m,bus_s,comState,pid_regs(0)(0));
-                            when X"000104" => rw(bus_m,bus_s,comState,pid_regs(0)(1));
-                            when X"000108" => rw(bus_m,bus_s,comState,pid_regs(0)(2));
-
-                            when X"000200" => rw(bus_m,bus_s,comState,pid_regs(1)(0));
-                            when X"000204" => rw(bus_m,bus_s,comState,pid_regs(1)(1));
-                            when X"000208" => rw(bus_m,bus_s,comState,pid_regs(1)(2));
-
-                            when X"000300" => rw(bus_m,bus_s,comState,pid_regs(2)(0));
-                            when X"000304" => rw(bus_m,bus_s,comState,pid_regs(2)(1));
-                            when X"000308" => rw(bus_m,bus_s,comState,pid_regs(2)(2));
+                            when X"000100" => rw(bus_m,bus_s,comState,pid_regs(0));
+                            when X"000104" => rw(bus_m,bus_s,comState,pid_regs(1));
+                            when X"000108" => rw(bus_m,bus_s,comState,pid_regs(2));
+                            when X"00010C" => rw(bus_m,bus_s,comState,pid_regs(3));
+                            when X"000110" => rw(bus_m,bus_s,comState,pid_regs(4));
+                            when X"000114" => rw(bus_m,bus_s,comState,pwm_limit_regs(0));
+                            when X"000118" => rw(bus_m,bus_s,comState,pwm_limit_regs(1));
+                            when X"00011C" => rw(bus_m,bus_s,comState,pwm_limit_regs(2));
 
                             --
                             -- FIFO control and data retrieval

@@ -13,10 +13,12 @@ classdef DeviceControl < handle
         %
         triggers                %Triggers -- currently unused
         ext_o                   %External output signals -- currently unused
+        adc_select              %Select which ADC to use
         adc                     %Read-only for getting current ADC values
         ext_i                   %Read-only for getting current digital input values
         led_o                   %LED control
         phase_inc               %Modulation frequency [Hz]
+        phase_correction        %Correction to output phase to match high-frequency signal [deg]
         phase_offset            %Phase offset for demodulation of fundamental [deg]
         dds2_phase_offset       %Phase offset for demodulation at 2nd harmonic [deg]
         log2_rate               %Log2(CIC filter rate)
@@ -24,24 +26,28 @@ classdef DeviceControl < handle
         numSamples              %Number of samples to collect from recording raw ADC signals
         output_scale            %Output scaling from 0 to 1
         pwm                     %Array of 4 PWM outputs
-        pid                     %PID control, array of 3 IQBIasPID objects
+        control                 %Coupled integral control
         fifo_route              %Array of 4 FIFO routing options
     end
     
     properties(SetAccess = protected)
         % R/W registers
+        topReg                  %Top-level register
         trigReg                 %Register for software trigger signals
         outputReg               %Register for external output control (digital and LED)
         inputReg                %UNUSED
         filterReg               %Register for CIC filter control
         adcReg                  %Read-only register for getting current ADC data
         ddsPhaseIncReg          %Register for modulation frequency
+        ddsPhaseCorrectionReg   %Register for the output phase correction
         ddsPhaseOffsetReg       %Register for phase offset at fundamental
         dds2PhaseOffsetReg      %Register for phase offset at 2nd harmonic
         numSamplesReg           %Register for storing number of samples of ADC data to fetch
         pwmReg                  %Register for PWM signals
         auxReg                  %Auxiliary register
-        pidRegs                 %Registers (3 x 3) for PID control
+        controlRegs             %Registers for control
+        gainRegs                %Registers for gain values
+        pwmLimitRegs            %Registers for limiting PWM outputs
         %new_register % new register added here for dds2
     end
     
@@ -54,7 +60,7 @@ classdef DeviceControl < handle
         PARAM_WIDTH = 32;
         PWM_WIDTH = 10;
         NUM_PWM = 3;
-        NUM_PIDS = 3;
+        NUM_MEAS = 4;
         %
         % Conversion values going from integer values to volts
         %
@@ -88,6 +94,7 @@ classdef DeviceControl < handle
             %
             % Registers
             %
+            self.topReg = DeviceRegister('40',self.conn);
             self.trigReg = DeviceRegister('0',self.conn);
             self.outputReg = DeviceRegister('4',self.conn);
             self.filterReg = DeviceRegister('8',self.conn);
@@ -96,23 +103,32 @@ classdef DeviceControl < handle
             self.ddsPhaseIncReg = DeviceRegister('14',self.conn);
             self.ddsPhaseOffsetReg = DeviceRegister('18',self.conn);
             self.dds2PhaseOffsetReg = DeviceRegister('20',self.conn);
+            self.ddsPhaseCorrectionReg = DeviceRegister('30',self.conn);
             self.pwmReg = DeviceRegister('2C',self.conn);
             self.numSamplesReg = DeviceRegister('100000',self.conn);
             %
             % PID registers: there are 3 PIDs with IQBiasPID.NUM_REGS registers
             % each, starting at address 0x000100
             %
-            self.pidRegs = DeviceRegister.empty;
-            for col = 1:self.NUM_PIDS
-                for row = 1:IQBiasPID.NUM_REGS
-                    addr = 4*(row - 1) + hex2dec('100')*col;
-                    self.pidRegs(row,col) = DeviceRegister(addr,self.conn);
-                end
+            self.controlRegs = DeviceRegister.empty;
+            self.gainRegs = DeviceRegister.empty;
+            self.pwmLimitRegs = DeviceRegister.empty;
+            for nn = 1:IQBiasController.NUM_CONTROL_REGS
+                self.controlRegs(nn,1) = DeviceRegister(hex2dec('100') + (nn - 1)*4,self.conn);
+            end
+            for nn = 1:IQBiasController.NUM_GAIN_REGS
+                self.gainRegs(nn,1) = DeviceRegister(hex2dec('108') + (nn - 1)*4,self.conn);
+            end
+            for nn = 1:IQBiasController.NUM_LIMIT_REGS
+                self.pwmLimitRegs(nn,1) = DeviceRegister(hex2dec('114') + (nn - 1)*4,self.conn);
             end
             %
             % Auxiliary register for all and sundry
             %
             self.auxReg = DeviceRegister('100004',self.conn);
+            %
+            % ADC Selector
+            self.adc_select = DeviceParameter([0,0],self.topReg);
             %
             % Digital and LED input/output parameters
             %
@@ -138,6 +154,9 @@ classdef DeviceControl < handle
                 .setLimits('lower',-360,'upper', 360)...
                 .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
             self.dds2_phase_offset = DeviceParameter([0,31],self.dds2PhaseOffsetReg,'uint32')...
+                .setLimits('lower',-360,'upper', 360)...
+                .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
+            self.phase_correction = DeviceParameter([0,31],self.ddsPhaseCorrectionReg,'uint32')...
                 .setLimits('lower',-360,'upper', 360)...
                 .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH),'from',@(x) x/2^(self.DDS_WIDTH)*360);
             self.output_scale = DeviceParameter([16,23],self.filterReg,'uint32')...
@@ -167,10 +186,7 @@ classdef DeviceControl < handle
             %
             % PID settings
             %
-            self.pid = IQBiasPID.empty;
-            for nn = 1:self.NUM_PIDS
-                self.pid(nn,1) = IQBiasPID(self,self.pidRegs(:,nn));
-            end
+            self.control = IQBiasController(self,self.controlRegs,self.gainRegs,self.pwmLimitRegs);
             %
             % FIFO routing
             %
@@ -185,26 +201,24 @@ classdef DeviceControl < handle
             %SETDEFAULTS Sets parameter values to their defaults
             %
             %   SELF = SETDEFAULTS(SELF) sets default values for SELF
-             self.ext_o.set(0);
-             self.led_o.set(0);
-             self.phase_inc.set(1e6); 
-             self.phase_offset.set(0); 
-             self.dds2_phase_offset.set(0);
-            for nn = 1:numel(self.pwm)
-                self.pwm(nn).set(0);
+            self.adc_select.set(0);
+            self.ext_o.set(0);
+            self.led_o.set(0);
+            self.phase_inc.set(4e6); 
+            self.phase_correction.set(0);
+            self.phase_offset.set(154.8); 
+            self.dds2_phase_offset.set(161);
+            self.pwm.set([0.2865,0.6272,0.8446]);
+            self.log2_rate.set(13);
+            self.cic_shift.set(-3);
+            self.output_scale.set(1);
+            self.numSamples.set(4000);
+            self.control.setDefaults;
+            for nn = 1:numel(self.fifo_route)
+            self.fifo_route(nn).set(0);
             end
-             self.log2_rate.set(10);
-             self.cic_shift.set(0);
-             self.output_scale.set(1);
-             self.numSamples.set(4000);
-             for nn = 1:numel(self.pid)
-                self.pid(nn).setDefaults();
-             end
-             for nn = 1:numel(self.fifo_route)
-                self.fifo_route(nn).set(0);
-             end
-            
-             self.auto_retry = true;
+
+            self.auto_retry = true;
         end
 
         function r = dt(self)
@@ -309,7 +323,7 @@ classdef DeviceControl < handle
             %
             p = properties(self);
             for nn = 1:numel(p)
-                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasPID')
+                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController')
                     self.(p{nn}).get;
                 end
             end
@@ -338,6 +352,15 @@ classdef DeviceControl < handle
             end
             r = x/c;
         end
+        
+        function correct_pwm(self)
+            old_route = self.fifo_route.get;
+            self.fifo_route.set(ones(size(old_route))).write;
+            self.getDemodulatedData(100e-3/self.dt());
+            new_pwm = mean(self.data,1)*self.CONV_PWM;
+            self.pwm.set(new_pwm).write;
+            self.fifo_route.set(old_route).write;
+        end
 
         function self = getDemodulatedData(self,numSamples,saveType)
             %GETDEMODULATEDDATA Fetches demodulated data from the device
@@ -346,16 +369,15 @@ classdef DeviceControl < handle
             %
             %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
             %   users only: see the readme
-            
+            numSamples = round(numSamples);
             if nargin < 3
                 saveType = 1;
             end
+            write_arg = {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)};
             if self.auto_retry
                 for jj = 1:10
                     try
-                        self.conn.write(0,'mode','command','cmd',...
-                            {'./saveData','-n',sprintf('%d',round(numSamples)),'-t',sprintf('%d',saveType)},...
-                            'return_mode','file');
+                        self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                         raw = typecast(self.conn.recvMessage,'uint8');
                         d = self.convertData(raw);
                         self.data = d;
@@ -369,8 +391,63 @@ classdef DeviceControl < handle
                 end
             else
                 self.conn.write(0,'mode','command','cmd',...
-                    {'./saveData','-n',sprintf('%d',round(numSamples)),'-t',sprintf('%d',saveType)},...
+                    {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)},...
                     'return_mode','file');
+                raw = typecast(self.conn.recvMessage,'uint8');
+                d = self.convertData(raw);
+                self.data = d;
+                self.t = self.dt()*(0:(numSamples-1));
+            end
+        end
+        
+        function self = getVoltageStepResponse(self,numSamples,jump_index,jump_amount)
+            %GETDEMODULATEDDATA Fetches demodulated data from the device
+            %
+            %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of demodulated data
+            %
+            %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
+            %   users only: see the readme
+            if ischar(jump_index) || isstring(jump_index)
+                if strcmpi(jump_index,'x')
+                    jump_index = 1;
+                elseif strcmpi(jump_index,'y')
+                    jump_index = 2;
+                elseif strcmpi(jump_index,'z')
+                    jump_index = 3;
+                else
+                    error('Only allowed values of jump_index are ''x'', ''y'', and ''z''!');
+                end
+            elseif isnumeric(jump_index)
+                jump_index = round(jump_index);
+                if all(jump_index ~= [1,2,3])
+                    error('Only allowed values of jump_index are 1, 2, and 3!');
+                end
+            end
+            numSamples = round(numSamples);
+            jump_amount = round(jump_amount/self.CONV_PWM);
+            Vx = self.pwm(1).intValue;
+            Vy = self.pwm(2).intValue;
+            Vz = self.pwm(3).intValue;
+            write_arg = {'./analyze_jump_response','-n',sprintf('%d',numSamples),'-j',sprintf('%d',round(jump_amount)),...
+                            '-i',sprintf('%d',round(jump_index)),'-x',sprintf('%d',round(Vx)),'-s',sprintf('%d',DeviceControl.NUM_MEAS),...
+                            '-y',sprintf('%d',round(Vy)),'-z',sprintf('%d',round(Vz))};
+            if self.auto_retry
+                for jj = 1:10
+                    try
+                        self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
+                        raw = typecast(self.conn.recvMessage,'uint8');
+                        d = self.convertData(raw);
+                        self.data = d;
+                        self.t = self.dt()*(0:(numSamples-1));
+                        break;
+                    catch e
+                        if jj == 10
+                            rethrow(e);
+                        end
+                    end
+                end
+            else
+                self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
                 d = self.convertData(raw);
                 self.data = d;
@@ -385,12 +462,13 @@ classdef DeviceControl < handle
             %   samples from the device SELF
             %
             %   SELF = GETRAM(SELF,N) Retrieves N samples from device
+            numSamples = round(numSamples);
             self.numSamples.set(numSamples).write;
             self.trigReg.set(1,[0,0]).write;
             self.trigReg.set(0,[0,0]);
             
             self.conn.write(0,'mode','command','cmd',...
-                {'./fetchRAM',sprintf('%d',round(numSamples))},...
+                {'./fetchRAM',sprintf('%d',numSamples)},...
                 'return_mode','file');
             raw = typecast(self.conn.recvMessage,'uint8');
             if strcmpi(self.jumpers,'hv')
@@ -442,6 +520,7 @@ classdef DeviceControl < handle
             strwidth = 20;
             fprintf(1,'DeviceControl object with properties:\n');
             fprintf(1,'\t Registers\n');
+            self.topReg.print('topReg',strwidth);
             self.outputReg.print('outputReg',strwidth);
             self.inputReg.print('inputReg',strwidth);
             self.filterReg.print('filterReg',strwidth);
@@ -449,17 +528,22 @@ classdef DeviceControl < handle
             self.ddsPhaseIncReg.print('phaseIncReg',strwidth);
             self.ddsPhaseOffsetReg.print('phaseOffsetReg',strwidth);
             self.dds2PhaseOffsetReg.print('dds2phaseOffsetReg',strwidth);
+            self.ddsPhaseCorrectionReg.print('ddsPhaseCorrectionReg',strwidth);
             self.pwmReg.print('pwmReg',strwidth);
-            self.pidRegs.print('pidRegs',strwidth);
+            self.controlRegs.print('controlRegs',strwidth);
+            self.gainRegs.print('gainRegs',strwidth);
+            self.pwmLimitRegs.print('pwmLimitRegs',strwidth);
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Parameters\n');
             
+            self.adc_select.print('ADC select',strwidth,'%.0f');
             self.led_o.print('LEDs',strwidth,'%02x');
             self.ext_o.print('External output',strwidth,'%02x');
             self.ext_i.print('External input',strwidth,'%02x');
             self.adc(1).print('ADC 1',strwidth,'%.3f');
             self.adc(2).print('ADC 2',strwidth,'%.3f');
             self.phase_inc.print('Phase Increment',strwidth,'%.3e');
+            self.phase_correction.print('Phase Correction',strwidth,'%.3f');
             self.phase_offset.print('Phase Offset',strwidth,'%.3f');
             self.dds2_phase_offset.print('dds2 Phase Offset',strwidth,'%.3f');
             for nn = 1:numel(self.pwm)
@@ -472,14 +556,8 @@ classdef DeviceControl < handle
                 self.fifo_route(nn).print(sprintf('FIFO Route %d',nn),strwidth,'%d');
             end
             fprintf(1,'\t ----------------------------------\n');
-            fprintf(1,'\t PID 1 Parameters\n');
-            self.pid(1).print(strwidth);
-            fprintf(1,'\t ----------------------------------\n');
-            fprintf(1,'\t PID 2 Parameters\n');
-            self.pid(2).print(strwidth);
-            fprintf(1,'\t ----------------------------------\n');
-            fprintf(1,'\t PID 3 Parameters\n');
-            self.pid(3).print(strwidth); 
+            fprintf(1,'\t Control Parameters\n');
+            self.control.print(strwidth);
         end
         
         function s = struct(self)
@@ -490,10 +568,11 @@ classdef DeviceControl < handle
             s.conn = self.conn.struct;
             s.t = self.t;
             s.data = self.data;
+            s.jumpers = self.jumpers;
             
             p = properties(self);
             for nn = 1:numel(p)
-                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasPID')
+                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController')
                     s.(p{nn}) = self.(p{nn}).struct;
                 end
             end
@@ -514,11 +593,16 @@ classdef DeviceControl < handle
             %   S to SELF
             self.t = s.t;
             self.data = s.data;
+            self.jumpers = s.jumpers;
             p = properties(self);
             for nn = 1:numel(p)
                 if isfield(s,p{nn})
-                    if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasPID')
-                        self.(p{nn}).loadstruct(s.(p{nn}));
+                    if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController')
+                        try
+                            self.(p{nn}).loadstruct(s.(p{nn}));
+                        catch
+                            
+                        end
                     end
                 end
             end
@@ -541,7 +625,7 @@ classdef DeviceControl < handle
         function d = convertData(raw)
             raw = raw(:);
             Nraw = numel(raw);
-            numStreams = 4;
+            numStreams = DeviceControl.NUM_MEAS;
             d = zeros(Nraw/(numStreams*4),numStreams,'int32');
             
             raw = reshape(raw,4*numStreams,Nraw/(4*numStreams));
@@ -597,6 +681,16 @@ classdef DeviceControl < handle
             for nn = 1:size(D,4)
                 tmp = raw((nn - 1)*numVoltages^3 + (1:(numVoltages^3)));
                 D(:,:,:,nn) = reshape(double(tmp),numVoltages*[1,1,1]);
+            end
+        end
+        
+        function app = get_running_app_instance
+            h = findall(groot,'type','figure');
+            for nn = 1:numel(h)
+                if strcmpi(h(nn).Name,'IQ Bias Control')
+                    app = h(nn).RunningAppInstance;
+                    break;
+                end
             end
         end
     end

@@ -1,3 +1,10 @@
 matlab/*.mat
 *.asv
 software/instrsupport.txt
+software/*.o
+software/saveData
+software/fetchRAM
+software/analyze_biases
+software/analyze_jump_response
+board-design/**/*.zip
+board-design/\#*
