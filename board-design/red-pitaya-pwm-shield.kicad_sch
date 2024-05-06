@@ -2090,17 +2090,17 @@
     (effects (font (size 1.27 1.27)) (justify left bottom))
     (uuid 6ba70986-5b41-4e01-8626-95432630cbfb)
   )
-  (text "Auxiliary control voltage\n\nPossible future addition for phase-locking outputs from laser system.\nRed Pitaya generates a voltage to be applied to another EOM in series \nwith the IQ modulator to adjust the relative phase between the CS-SSB\npath and the carrier-only path.  Higher-speed control without PWM harmonics\nmay be desirable.  This DAC has a 1 us settling time, and the amplifier has\na GBW of 5 MHz.  DAC is programmed using the SPI interface."
-    (at 21.59 84.455 0)
+  (text "Auxiliary control voltage\n\nPossible future addition for phase-locking outputs from laser system.\nRed Pitaya generates a voltage to be applied to another EOM in series \nwith the IQ modulator to adjust the relative phase between the CS-SSB\npath and the carrier-only path.  Higher-speed control without PWM harmonics\nmay be desirable.  This DAC has a 1 us settling time, and the amplifier has\na GBW of 5 MHz.  DAC is programmed using the SPI interface.  DAC output is [0,2.5] V,\nand non-inverting amplifier gain has been chosen to give output of [0,13.8] V."
+    (at 17.78 85.09 0)
     (effects (font (size 1.27 1.27)) (justify left bottom))
     (uuid 750f43ee-ee57-4e0a-ba0c-0d480a75994f)
   )
-  (text "PWM filtering and amplification.  \n\nRed Pitaya\nPWM outputs are low-pass filtered with a 200 Ohm\nresistor and 8.2 nF capacitor, giving a corner\nfrequency of 97 kHz.  The addition of an extra\n1 uF capacitor in parallel reduces the corner\nfrequency to 790 Hz.  For a PWM frequency of 244 kHz\n(10 bits at 250 MHz), this suppresses the fundamental\nby 50 dB.  \n\nNon-inverting amplifier resistors are chosen to give\na maximum output voltage of 14.9 V (from 1.6 V), which should\nbe within the compliance of the op-amps."
-    (at 158.75 43.815 0)
+  (text "PWM filtering and amplification.  \n\nRed Pitaya PWM outputs are low-pass filtered with a 200 Ohm\nresistor and 8.2 nF capacitor, giving a corner\nfrequency of 97 kHz.  The addition of an extra\n1 uF capacitor in parallel reduces the corner\nfrequency to 790 Hz.  For a PWM frequency of 244 kHz\n(10 bits at 250 MHz), this suppresses the fundamental\nby 50 dB.  \n\nNon-inverting amplifier resistors are chosen to give\na maximum output voltage of 14.9 V (from 1.6 V), which should\nbe within the compliance of the op-amps."
+    (at 153.67 41.275 0)
     (effects (font (size 1.27 1.27)) (justify left bottom))
     (uuid 9de559f0-5f06-4083-a003-bb88acd02c3e)
   )
-  (text "Power\n\nBoard can be powered by external +5 V connected to J3.\nMOSFET Q1 is for reverse voltage protection. Expect ~3 A current,\nso use MOSFET with low R_{DS,on}. Zener diode is to prevent over-voltage.\n\nAlternatively, if the Red Pitaya is connected to power through USB then\nthe board will draw power from the Red Pitaya pin.  No reverse voltage\nprotection is needed here.\n\n+/-15 V is generated from DC-DC converter, used to power ICs on board."
+  (text "Power\n\nBoard can be powered by external +5 V connected to J3.  MOSFET Q1 is for reverse voltage protection. \nExpect ~3 A current, so use MOSFET with low R_{DS,on}. Zener diode is to prevent over-voltage.\n\nAlternatively, if the Red Pitaya is connected to power through USB then the board will draw power \nfrom the Red Pitaya pin.  No reverse voltage protection is needed here.\n\n+/-15 V is generated from DC-DC converter, used to power ICs on board.  Converter has a minimum current\noutput of +/-4 mA.  The quad op-amp in this design draws a quiscent current of 8 mA.  If this is changed,\nensure that the minimum draw on the +/-15 V supply is at least 4 mA."
     (at 20.32 36.195 0)
     (effects (font (size 1.27 1.27)) (justify left bottom))
     (uuid e300ecdc-05e8-468f-aff8-92538797ddc4)
