@@ -6,11 +6,11 @@ This project implements a digital bias controller for an IQ modulator running in
 
   1. Clone both this repository and the interface repository at [https://github.com/atomlaser-lab/red-pitaya-interface](https://github.com/atomlaser-lab/red-pitaya-interface) to your computer.  
 
-  2. Connect the Red Pitaya (RP) board to an appropriate USB power source (minimum 2 W), and then connect it to the local network using an ethernet cable.  Using SSH (via terminal on Linux/Mac or something like PuTTY on Windows), log into the RP using the hostname `rp-{MAC}.local` where `{MAC}` is the last 6 characters of the RP's MAC address, which is written on the ethernet connector.  Your network may assign its own domain, so `.local` might not be the correct choice.  The default user name and password for RPs is `root`.  Once logged in, create two directories called `iq-bias-control` and `server`.
+  2. Connect the Red Pitaya (RP) board to an appropriate USB power source (minimum 2 A current output), and then connect it to the local network using an ethernet cable.  Using SSH (via terminal on Linux/Mac or something like PuTTY on Windows), log into the RP using the hostname `rp-{MAC}.local` where `{MAC}` is the last 6 characters of the RP's MAC address, which is written on the ethernet connector.  Your network may assign its own domain, so `.local` might not be the correct choice.  The default user name and password for RPs is `root`.  Once logged in, create two directories called `iq-bias-control` and `server`.
 
-  3. From this repository, copy over all files in the 'software/' directory ending in '.c' to the `iq-bias-control` directory on the RP using either `scp` (from a terminal on your computer) or using your favourite GUI (I recommend WinSCP for Windows).  Also copy over the file `fpga/iq-bias-control.bit` to the `iq-bias-control` directory.  From the interface repository, copy over all files ending in '.py' and the file 'get_ip.sh' to the `server` directory on the RP.
+  3. From this repository, copy over all files in the 'software/' directory ending in '.c' and the file `Makefile` to the `iq-bias-control` directory on the RP using either `scp` (from a terminal on your computer) or using your favourite GUI (I recommend WinSCP for Windows).  Also copy over the file `fpga/iq-bias-control.bit` to the `iq-bias-control` directory.  From the interface repository, copy over all files ending in '.py' and the file 'get_ip.sh' to the `server` directory on the RP.
 
-  4. On the RP and in the `iq-bias-control` directory, compile the C programs.  Compile `saveData.c` using `gcc -o saveData saveData.c` and compile `fetchRAM.c` using `gcc -o fetchRAM fetchRAM.c`.  You may also want to compile the `analyze_biases.c` file using `gcc -o analyze_biases analyze_biases.c -lm`.  
+  4. On the RP and in the `iq-bias-control` directory, compile the C programs.  You can compile these using the Makefile by running the command `make` with no arguments.  This will compile all the C programs in the directory.  
 
   5. In the `server` directory, change the privileges of `get_ip.sh` using `chmod a+x get_up.sh`.  Check that running `./get_ip.sh` produces a single IP address (you may need to install dos2unix using `apt install dos2unix` and then run `dos2unix get_ip.sh` to make it work).  If it doesn't, run the command `ip addr` and look for an IP address that isn't `127.0.0.1` (which is the local loopback address).  There may be more than one IP address -- you're looking for one that has tags 'global' and 'dynamic'.  Here is the output from one such device:
    ```
@@ -30,7 +30,7 @@ This project implements a digital bias controller for an IQ modulator running in
    3: sit0@NONE: <NOARP> mtu 1480 qdisc noop state DOWN group default qlen 1
       link/sit 0.0.0.0 brd 0.0.0.0
    ```
-   The IP address we want here is the address `192.168.1.109` as it is labelled with the `global` tag, which is what `get_ip.sh` looks for.  If you have your RP connected directly to your computer it will not work and you will have to specify the IP address manually.
+   The IP address we want here is the address `192.168.1.109` as it has the `global` tag, which is what `get_ip.sh` looks for.  If you have your RP connected directly to your computer it will not work and you will have to specify the IP address manually.
 
    6. Upload the bitstream to the FPGA by navigating to the `iq-bias-control` directory and running `cat iq-bias-control.bit > /dev/xdevcfg`.
 
@@ -44,9 +44,11 @@ This project implements a digital bias controller for an IQ modulator running in
 
 # Hardware set up
 
-Connect the OUT1 and OUT2 signals to the I and Q modulation ports (order doesn't matter) on the IQ modulator.  Make sure that the output voltages/powers are within the specified tolerances of the device.  The OUT1 and OUT2 signals are already 90 degrees out of phase, so they don't need to go through a 90 degree hybrid.  Measure the output laser power using a photodiode of sufficient bandwidth, amplify as necessary, and connect to the IN1 connector.  On the LV setting the IN1 input can only measure +/-1 V.  
+Connect the OUT1 and OUT2 signals to the I and Q modulation ports (order doesn't matter) on the IQ modulator.  Make sure that the output voltages/powers are within the specified tolerances of the device.  The OUT1 and OUT2 signals are already 90 degrees out of phase, so they don't need to go through a 90 degree hybrid.  You may want significant attenuation on the output ports so that the auxiliary signal is much weaker than the desired main signal.  Measure the output laser power using a photodiode of sufficient bandwidth, amplify as necessary, and connect to the IN1 connector.  On the LV setting the IN1 input can only measure +/-1 V.  
 
 Connect the slow analog outputs 0-2 to the IQ modulator's DC biases: see [this page](https://redpitaya.readthedocs.io/en/latest/developerGuide/hardware/125-14/extent.html) for the pinout.  You may need to amplify these signals (maximum output is 1.6 V) to get the right voltage range.  The slow analog outputs are pulse width modulation (PWM) outputs with a 250 MHz clock and 8 bits of resolution, so the PWM frequency is about 1 MHz.  You will likely want additional filtering on the outputs for driving the DC biases.
+
+Alternatively, you can build the included "shield" for the Red Pitaya that connects to the PWM analog outputs, filters them, and amplifies them to be in the range [0,14.6] V. The corner frequency is approximately 790 Hz, which suppresses the fundamental PWM frequency at 244 kHz by about 50 dB.  Choosing different filtering capacitors will give you different suppression and bandwidths.
 
 # Using the GUI
 
@@ -60,7 +62,7 @@ The idea behind this technique is to generate a low-frequency modulation signal 
 
 ## Control
 
-Assuming that the demodulation phases are properly set, the bias voltages on the IQ modulator should independently control each demodulated signal with very limited cross-coupling.  In reality, there can be significant cross-coupling.  To account for cross-coupling, we use a multi-dimensional integral control scheme.  For a vector of voltages $\mathbf{V}$ and a vector of signals $\mathbf{S}$, we implement a control law as a 3x3 matrix $K$ such that $\mathbf{V} = -K\mathbf{S}$.  The integer values for the control matrix $K$ are given as K11, K12, etc, and these can be negative to allow for opposite polarity responses.  Additionally, to account for possibly different orders of magnitude of gain reponse, each output voltage has its own "divisor" to allow for fixed-point arithmetic.  Therefore, the output voltage $V_1$ is $V_1 = 2^{-N_1}(K_{11}S_1 + K_{12}S_2 + K_{13}S_3)$ and similarly for the other rows 2 and 3.  
+Assuming that the demodulation phases are properly set, the bias voltages on the IQ modulator should independently control each demodulated signal with very limited cross-coupling.  In reality, there can be significant cross-coupling.  To account for cross-coupling, we use a multi-dimensional integral control scheme.  For a vector of voltages $\mathbf{V}$ and a vector of signals $\mathbf{S}$, we implement a control law as a 3x3 matrix $K$ such that $\mathbf{V} = -K\mathbf{S}$.  The integer values for the control matrix $K$ are given as K11, K12, etc, and these can be negative to allow for opposite polarity responses.  Additionally, to account for possibly different orders of magnitude of gain reponse, each output voltage has its own "divisor" to allow for fixed-point arithmetic.  Therefore, the output voltage $V_1$ is $V_1 = 2^{-N_1}(K_{11}S_1 + K_{12}S_2 + K_{13}S_3)$, where $N_1$ is labelled as "Divisor 1", and similarly for the other rows 2 and 3.  
 
 Other controls are reasonably straightforward.  The `Enable` switch turns the controller on, and the `Hold` switch holds the outputs at the current values.  The different set points allow for stabilising the signals about a non-zero value, and the upper and lower limits at the bottom limit the PMW output voltages (values are prior to any amplifiers you may add).
 
