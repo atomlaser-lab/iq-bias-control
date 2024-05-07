@@ -383,7 +383,8 @@
           "/+5V",
           "/VDD",
           "/VSS",
-          "Net-(J3-Pad1)"
+          "Net-(F1-Pad1)",
+          "Net-(F1-Pad2)"
         ],
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "schematic_color": "rgba(0, 0, 0, 0.000)",
