@@ -160,7 +160,7 @@ signal dds2_phase_off_reg   :   t_param_reg;
 signal dds_phase_corr_reg   :   t_param_reg;
 signal dds_regs             :   t_param_reg_array(3 downto 0);
 -- PWM register
-signal pwmReg               :   t_param_reg;
+signal pwm_regs             :   t_param_reg_array(2 downto 0);
 -- FIFO register
 signal fifoReg              :   t_param_reg;
 -- PID registers
@@ -227,15 +227,14 @@ m_axis_tvalid <= '1';
 
 -- PWM outputs
 --
-pwm_data(0) <= unsigned(pwmReg(9 downto 0));
-pwm_data(1) <= unsigned(pwmReg(19 downto 10));
-pwm_data(2) <= unsigned(pwmReg(29 downto 20));
+PWM_Gen: for I in 0 to 2 generate
+    pwm_data(I) <= unsigned(pwm_regs(I)(t_pwm'left downto 0));
+    pwm_data_i(I) <= resize(unsigned(std_logic_vector(pwm_limit(I))),PWM_DATA_WIDTH);
+end generate PWM_Gen;
+ 
 pwm_data(3) <= (others => '0');
-
-pwm_data_i(0) <= resize(unsigned(std_logic_vector(pwm_limit(0))),PWM_DATA_WIDTH);
-pwm_data_i(1) <= resize(unsigned(std_logic_vector(pwm_limit(1))),PWM_DATA_WIDTH);
-pwm_data_i(2) <= resize(unsigned(std_logic_vector(pwm_limit(2))),PWM_DATA_WIDTH);
 pwm_data_i(3) <= pwm_data(3);
+
 PWM1: PWM_Generator
 port map(
   clk     =>  adcClk,
@@ -388,7 +387,7 @@ begin
         dds_phase_inc_reg <= std_logic_vector(to_unsigned(34359738, 32)); -- 1 MHz with 32 bit DDS and 125 MHz clk freq
         --dds2 
         dds2_phase_off_reg <= (others => '0');
-        pwmReg <= (others => '0');
+        pwm_regs <= (others => (others => '0'));
         
         for I in 0 to pid_regs'length - 1 loop
             pid_regs(I) <= (others => '0');
@@ -436,9 +435,12 @@ begin
                             when X"000014" => rw(bus_m,bus_s,comState,dds_phase_inc_reg);
                             when X"000018" => rw(bus_m,bus_s,comState,dds_phase_off_reg);
                             when X"000020" => rw(bus_m,bus_s,comState,dds2_phase_off_reg);
-                            when X"00002C" => rw(bus_m,bus_s,comState,pwmReg);
+--                            when X"00002C" => rw(bus_m,bus_s,comState,pwmReg);
                             when X"000030" => rw(bus_m,bus_s,comState,dds_phase_corr_reg);
                             when X"000040" => rw(bus_m,bus_s,comState,topReg);
+                            when X"000050" => rw(bus_m,bus_s,comState,pwm_regs(0));
+                            when X"000054" => rw(bus_m,bus_s,comState,pwm_regs(1));
+                            when X"000058" => rw(bus_m,bus_s,comState,pwm_regs(2));
                             --
                             -- PID registers
                             --

@@ -13,7 +13,7 @@
 #define MEM_LOC   0x40000000
 #define DATA_LOC 0x00000088
 #define FIFO_LOC  0x00000084
-#define PWM_LOC   0x0000002C
+#define PWM_LOC   0x00000050
 
 int start_fifo(void *cfg) {
   //Disable FIFO
@@ -31,9 +31,10 @@ int stop_fifo(void *cfg) {
   return 0;
 }
 
-int write_to_pwm(void *cfg,uint16_t V1,uint16_t V2,uint16_t V3,uint16_t V4) {
-  uint32_t data = V1 + V2*(1 << 10) + V3*(1 << 20);
-  *((uint32_t *)(cfg + PWM_LOC)) = data;
+int write_to_pwm(void *cfg,uint16_t V1,uint16_t V2,uint16_t V3) {
+  *((uint32_t *)(cfg + PWM_LOC)) = (uint32_t) V1;
+  *((uint32_t *)(cfg + PWM_LOC + 4)) = (uint32_t) V2;
+  *((uint32_t *)(cfg + PWM_LOC + 8)) = (uint32_t) V3;
   return 0;
 }
  
@@ -124,7 +125,7 @@ int main(int argc, char **argv)
   cfg = mmap(0,MAP_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,MEM_LOC);
  
   // Set voltages
-  write_to_pwm(cfg,Vx,Vy,Vz,0);
+  write_to_pwm(cfg,Vx,Vy,Vz);
   sleep(1);
   // Record data
   start_fifo(cfg);
@@ -133,13 +134,13 @@ int main(int argc, char **argv)
         allow_jump = 0;
         switch (jump_index) {
             case 1:
-                write_to_pwm(cfg,Vx + Vjump,Vy,Vz,0);
+                write_to_pwm(cfg,Vx + Vjump,Vy,Vz);
                 break;
             case 2:
-                write_to_pwm(cfg,Vx,Vy + Vjump,Vz,0);
+                write_to_pwm(cfg,Vx,Vy + Vjump,Vz);
                 break;
             case 3:
-                write_to_pwm(cfg,Vx,Vy,Vz + Vjump,0);
+                write_to_pwm(cfg,Vx,Vy,Vz + Vjump);
                 break;
             default:
                 break;
@@ -151,7 +152,7 @@ int main(int argc, char **argv)
     }
   }
   stop_fifo(cfg);
-  write_to_pwm(cfg,Vx,Vy,Vz,0);
+  write_to_pwm(cfg,Vx,Vy,Vz);
 
   ptr = fopen("SavedData.bin","wb");
   fwrite(data,4,(size_t)(data_size),ptr);

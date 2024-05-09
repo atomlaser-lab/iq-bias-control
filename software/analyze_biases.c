@@ -16,7 +16,7 @@
 #define DATA_LOC3 0x00000090
 #define DATA_LOC4 0x00000094
 #define FIFO_LOC  0x00000084
-#define PWM_LOC   0x0000002C
+#define PWM_LOC   0x00000050
 
 int start_fifo(void *cfg) {
   //Disable FIFO
@@ -34,9 +34,10 @@ int stop_fifo(void *cfg) {
   return 0;
 }
 
-int write_to_pwm(void *cfg,uint16_t V1,uint16_t V2,uint16_t V3,uint16_t V4) {
-  uint32_t data = V1 + V2*(1 << 10) + V3*(1 << 20);
-  *((uint32_t *)(cfg + PWM_LOC)) = data;
+int write_to_pwm(void *cfg,uint16_t V1,uint16_t V2,uint16_t V3) {
+  *((uint32_t *)(cfg + PWM_LOC)) = (uint32_t) V1;
+  *((uint32_t *)(cfg + PWM_LOC + 4)) = (uint32_t) V2;
+  *((uint32_t *)(cfg + PWM_LOC + 8)) = (uint32_t) V3;
   return 0;
 }
  
@@ -131,7 +132,7 @@ int main(int argc, char **argv)
       for (int zz = 0;zz < numVoltages; zz++) {
         Vz = zz*(Vmax/numVoltages);
         // Set PWM values
-        write_to_pwm(cfg,Vx,Vy,Vz,0);
+        write_to_pwm(cfg,Vx,Vy,Vz);
 /*        if ((xx == 0) || (yy == 0) || (zz == 0)) {
           sleep(1);
         } else {

@@ -43,7 +43,7 @@ classdef DeviceControl < handle
         ddsPhaseOffsetReg       %Register for phase offset at fundamental
         dds2PhaseOffsetReg      %Register for phase offset at 2nd harmonic
         numSamplesReg           %Register for storing number of samples of ADC data to fetch
-        pwmReg                  %Register for PWM signals
+        pwmRegs                 %Registers for PWM signals
         auxReg                  %Auxiliary register
         controlRegs             %Registers for control
         gainRegs                %Registers for gain values
@@ -58,7 +58,7 @@ classdef DeviceControl < handle
         ADC_WIDTH = 14;
         DDS_WIDTH = 32;
         PARAM_WIDTH = 32;
-        PWM_WIDTH = 10;
+        PWM_WIDTH = 14;
         NUM_PWM = 3;
         NUM_MEAS = 4;
         %
@@ -104,7 +104,10 @@ classdef DeviceControl < handle
             self.ddsPhaseOffsetReg = DeviceRegister('18',self.conn);
             self.dds2PhaseOffsetReg = DeviceRegister('20',self.conn);
             self.ddsPhaseCorrectionReg = DeviceRegister('30',self.conn);
-            self.pwmReg = DeviceRegister('2C',self.conn);
+            self.pwmRegs = DeviceRegister.empty;
+            for nn = 1:self.NUM_PWM
+                self.pwmRegs(nn) = DeviceRegister(hex2dec('50') + (nn - 1)*4,self.conn);
+            end
             self.numSamplesReg = DeviceRegister('100000',self.conn);
             %
             % PID registers: there are 3 PIDs with IQBiasPID.NUM_REGS registers
@@ -174,7 +177,7 @@ classdef DeviceControl < handle
             %
             self.pwm = DeviceParameter.empty;
             for nn = 1:self.NUM_PWM
-                self.pwm(nn) = DeviceParameter(10*(nn - 1) + [0,9],self.pwmReg)...
+                self.pwm(nn) = DeviceParameter([0,self.PWM_WIDTH - 1],self.pwmRegs(nn))...
                     .setLimits('lower',0,'upper',1.62)...
                     .setFunctions('to',@(x) x/self.CONV_PWM,'from',@(x) x*self.CONV_PWM);
             end
@@ -215,7 +218,7 @@ classdef DeviceControl < handle
             self.numSamples.set(4000);
             self.control.setDefaults;
             for nn = 1:numel(self.fifo_route)
-            self.fifo_route(nn).set(0);
+                self.fifo_route(nn).set(0);
             end
 
             self.auto_retry = true;
@@ -529,7 +532,7 @@ classdef DeviceControl < handle
             self.ddsPhaseOffsetReg.print('phaseOffsetReg',strwidth);
             self.dds2PhaseOffsetReg.print('dds2phaseOffsetReg',strwidth);
             self.ddsPhaseCorrectionReg.print('ddsPhaseCorrectionReg',strwidth);
-            self.pwmReg.print('pwmReg',strwidth);
+            self.pwmRegs.print('pwmReg',strwidth);
             self.controlRegs.print('controlRegs',strwidth);
             self.gainRegs.print('gainRegs',strwidth);
             self.pwmLimitRegs.print('pwmLimitRegs',strwidth);

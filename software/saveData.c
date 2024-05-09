@@ -24,7 +24,7 @@ int main(int argc, char **argv)
 
   uint32_t i, incr = 0;
   uint8_t saveType = 2;
-  uint32_t saveFactor = 4;
+  int saveFactor = 4;
   uint32_t tmp;
   uint32_t *data;
   uint8_t debugFlag = 0;
@@ -36,7 +36,7 @@ int main(int argc, char **argv)
    * Parse the input arguments
    */
   int c;
-  while ((c = getopt(argc,argv,"n:t:f:s")) != -1) {
+  while ((c = getopt(argc,argv,"n:t:s:f")) != -1) {
     switch (c) {
       case 'n':
         numSamples = atoi(optarg);
@@ -108,14 +108,14 @@ int main(int argc, char **argv)
     // This is if we are not saving to file, but saving to memory instead
     for (i = 0;i<dataSize;i += saveFactor) {
       for (incr = 0;incr < saveFactor;incr++) {
-        *(data + i + incr) = *((uint32_t *)(cfg + DATA_LOC + (incr << 2)));
+        *(data + i + incr) = *((uint32_t *)(cfg + DATA_LOC + incr*4));
       }
     }
   } else {
     // This is for if we are saving to file
     for (i = 0;i<dataSize;i += saveFactor) {
       for (incr = 0;incr < saveFactor;incr++) {
-        tmp = *((uint32_t *)(cfg + DATA_LOC + (incr << 2)));
+        tmp = *((uint32_t *)(cfg + DATA_LOC + incr*4));
         fwrite(&tmp,4,1,ptr);
       }
     }

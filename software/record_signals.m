@@ -8,7 +8,7 @@ d.fifo_route.set([0,0,0,0]);
 d.upload;
 
 time_step = 20;
-hours_to_record = .5;
+hours_to_record = 10;
 total_time = round(3600*hours_to_record);
 num_samples = ceil(total_time/time_step);
 tmr = timer('name','signal-recorder','period',time_step,'TasksToExecute',num_samples,'ExecutionMode','fixedDelay');
