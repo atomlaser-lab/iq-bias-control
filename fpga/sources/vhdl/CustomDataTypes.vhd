@@ -32,7 +32,7 @@ type t_dac_array is array(natural range <>) of t_dac;
 --
 -- Define PWM types
 --
-constant PWM_DATA_WIDTH     :   natural :=  14;
+constant PWM_DATA_WIDTH     :   natural :=  10;
 constant PWM_EXP_WIDTH  :   natural :=  PWM_DATA_WIDTH + 1;
 
 subtype t_pwm is unsigned(PWM_DATA_WIDTH - 1 downto 0);

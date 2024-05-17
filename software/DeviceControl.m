@@ -58,7 +58,7 @@ classdef DeviceControl < handle
         ADC_WIDTH = 14;
         DDS_WIDTH = 32;
         PARAM_WIDTH = 32;
-        PWM_WIDTH = 14;
+        PWM_WIDTH = 10;
         NUM_PWM = 3;
         NUM_MEAS = 4;
         %
