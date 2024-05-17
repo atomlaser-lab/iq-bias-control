@@ -8,10 +8,11 @@ d.fifo_route.set([0,0,0,0]);
 d.upload;
 
 time_step = 20;
-hours_to_record = 10;
+hours_to_record = 2/60;
 total_time = round(3600*hours_to_record);
 num_samples = ceil(total_time/time_step);
 tmr = timer('name','signal-recorder','period',time_step,'TasksToExecute',num_samples,'ExecutionMode','fixedDelay');
+tmr.UserData.filename = 'Test';
 tmr.UserData.date = [];
 tmr.UserData.t = [];
 tmr.UserData.bias_voltages = [];
@@ -66,9 +67,9 @@ end
 
 function timer_stop_fcn(obj,~)
 data = obj.UserData;
-data.sa = [];data.d = [];
+data.sa = [];data.d = obj.UserData.d.struct;
 t = datetime('now','format','y-M-d-HH-mm-ss');
-save(['signal-series-',char(t)],'data');
+save([obj.UserData.filename,' ',char(t)],'data');
 obj.UserData.d.fifo_route.set([0,0,0,0]).write;
 fprintf('Data acquisition completed\n');
 end

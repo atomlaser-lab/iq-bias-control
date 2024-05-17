@@ -238,11 +238,11 @@ fprintf('Finished measuring dynamic responses in %.1f s\n',t);
 % Using a target low-pass frequency (in Hz), we now compute the feedback
 % matrix K and its integer values taking into account the row-wise divisors
 %
-target_low_pass_freqs = 3;
+target_low_pass_freqs = [20,20,0.5];
 % target_low_pass_freqs = 0.5*response_freqs;
 Ki_target = 2*pi*target_low_pass_freqs*d.dt()/DeviceControl.CONV_PWM;
 
-K_target = Ki_target.*eye(3);
+K_target = diag(Ki_target);
 Ktmp = G\K_target;
 K = zeros(3);
 D = zeros(3,1);

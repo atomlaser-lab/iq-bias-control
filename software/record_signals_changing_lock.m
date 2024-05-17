@@ -12,15 +12,17 @@ d.control.hold.set(0);
 d.upload;
 
 time_step = 20;
-hours_to_record = 8;
+hours_to_record = 12;
 total_time = round(3600*hours_to_record);
 num_samples = ceil(total_time/time_step);
 tmr = timer('name','signal-recorder','period',time_step,'TasksToExecute',num_samples,'ExecutionMode','fixedDelay');
+tmr.UserData.filename = 'Lock change test 6 hours';
 tmr.UserData.date = [];
 tmr.UserData.t = [];
 tmr.UserData.bias_voltages = [];
 tmr.UserData.rp_signals = [];
 tmr.UserData.sideband_power = [];
+tmr.UserData.lock_status = [];
 tmr.UserData.f = {};
 tmr.UserData.P = {};
 tmr.UserData.d = d;
@@ -42,13 +44,15 @@ else
     obj.UserData.date(obj.UserData.sample) = datetime;
 end
 d = obj.UserData.d;
+d.fetch;
 d.fifo_route.set([0,0,0,0]).write;
 obj.UserData.d.getDemodulatedData(1e3);
 obj.UserData.rp_signals(obj.UserData.sample,:) = mean(obj.UserData.d.data(:,1:3),1);
 d.fifo_route.set([1,1,1,1]).write;
 obj.UserData.d.getDemodulatedData(1e3);
 obj.UserData.bias_voltages(obj.UserData.sample,:) = mean(obj.UserData.d.data(:,1:3),1)*DeviceControl.CONV_PWM;
-
+obj.UserData.lock_status.enable(obj.UserData.sample,1) = d.control.enable.value;
+obj.UserData.lock_status.hold(obj.UserData.sample,1) = d.control.hold.value;
 if isfield(obj.UserData,'sa')
     [obj.UserData.sideband_power(obj.UserData.sample,:),f,P] = get_sideband_power(obj.UserData.sa,...
         obj.UserData.modulation_frequency,obj.UserData.aom_frequency,obj.UserData.rp_modulation_frequency,obj.UserData.rbw);
@@ -89,9 +93,9 @@ end
 
 function timer_stop_fcn(obj,~)
 data = obj.UserData;
-data.sa = [];data.d = [];
+data.sa = [];data.d = obj.UserData.d.struct;
 t = datetime('now','format','y-M-d-HH-mm-ss');
-save(['signal-series-',char(t)],'data');
+save([obj.UserData.filename,' ',char(t)],'data');
 obj.UserData.d.fifo_route.set([0,0,0,0]).write;
 fprintf('Data acquisition completed\n');
 end
