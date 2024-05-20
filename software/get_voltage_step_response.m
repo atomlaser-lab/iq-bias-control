@@ -25,13 +25,13 @@ for mm = 1:size(c,3)
     orders = circshift([1,2,3],-mm + 1);
     for nn = orders
         if nn == mm
-            tau_bounds = [0,5,0.1];
+            tau_bounds = [0,5,0.01];
         else
             tau_bounds = nlf.get('tau',1)*[0.99,1.01,1];
         end
         nlf.set(d.t,d.data(:,nn),std(d.data(1:floor(0.05*num_samples),nn)));
         nlf.bounds([],[],[]);
-        nlf.bounds2('y0',[-1e5,1e5,mean(nlf.y(1:10))],'A',[-1e5,1e5,range(nlf.y)],...
+        nlf.bounds2('y0',[-1e5,1e5,mean(nlf.y(1:10))],'A',[-1e5,1e5,nlf.y(end) - nlf.y(1)],...
                 'tau',tau_bounds,'x0',0.25*max(d.t)*[0.8,1.2,1]);
         if d.control.enable.get()
             nlf.bounds2('f',[0,20,10],'phi',[-pi,pi,0]);

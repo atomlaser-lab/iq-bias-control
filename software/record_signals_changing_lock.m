@@ -12,11 +12,11 @@ d.control.hold.set(0);
 d.upload;
 
 time_step = 20;
-hours_to_record = 12;
+hours_to_record = 18;
 total_time = round(3600*hours_to_record);
 num_samples = ceil(total_time/time_step);
 tmr = timer('name','signal-recorder','period',time_step,'TasksToExecute',num_samples,'ExecutionMode','fixedDelay');
-tmr.UserData.filename = 'Lock change test 6 hours';
+tmr.UserData.filename = 'Lock change test 5 hours, SA 10 averages';
 tmr.UserData.date = [];
 tmr.UserData.t = [];
 tmr.UserData.bias_voltages = [];
@@ -32,6 +32,7 @@ tmr.UserData.modulation_frequency = 3.4e9;
 tmr.UserData.aom_frequency = 80e6;
 tmr.UserData.rbw = 100e3;
 tmr.UserData.sample = 0;
+tmr.UserData.allow_change = 1;
 tmr.TimerFcn = @timer_fcn;
 tmr.StopFcn = @timer_stop_fcn;
 start(tmr);
@@ -79,8 +80,9 @@ if numel(obj.UserData.date) > 1
     end
 end
 
-if obj.UserData.d.control.hold.value == 0 && obj.TasksExecuted > 0.5*obj.TasksToExecute
+if obj.UserData.d.control.hold.value == 0 && obj.TasksExecuted > 0.5*obj.TasksToExecute && obj.UserData.allow_change
     obj.UserData.d.control.hold.set(1).write;
+    obj.UserData.allow_change = 0;
 end
 
 if mod(obj.UserData.sample,100) == 0

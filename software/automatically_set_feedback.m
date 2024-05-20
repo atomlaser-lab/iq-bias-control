@@ -3,8 +3,8 @@
 %
 
 
-Vcoarse = 0:0.1:1;
-Vfine = 0:0.025:1;
+Vcoarse = 0:0.1:1.5;
+Vfine = 0:0.025:1.5;
 ph = 10:20:270;
 Npoints = 1e3;
 fig_offset = 1500;
@@ -77,7 +77,7 @@ t = toc;
 % fsolve using an interpolation to get better estimates
 %
 nlf = nonlinfit(Vfine,data2(:,3));
-nlf.ex = nlf.x >= 1;
+% nlf.ex = nlf.x >= 1;
 nlf.setFitFunc(@(A,s,x0,x) A*sin(2*pi*(x - x0)/s));
 nlf.bounds2('A',[-2*max(nlf.y),2*max(nlf.y),max(nlf.y)],'s',[0.25,5,1.5],'x0',[0,0.5*max(nlf.x),0.4]);
 nlf.fit;
@@ -91,7 +91,7 @@ plot_format('DC3 [V]','Signal',sprintf('Zero-crossing voltage = %.3f',zero_cross
 textprogressbar(sprintf('\nDC3 biases = [%.3f,%.3f] V. Time taken = %.1f s',zero_crossing_voltages_2f,t));
 %% Set DC3 voltage
 check_app;
-d.pwm(3).set(zero_crossing_voltages_2f(2)).write;
+d.pwm(3).set(zero_crossing_voltages_2f(1)).write;
 update_app_display;
 %% Scan over DC2 and 1f demodulation phase
 %
@@ -229,7 +229,7 @@ update_app_display;
 % fprintf('Measuring dynamic responses...');
 check_app;
 tic;
-[tc,Gdynamic] = get_voltage_step_response(d,15e3,20e-3);
+[tc,Gdynamic] = get_voltage_step_response(d,0.1/d.dt(),20e-3);
 response_freqs = 1./(2*pi*diag(tc));
 t = toc;
 fprintf('Finished measuring dynamic responses in %.1f s\n',t);

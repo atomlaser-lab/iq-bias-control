@@ -537,7 +537,7 @@ classdef DeviceControl < handle
             self.gainRegs.print('gainRegs',strwidth);
             self.pwmLimitRegs.print('pwmLimitRegs',strwidth);
             fprintf(1,'\t ----------------------------------\n');
-            fprintf(1,'\t Parameters\n');
+            fprintf(1,'\t Parameters\n')
             
             self.adc_select.print('ADC select',strwidth,'%.0f');
             self.led_o.print('LEDs',strwidth,'%02x');
