@@ -62,10 +62,10 @@ classdef IQBiasController < handle
             self.upper_limits = DeviceParameter.empty;
             for nn = 1:3
                 self.lower_limits(nn) = DeviceParameter([0,DeviceControl.PWM_WIDTH - 1],pwm_limit_regs(nn),'uint32')...
-                    .setLimits('lower',0,'upper',1)...
+                    .setLimits('lower',0,'upper',1.6)...
                     .setFunctions('to',@(x) x/self.parent.CONV_PWM,'from',@(x) x*self.parent.CONV_PWM);
                 self.upper_limits(nn) = DeviceParameter(DeviceControl.PWM_WIDTH + [0,DeviceControl.PWM_WIDTH - 1],pwm_limit_regs(nn),'uint32')...
-                    .setLimits('lower',0,'upper',1)...
+                    .setLimits('lower',0,'upper',1.6)...
                     .setFunctions('to',@(x) x/self.parent.CONV_PWM,'from',@(x) x*self.parent.CONV_PWM);
             end
 
@@ -88,7 +88,7 @@ classdef IQBiasController < handle
                 self.gains.set(0);
                 self.divisors.set(0);
                 self.lower_limits.set(0);
-                self.upper_limits.set(1);
+                self.upper_limits.set(1.6);
             end
         end
         

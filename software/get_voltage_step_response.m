@@ -34,7 +34,7 @@ for mm = 1:size(c,3)
         nlf.bounds2('y0',[-1e5,1e5,mean(nlf.y(1:10))],'A',[-1e5,1e5,nlf.y(end) - nlf.y(1)],...
                 'tau',tau_bounds,'x0',0.25*max(d.t)*[0.8,1.2,1]);
         if d.control.enable.get()
-            nlf.bounds2('f',[0,20,10],'phi',[-pi,pi,0]);
+            nlf.bounds2('f',[0,200,10],'phi',[-pi,pi,0],'A',[-1e5,1e5,range(nlf.y)]);
         end
         nlf.fit;
         c(1:size(nlf.c,1),nn,mm) = nlf.c(:,1);

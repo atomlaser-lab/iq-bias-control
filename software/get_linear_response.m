@@ -30,7 +30,7 @@ lf.setFitFunc('poly',1);
 for row = 1:3
     for col = 1:3
         lf.set(V,data_lin(:,row,col));
-        lf.ex = (V + zero_voltages(col)) >= 1;
+        lf.ex = (V + zero_voltages(col)) >= 1.25;
         lf.fit;
         G(row,col) = lf.c(2,1);
         if row == col
