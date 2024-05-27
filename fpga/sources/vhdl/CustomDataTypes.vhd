@@ -219,4 +219,18 @@ begin
     end if;
 end signal_sync; 
 
+function conv_std_logic_vector(
+    signal spi_i    :   in  t_spi_master
+) return std_logic_vector is
+    variable res    :   std_logic_vector(3 downto 0);
+begin
+    res := (
+        0   =>  spi_i.SYNC,
+        1   =>  spi_i.SCLK,
+        2   =>  spi_i.SD,
+        3   =>  spi_i.ASYNC
+    );
+    return res;
+end function;
+
 end CustomDataTypes;

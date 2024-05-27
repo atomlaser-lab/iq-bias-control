@@ -23,6 +23,7 @@ entity topmod is
         ext_o           :   out std_logic_vector(7 downto 0);
         led_o           :   out std_logic_vector(7 downto 0);
         pwm_o           :   out std_logic_vector(3 downto 0);
+        spi_o           :   out std_logic_vector(2 downto 0);
         
         adcClk          :   in  std_logic;
         adcClkx2        :   in  std_logic;
@@ -253,7 +254,7 @@ signal control_valid            :   std_logic;
 --
 constant SPI_NUM_BITS   :   integer                 :=  16;
 constant SPI_SYNC_DELAY :   unsigned(7 downto 0)    :=  to_unsigned(4,8);
-signal spi_o            :   t_spi_master;
+signal spi              :   t_spi_master;
 signal spi_trig         :   std_logic;
 signal spi_period       :   unsigned(7 downto 0);
 signal spi_enable       :   std_logic;
@@ -297,8 +298,8 @@ led_o <= outputReg(15 downto 8);
 --
 spi_period <= unsigned(topReg(spi_period'length downto 1));
 spi_enable <= '1';
-SPI_Trigger_Process: process(adcClk,aresetn) is
-spi_data <= spi_reg(spi_data'left downto 0);
+spi_data <= dac_reg(spi_data'left downto 0);
+spi_o <= (0 => spi.SYNC, 1 => spi.SCLK, 2 => spi.SD);
 SPI_Trig_Process: process(adcClk,aresetn) is
 begin
     if aresetn = '0' then
@@ -337,8 +338,8 @@ port map(
     trigIn          =>  spi_trig,
     enable          =>  spi_enable,
     busy            =>  spi_busy,
-    spi_o           =>  spi_o,
-    spi_i           =>  open
+    spi_o           =>  spi,
+    spi_i           =>  INIT_SPI_SLAVE
 );
 
 
@@ -498,7 +499,7 @@ begin
         --
         -- SPI registers
         --
-        spi_reg <= (others => '0');
+        dac_reg <= (others => '0');
         --
         -- Memory signals
         --
@@ -509,7 +510,6 @@ begin
         FSM: case(comState) is
             when idle =>
                 triggers <= (others => '0');
-                spi_reg(spi_reg'left) <= '0';
                 reset <= '0';
                 bus_s.resp <= "00";
                 mem_bus.m.reset <= '0';
@@ -539,7 +539,7 @@ begin
                             when X"000054" => rw(bus_m,bus_s,comState,pwm_regs(1));
                             when X"000058" => rw(bus_m,bus_s,comState,pwm_regs(2));
                             when X"00005C" => rw(bus_m,bus_s,comState,pwm_regs(3));
-                            when X"000060" => rw(bus_m,bus_s,comState,spi_reg);
+                            when X"000060" => rw(bus_m,bus_s,comState,dac_reg);
                             --
                             -- PID registers
                             --
@@ -603,7 +603,6 @@ begin
                 end case;
             when finishing =>
                 comState <= idle;
-                spi_reg(spi_reg'left) <= '0';
 
             when others => comState <= idle;
         end case;

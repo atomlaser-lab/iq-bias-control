@@ -1,7 +1,7 @@
 {
   "design": {
     "design_info": {
-      "boundary_crc": "0xC3AD17F5458098E2",
+      "boundary_crc": "0xC176409AF2037415",
       "device": "xc7z010clg400-1",
       "gen_directory": "../../../../basic-project.gen/sources_1/bd/system",
       "name": "system",
@@ -358,6 +358,11 @@
       "exp_p_tri_io": {
         "direction": "O",
         "left": "7",
+        "right": "0"
+      },
+      "spi_o": {
+        "direction": "O",
+        "left": "2",
         "right": "0"
       }
     },
@@ -2999,6 +3004,11 @@
             "left": "3",
             "right": "0"
           },
+          "spi_o": {
+            "direction": "O",
+            "left": "2",
+            "right": "0"
+          },
           "adcClk": {
             "direction": "I",
             "parameters": {
@@ -3412,6 +3422,12 @@
         "ports": [
           "topmod_0/resp_o",
           "PS7/resp_i"
+        ]
+      },
+      "topmod_0_spi_o": {
+        "ports": [
+          "topmod_0/spi_o",
+          "spi_o"
         ]
       }
     },

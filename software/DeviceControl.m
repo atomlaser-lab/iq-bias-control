@@ -64,14 +64,14 @@ classdef DeviceControl < handle
         PWM_WIDTH = 10;
         NUM_PWM = 4;
         NUM_MEAS = 4;
-        DAC_WIDTH = 16;
+        AUX_DAC_WIDTH = 16;
         %
         % Conversion values going from integer values to volts
         %
         CONV_ADC_LV = 1.1851/2^(DeviceControl.ADC_WIDTH - 1);
         CONV_ADC_HV = 29.3570/2^(DeviceControl.ADC_WIDTH - 1);
         CONV_PWM = 1.6/(2^DeviceControl.PWM_WIDTH - 1);
-        CONV_DAC = 2.5/(2^DeviceControl.DAC_WIDTH - 1);
+        CONV_DAC = 2.5/(2^DeviceControl.AUX_DAC_WIDTH - 1);
     end
     
     methods
@@ -224,9 +224,9 @@ classdef DeviceControl < handle
             self.led_o.set(0);
             self.phase_inc.set(4e6); 
             self.phase_correction.set(0);
-            self.phase_offset.set(154.8); 
-            self.dds2_phase_offset.set(161);
-            self.pwm.set([0.2865,0.6272,0.8446]);
+            self.phase_offset.set(155); 
+            self.dds2_phase_offset.set(169.078);
+            self.pwm.set([0.265,0.741,1.104]);
             self.log2_rate.set(13);
             self.cic_shift.set(-3);
             self.output_scale.set(1);

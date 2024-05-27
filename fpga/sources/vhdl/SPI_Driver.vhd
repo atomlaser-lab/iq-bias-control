@@ -40,7 +40,7 @@ end SPI_Driver;
 architecture Behavioral of SPI_Driver is
 
 signal SPI_cnt	:	unsigned(SPI_period'left downto 0)	:=	(others => '0');
-signal bit_cnt	:	unsigned(MAX_NUM_BITS - 1)	:=	(others => '0');
+signal bit_cnt	:	unsigned(numBits'length - 1 downto 0)	:=	(others => '0');
 signal trigSync	:	std_logic_vector(1 downto 0)	:=	"00";
 signal trig	:	std_logic	:=	'0';
 signal dataIn, dataOut	:	std_logic_vector(MAX_NUM_BITS - 1 downto 0)	:=	(others => '0');
@@ -69,7 +69,7 @@ trig <= 	trigIn when TRIG_SYNC = '0' else
 			
 SPI_Process: process(clk,aresetn) is
 begin
-	if aresetn = 0' then
+	if aresetn = '0' then
 		state <= idle;
 		dataOut <= (others => '0');
 		dataReady <= '0';
@@ -91,7 +91,7 @@ begin
 				dataReady <= '0';
 				spi_o.SCLK <= CPOL;
 				spi_o.SD <= '0';
-				delayCount <= 0;
+				delayCount <= (others => '0');
 				spi_o.ASYNC <= not(ASYNC_POL);
 				if trig = '1' and enable = '1' then
 					--
@@ -104,7 +104,7 @@ begin
 					spi_o.SYNC <= SYNC_POL;
 					busy <= '1';
 					if ORDER = "LSB" then
-						bit_cnt <= 0;
+						bit_cnt <= (others => '0');
 					else
 						bit_cnt <= numBits - 1;
 					end if;
@@ -146,7 +146,7 @@ begin
 							state <= sync_delay;
 						else
 							bit_cnt <= bit_cnt + 1;
-							SPI_cnt <= 1;
+							SPI_cnt <= to_unsigned(1,SPI_cnt'length);
 						end if;
 					else
 						--
@@ -160,7 +160,7 @@ begin
 							state <= sync_delay;
 						else
 							bit_cnt <= bit_cnt - 1;
-							SPI_cnt <= 1;
+							SPI_cnt <= to_unsigned(1,SPI_cnt'length);
 						end if;
 					end if;
 				end if;
@@ -175,7 +175,7 @@ begin
 					delayCount <= delayCount + 1;
 				else
 					spi_o.SYNC <= not(SYNC_POL);
-					delayCount <= 0;
+					delayCount <= (others => '0');
 					state <= async_pulse;
 				end if;
 			--
