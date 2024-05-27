@@ -28,6 +28,8 @@ classdef DeviceControl < handle
         pwm                     %Array of 4 PWM outputs
         control                 %Coupled integral control
         fifo_route              %Array of 4 FIFO routing options
+        spi_period              %SPI period for auxiliary DAC
+        dac                     %Auxiliary DAC output
     end
     
     properties(SetAccess = protected)
@@ -48,6 +50,7 @@ classdef DeviceControl < handle
         controlRegs             %Registers for control
         gainRegs                %Registers for gain values
         pwmLimitRegs            %Registers for limiting PWM outputs
+        dacReg                  %Register for auxiliary DAC
         %new_register % new register added here for dds2
     end
     
@@ -59,14 +62,16 @@ classdef DeviceControl < handle
         DDS_WIDTH = 32;
         PARAM_WIDTH = 32;
         PWM_WIDTH = 10;
-        NUM_PWM = 3;
+        NUM_PWM = 4;
         NUM_MEAS = 4;
+        DAC_WIDTH = 16;
         %
         % Conversion values going from integer values to volts
         %
         CONV_ADC_LV = 1.1851/2^(DeviceControl.ADC_WIDTH - 1);
         CONV_ADC_HV = 29.3570/2^(DeviceControl.ADC_WIDTH - 1);
         CONV_PWM = 1.6/(2^DeviceControl.PWM_WIDTH - 1);
+        CONV_DAC = 2.5/(2^DeviceControl.DAC_WIDTH - 1);
     end
     
     methods
@@ -109,6 +114,7 @@ classdef DeviceControl < handle
                 self.pwmRegs(nn) = DeviceRegister(hex2dec('50') + (nn - 1)*4,self.conn);
             end
             self.numSamplesReg = DeviceRegister('100000',self.conn);
+            self.dacReg = DeviceRegister('60',self.conn);
             %
             % PID registers: there are 3 PIDs with IQBiasPID.NUM_REGS registers
             % each, starting at address 0x000100
@@ -198,6 +204,15 @@ classdef DeviceControl < handle
                 self.fifo_route(nn) = DeviceParameter((16 + (nn - 1))*[1,1],self.outputReg,'uint32')...
                     .setLimits('lower',0,'upper',1);
             end
+            %
+            % Auxiliary DAC settings
+            %
+            self.spi_period = DeviceParameter([1,8],self.topReg,'uint32')...
+                .setLimits('lower',100e-9,'upper',10e-6)...
+                .setFunctions('to',@(x) ceil(x*self.CLK),'from',@(x) x/self.CLK);
+            self.dac = DeviceParameter([0,15],self.dacReg,'uint32')...
+                .setLimits('lower',0,'upper',2.5)...
+                .setFunctions('to',@(x) x/self.CONV_DAC,'front',@(x) x*self.CONV_DAC);
         end
         
         function self = setDefaults(self,varargin)
@@ -220,6 +235,8 @@ classdef DeviceControl < handle
             for nn = 1:numel(self.fifo_route)
                 self.fifo_route(nn).set(0);
             end
+            self.spi_period.set(208e-9);
+            self.dac.set(0);
 
             self.auto_retry = true;
         end
@@ -536,6 +553,7 @@ classdef DeviceControl < handle
             self.controlRegs.print('controlRegs',strwidth);
             self.gainRegs.print('gainRegs',strwidth);
             self.pwmLimitRegs.print('pwmLimitRegs',strwidth);
+            self.dacReg.print('dacReg',strwidth);
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Parameters\n')
             
@@ -558,6 +576,8 @@ classdef DeviceControl < handle
             for nn = 1:numel(self.fifo_route)
                 self.fifo_route(nn).print(sprintf('FIFO Route %d',nn),strwidth,'%d');
             end
+            self.spi_period.print('DAC SPI Period',strwidth,'%.1e','Hz');
+            self.dac.print('Aux DAC voltage',strwidth,'%.3f','V');
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Control Parameters\n');
             self.control.print(strwidth);

@@ -1,4 +1,5 @@
 matlab/*.mat
+data/
 *.asv
 software/instrsupport.txt
 software/*.o

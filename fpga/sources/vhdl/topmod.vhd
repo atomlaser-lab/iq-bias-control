@@ -139,6 +139,35 @@ component PWM_Generator is
     );
 end component;
 
+component SPI_Driver is
+	generic (
+			CPOL			:	std_logic	:=	'0';		--Serial clock idle polarity
+			CPHA			:	std_logic	:=	'0';		--Serial clock phase. '0': data valid on CPOL -> not(CPOL) transition. '1': data valid on not(CPOL) -> CPOL transition
+			ORDER			:	STRING		:=	"MSB";		--Bit order.  "LSB" or "MSB"
+			SYNC_POL		:	std_logic	:=	'0';		--Active polarity of SYNC.  '0': active low. '1': active high
+			TRIG_SYNC		:	std_logic	:=	'0';		--Use synchronous detection for trigger?
+			TRIG_EDGE		:	string		:=	"RISING";	--Edge of trigger to synchronize on. "RISING" or "FALLING"
+			ASYNC_WIDTH		:	integer		:=	2;			--Width of asynchronous update pulse
+			ASYNC_POL		:	std_logic	:=	'0';		--Active polarity of asynchronous signal
+			MAX_NUM_BITS	:	integer		:=	16			--Maximum number of bits to transfer
+			);					
+	port( 	clk				:	in	std_logic;		--Clock signal
+			aresetn			:	in	std_logic;		--Asynchronous reset
+			SPI_period		:	in  unsigned(7 downto 0);		--SCLK period
+			numBits			:	in 	unsigned(7 downto 0);		--Number of bits in current data
+			syncDelay		:	in	unsigned(7 downto 0);
+
+			dataReceived	:	out std_logic_vector(MAX_NUM_BITS - 1 downto 0);	--data that has been received
+			dataReady		:	out	std_logic;	--Pulses high for one clock cycle to indicate new data is valid on dataReceived
+			dataToSend		:	in	std_logic_vector(MAX_NUM_BITS - 1 downto 0);	--data to be sent
+			trigIn			:	in	std_logic;		--Start trigger
+			enable			:	in std_logic;		--Enable bit
+			busy			:	out std_logic;		--Busy signal
+
+			spi_o			:	out	t_spi_master;	--Output SPI signals
+			spi_i			:	in	t_spi_slave);	--Input SPI signals
+end component;
+
 --
 -- AXI communication signals
 --
@@ -160,13 +189,16 @@ signal dds2_phase_off_reg   :   t_param_reg;
 signal dds_phase_corr_reg   :   t_param_reg;
 signal dds_regs             :   t_param_reg_array(3 downto 0);
 -- PWM register
-signal pwm_regs             :   t_param_reg_array(2 downto 0);
+signal pwm_regs             :   t_param_reg_array(3 downto 0);
 -- FIFO register
 signal fifoReg              :   t_param_reg;
 -- PID registers
 type t_pid_reg_array is array(natural range <>) of t_param_reg_array(2 downto 0);
 signal pid_regs             :   t_param_reg_array(4 downto 0);
 signal pwm_limit_regs       :   t_param_reg_array(3 downto 0);
+-- Auxiliary DAC registers
+signal dac_reg              :   t_param_reg;
+
 --
 -- DDS signals
 --
@@ -216,11 +248,22 @@ signal pwm_sum                  :   t_pwm_exp_array(2 downto 0);
 signal pwm_limit                :   t_pwm_exp_array(3 downto 0);
 signal pwm_max, pwm_min         :   t_pwm_exp_array(2 downto 0);
 signal control_valid            :   std_logic;
+--
+-- SPI signals
+--
+constant SPI_NUM_BITS   :   integer                 :=  16;
+constant SPI_SYNC_DELAY :   unsigned(7 downto 0)    :=  to_unsigned(4,8);
+signal spi_o            :   t_spi_master;
+signal spi_trig         :   std_logic;
+signal spi_period       :   unsigned(7 downto 0);
+signal spi_enable       :   std_logic;
+signal spi_busy         :   std_logic;
+signal spi_data, spi_data_old         :   std_logic_vector(SPI_NUM_BITS - 1 downto 0);
 
 begin
 
 --
--- DAC Outputs
+-- Main DAC Outputs
 --
 m_axis_tdata <= std_logic_vector(dac_o(1)) & std_logic_vector(dac_o(0));
 m_axis_tvalid <= '1';
@@ -232,7 +275,7 @@ PWM_Gen: for I in 0 to 2 generate
     pwm_data_i(I) <= resize(unsigned(std_logic_vector(pwm_limit(I))),PWM_DATA_WIDTH);
 end generate PWM_Gen;
  
-pwm_data(3) <= (others => '0');
+pwm_data(3) <= unsigned(pwm_regs(3)(t_pwm'left downto 0));
 pwm_data_i(3) <= pwm_data(3);
 
 PWM1: PWM_Generator
@@ -249,6 +292,55 @@ port map(
 --
 ext_o <= outputReg(7 downto 0);
 led_o <= outputReg(15 downto 8);
+--
+-- Auxiliary DAC control
+--
+spi_period <= unsigned(topReg(spi_period'length downto 1));
+spi_enable <= '1';
+SPI_Trigger_Process: process(adcClk,aresetn) is
+spi_data <= spi_reg(spi_data'left downto 0);
+SPI_Trig_Process: process(adcClk,aresetn) is
+begin
+    if aresetn = '0' then
+        spi_trig <= '0';
+        spi_data_old <= spi_data;
+    elsif rising_edge(adcClk) then
+        spi_data_old <= spi_data;
+        if spi_data_old /= spi_data then
+            spi_trig <= '1';
+        else
+            spi_trig <= '0';
+        end if;
+    end if;
+end process;
+
+Aux_DAC_SPI: SPI_Driver
+generic map(
+    CPOL            =>  '0',
+    CPHA            =>  '0',
+    ORDER           =>  "MSB",
+    SYNC_POL        =>  '0',
+    TRIG_SYNC       =>  '0',
+    ASYNC_WIDTH     =>  0,
+    ASYNC_POL       =>  '0',
+    MAX_NUM_BITS    =>  SPI_NUM_BITS
+)
+port map(
+    clk             =>  adcClk,
+    aresetn         =>  aresetn,
+    SPI_period      =>  spi_period,
+    numBits         =>  to_unsigned(SPI_NUM_BITS,8),
+    syncDelay       =>  SPI_SYNC_DELAY,
+    dataReceived    =>  open,
+    dataReady       =>  open,
+    dataToSend      =>  spi_data,
+    trigIn          =>  spi_trig,
+    enable          =>  spi_enable,
+    busy            =>  spi_busy,
+    spi_o           =>  spi_o,
+    spi_i           =>  open
+);
+
 
 --
 -- Modulator/demodulator component
@@ -404,6 +496,10 @@ begin
             fifo_bus(I).m.status <= idle;
         end loop;
         --
+        -- SPI registers
+        --
+        spi_reg <= (others => '0');
+        --
         -- Memory signals
         --
         numSamples <= to_unsigned(4000,numSamples'length);
@@ -413,6 +509,7 @@ begin
         FSM: case(comState) is
             when idle =>
                 triggers <= (others => '0');
+                spi_reg(spi_reg'left) <= '0';
                 reset <= '0';
                 bus_s.resp <= "00";
                 mem_bus.m.reset <= '0';
@@ -441,6 +538,8 @@ begin
                             when X"000050" => rw(bus_m,bus_s,comState,pwm_regs(0));
                             when X"000054" => rw(bus_m,bus_s,comState,pwm_regs(1));
                             when X"000058" => rw(bus_m,bus_s,comState,pwm_regs(2));
+                            when X"00005C" => rw(bus_m,bus_s,comState,pwm_regs(3));
+                            when X"000060" => rw(bus_m,bus_s,comState,spi_reg);
                             --
                             -- PID registers
                             --
@@ -452,7 +551,6 @@ begin
                             when X"000114" => rw(bus_m,bus_s,comState,pwm_limit_regs(0));
                             when X"000118" => rw(bus_m,bus_s,comState,pwm_limit_regs(1));
                             when X"00011C" => rw(bus_m,bus_s,comState,pwm_limit_regs(2));
-
                             --
                             -- FIFO control and data retrieval
                             --
@@ -461,6 +559,7 @@ begin
                             when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
                             when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
                             when X"000094" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(3).s);
+
                             --
                             -- Memory signals
                             --
@@ -504,6 +603,7 @@ begin
                 end case;
             when finishing =>
                 comState <= idle;
+                spi_reg(spi_reg'left) <= '0';
 
             when others => comState <= idle;
         end case;
