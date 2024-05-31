@@ -9,9 +9,7 @@ ph = 10:20:270;
 Npoints = 1e3;
 fig_offset = 1500;
 
-% d.log2_rate.set(13).write;
-% d.pwm(1).set(0.5).write;
-% d.pwm(2).set(0.5).write;
+estimated_zero_crossings = [d.pwm(1).get,d.pwm(2).get,d.pwm(3).get];
 
 %% Scan over 2f demodulation phase and DC3 bias
 %
@@ -93,7 +91,7 @@ plot_format('DC3 [V]','Signal',sprintf('Zero-crossing voltage = %.3f',zero_cross
 textprogressbar(sprintf('\nDC3 biases = [%.3f,%.3f] V. Time taken = %.1f s',zero_crossing_voltages_2f,t));
 %% Set DC3 voltage
 check_app;
-d.pwm(3).set(zero_crossing_voltages_2f(2)).write;
+d.pwm(3).set(closest_value_to(zero_crossing_voltages_2f,estimated_zero_crossings(3))).write;
 update_app_display;
 %% Scan over DC2 and 1f demodulation phase
 %
@@ -201,8 +199,8 @@ textprogressbar(sprintf('\nDC1 biases = [%.3f,%.3f] V, DC2 biases = [%.3f,%.3f] 
 
 %% Set DC1 and DC2 to zero-crossing values
 check_app;
-d.pwm(1).set(min(zero_crossing_voltages_DC1(1:2))).write;
-d.pwm(2).set(max(zero_crossing_voltages_DC2(1:2))).write;
+d.pwm(1).set(closest_value_to(zero_crossing_voltages_DC1,estimated_zero_crossings(1))).write;
+d.pwm(2).set(closest_value_to(zero_crossing_voltages_DC2,estimated_zero_crossings(2))).write;
 update_app_display;
 %% Measure linear responses around zero crossing values
 %
@@ -298,4 +296,10 @@ end
 function update_app_display
     app = DeviceControl.get_running_app_instance();
     app.updateDisplay;
+end
+
+function closest_value = closest_value_to(values,target)
+    d = abs(values - target);
+    [~,idx] = min(d);
+    closest_value = values(idx);
 end
