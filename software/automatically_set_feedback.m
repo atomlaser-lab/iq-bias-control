@@ -87,6 +87,7 @@ grid on;
 
 approx_zero_voltages = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
 zero_crossing_voltages_2f = get_zero_crossing_voltages(nlf,approx_zero_voltages);
+zero_crossing_voltages_2f = zero_crossing_voltages_2f(zero_crossing_voltages_2f > 0.1);
 
 plot_format('DC3 [V]','Signal',sprintf('Zero-crossing voltage = %.3f',zero_crossing_voltages_2f(end)),10);
 textprogressbar(sprintf('\nDC3 biases = [%.3f,%.3f] V. Time taken = %.1f s',zero_crossing_voltages_2f,t));
@@ -189,13 +190,13 @@ nlf.fit;
 plot(nlf.x,nlf.f(nlf.x),'b--','handlevisibility','off');
 approx_zero_crossing_voltages_DC1 = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
 zero_crossing_voltages_DC1 = get_zero_crossing_voltages(nlf,approx_zero_crossing_voltages_DC1);
-
+zero_crossing_voltages_DC1 = zero_crossing_voltages_DC1(zero_crossing_voltages_DC1 > 0.1);
 nlf.y = data12(:,2,2);
 nlf.fit;
 plot(nlf.x,nlf.f(nlf.x),'r--','handlevisibility','off');
 approx_zero_crossing_voltages_DC2 = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
 zero_crossing_voltages_DC2 = get_zero_crossing_voltages(nlf,approx_zero_crossing_voltages_DC2);
-
+zero_crossing_voltages_DC2 = zero_crossing_voltages_DC2(zero_crossing_voltages_DC2 > 0.1);
 textprogressbar(sprintf('\nDC1 biases = [%.3f,%.3f] V, DC2 biases = [%.3f,%.3f] V. Time taken = %.1f s',zero_crossing_voltages_DC1,zero_crossing_voltages_DC2,t));
 
 %% Set DC1 and DC2 to zero-crossing values
@@ -230,7 +231,7 @@ update_app_display;
 % fprintf('Measuring dynamic responses...');
 check_app;
 tic;
-[tc,Gdynamic] = get_voltage_step_response(d,0.1/d.dt(),20e-3);
+[tc,Gdynamic] = get_voltage_step_response(d,1/d.dt(),20e-3);
 response_freqs = 1./(2*pi*diag(tc));
 t = toc;
 fprintf('Finished measuring dynamic responses in %.1f s\n',t);
@@ -239,7 +240,7 @@ fprintf('Finished measuring dynamic responses in %.1f s\n',t);
 % Using a target low-pass frequency (in Hz), we now compute the feedback
 % matrix K and its integer values taking into account the row-wise divisors
 %
-target_low_pass_freqs = [20,20,0.5];
+target_low_pass_freqs = 0.5*[2,2,0.5];
 % target_low_pass_freqs = 0.5*response_freqs;
 Ki_target = 2*pi*target_low_pass_freqs*d.dt()/DeviceControl.CONV_PWM;
 
