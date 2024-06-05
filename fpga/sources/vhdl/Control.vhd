@@ -37,7 +37,7 @@ COMPONENT PID_Multiplier_Signed
   );
 END COMPONENT; 
 
-constant MULT_LATENCY   :   natural :=  3;
+constant MULT_LATENCY   :   natural :=  4;
 constant EXP_WIDTH      :   natural :=  26;
 constant GAIN_WIDTH     :   natural :=  8;
 constant MULT_WIDTH     :   natural :=  EXP_WIDTH + GAIN_WIDTH;
@@ -147,9 +147,9 @@ begin
                 when multiplying =>
                     mult_i <= std_logic_vector(int_i(to_integer(col_count)));
                     gain_i <= gains(to_integer(row_count),to_integer(col_count));
-                    if count < MULT_LATENCY then
+                    if count <= MULT_LATENCY then
                         count <= count + 1;
-                    elsif count >= MULT_LATENCY then
+                    elsif count > MULT_LATENCY then
                         int_o(to_integer(row_count),to_integer(col_count)) <= mult_o;
                         count <= (others => '0');
                         if row_count = 2 and col_count = 2 then
