@@ -37,19 +37,22 @@ COMPONENT PID_Multiplier_Signed
   );
 END COMPONENT; 
 
-constant MULT_LATENCY   :   natural :=  3;
+constant MULT_LATENCY   :   natural :=  4;
 constant EXP_WIDTH      :   natural :=  26;
 constant GAIN_WIDTH     :   natural :=  8;
 constant MULT_WIDTH     :   natural :=  EXP_WIDTH + GAIN_WIDTH;
+constant ACCUM_WIDTH    :   natural :=  48;
 
 type t_state_local          is (idle,multiplying,dividing,summing,outputting);
 subtype t_input_local       is signed(EXP_WIDTH-1 downto 0);
 subtype t_gain_local        is std_logic_vector(GAIN_WIDTH-1 downto 0);
 subtype t_mult_local        is signed(MULT_WIDTH-1 downto 0);
+subtype t_accum_local       is signed(ACCUM_WIDTH - 1 downto 0);
 type    t_input_local_array is array(natural range <>) of t_input_local;
 type    t_output_2d         is array(natural range <>,natural range <>) of std_logic_vector(MULT_WIDTH - 1 downto 0);
 type    t_gain_array        is array(natural range <>,natural range <>) of t_gain_local;
 type    t_mult_local_array  is array(natural range <>) of t_mult_local;
+type    t_accum_local_array is array(natural range <>) of t_accum_local;
 type    t_divisor_array     is array(natural range <>) of unsigned(GAIN_WIDTH - 1 downto 0);
 --
 -- State machine signals
@@ -66,7 +69,8 @@ signal err, err_old             :   t_input_local_array(2 downto 0);
 signal measurement, control     :   t_input_local_array(2 downto 0);
 signal int_i                    :   t_input_local_array(2 downto 0);
 signal int_o                    :   t_output_2d(2 downto 0,2 downto 0);
-signal pidSum, pidAccumulate    :   t_mult_local_array(2 downto 0);
+signal pidSum                   :   t_mult_local_array(2 downto 0);
+signal pidAccumulate            :   t_accum_local_array(2 downto 0);
 signal mult_i                   :   std_logic_vector(EXP_WIDTH - 1 downto 0);
 signal gain_i                   :   t_gain_local;
 signal mult_o                   :   std_logic_vector(MULT_WIDTH - 1 downto 0);
@@ -143,9 +147,9 @@ begin
                 when multiplying =>
                     mult_i <= std_logic_vector(int_i(to_integer(col_count)));
                     gain_i <= gains(to_integer(row_count),to_integer(col_count));
-                    if count < MULT_LATENCY then
+                    if count <= MULT_LATENCY then
                         count <= count + 1;
-                    elsif count >= MULT_LATENCY then
+                    elsif count > MULT_LATENCY then
                         int_o(to_integer(row_count),to_integer(col_count)) <= mult_o;
                         count <= (others => '0');
                         if row_count = 2 and col_count = 2 then
@@ -164,7 +168,7 @@ begin
                     state <= outputting;
                     if hold_i = '0' then
                         for I in 0 to 2 loop
-                            pidAccumulate(I) <= pidAccumulate(I) + pidSum(I);
+                            pidAccumulate(I) <= pidAccumulate(I) + resize(pidSum(I),t_accum_local'length);
                         end loop;
                     end if;
 
