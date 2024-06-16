@@ -16,6 +16,7 @@ entity Demodulator is
         -- Registers
         --
         filter_reg_i    :   in  t_param_reg;
+        valid_config_i  :   in  std_logic;
         dds_regs_i      :   in  t_param_reg_array(3 downto 0);
         --
         -- Input and output data
@@ -120,7 +121,7 @@ signal valid_config                     :   std_logic;
 signal filter_o                         :   t_cic_o_array(NUM_DEMOD_SIGNALS - 1 downto 0);
 signal valid_filter_o                   :   std_logic_vector(NUM_DEMOD_SIGNALS - 1 downto 0);
 signal dds_output_scale                 :   std_logic_vector(7 downto 0);
-
+signal valid_config_count               :   unsigned(3 downto 0);
 begin
 --
 -- Parse registers
@@ -223,20 +224,39 @@ filterConfig <= std_logic_vector(shift_left(to_unsigned(1, filterConfig'length),
 -- This creates a signal that is high for a single clock cycle when the
 -- filter rate changes
 --
-ChangeProc: process(clk, aresetn) is
-begin 
-   if aresetn ='0' then
-      filterConfig_old <= filterConfig;
-      valid_config <= '0';
-   elsif rising_edge(clk) then 
-      filterConfig_old <= filterConfig;
-      if filterConfig /= filterConfig_old then
-        valid_config <= '1';
-      else
-        valid_config <= '0';
-      end if;
-   end if;      
-end process;
+valid_config <= valid_config_i;
+--ChangeProc: process(clk, aresetn) is
+--begin 
+--   if aresetn ='0' then
+--      filterConfig_old <= filterConfig;
+--      valid_config <= '0';
+--   elsif rising_edge(clk) then 
+--      filterConfig_old <= filterConfig;
+--      if filterConfig /= filterConfig_old then
+--        valid_config <= '1';
+--      else
+--        valid_config <= '0';
+--      end if;
+--   end if;      
+--end process;
+
+--ChangeProc2: process(clk,filterConfig,aresetn) is
+--begin
+--    if aresetn = '0' then
+--        valid_config <= '0';
+--        valid_config_count <= (others => '0');
+--    elsif filterConfig'event then
+--        valid_config <= '1';
+--        valid_config_count <= X"1";
+--    elsif rising_edge(clk) and valid_config = '1' then
+--        if valid_config_count < 10 then
+--            valid_config_count <= valid_config_count + 1;
+--        else
+--            valid_config_count <= (others => '0');
+--            valid_config <= '0';
+--        end if;
+--    end if;     
+--end process;
 -- Procedurally generate all CIC filters
 FILT_GEN: for I in 0 to NUM_DEMOD_SIGNALS - 1 generate
     Filt_X : CICfilter

@@ -27,6 +27,7 @@ component topmod is
         ext_o           :   out std_logic_vector(7 downto 0);
         led_o           :   out std_logic_vector(7 downto 0);
         pwm_o           :   out std_logic_vector(3 downto 0);
+        spi_o           :   out std_logic_vector(2 downto 0);
         
         adcClk          :   in  std_logic;
         adcClkx2        :   in  std_logic;
@@ -106,12 +107,13 @@ signal bus_s                    :   t_axi_bus_slave;
 -- AXI data
 --
 
-constant axi_addresses   :   t_axi_addr_array(5 downto 0)  :=   (0  =>  X"00000000",
+constant axi_addresses   :   t_axi_addr_array(6 downto 0)  :=   (0  =>  X"00000000",
                                                                  1  =>  X"00000004",
                                                                  2  =>  X"00000008",
                                                                  3  =>  X"00000014",
                                                                  4  =>  X"00000018",
-                                                                 5  =>  X"00000020");
+                                                                 5  =>  X"00000040",
+                                                                 6  =>  X"00000060");
                                                      
 
 signal axi_data :   t_axi_data_array(axi_addresses'length - 1 downto 0);          
@@ -125,7 +127,7 @@ signal dds2_phase_off_reg            :   t_param_reg; -- added this
 -- DDS3
 signal dds3_phase_inc_reg            :   t_param_reg; -- added this
 signal dds3_phase_off_reg            :   t_param_reg; -- added this
-
+signal dac_reg, top_reg              :   t_param_reg;
 --
 -- AXI control signals
 --
@@ -140,6 +142,8 @@ signal dds_phase_off_test   :   unsigned(31 downto 0);
 signal dds2_phase_off_test   :   unsigned(31 downto 0);
 
 signal adc_data :   signed(15 downto 0);
+
+signal spi_o    :   std_logic_vector(2 downto 0);
 
 begin
 
@@ -175,6 +179,7 @@ port map(
     ext_i           =>  ext_i,
     ext_o           =>  ext_o,
     pwm_o           =>  pwm_o,
+    spi_o           =>  spi_o,
     m_axis_tdata    =>  m_axis_tdata,
     m_axis_tvalid   =>  m_axis_tvalid,
     adcData_i       =>  adcData_i
@@ -231,8 +236,8 @@ axi_data <= (0  =>  triggers,
              2  =>  filterReg,
              3  =>  dds_phase_inc_reg, -- added this
              4  =>  dds_phase_off_reg, -- added this
-             5  =>  dds2_phase_off_reg
-            -- 6  =>  dds3_phase_inc_reg, -- added this
+             5  =>  top_reg,
+             6  =>  dac_reg -- added this
             -- 7  =>  dds3_phase_off_reg  -- added this
              );
              
@@ -257,6 +262,8 @@ begin
     dds_phase_off_reg <= (others => '0');
     dds2_phase_off_reg <= (others => '0');
     filterReg <= X"00" & X"ff" & X"00" & X"09";
+    top_reg <= X"0000000a";
+    dac_reg <= (others => '0');
 
     dds_phase_off_test <= to_unsigned(0,dds_phase_off_test'length);
     dds2_phase_off_test <= to_unsigned(0,dds2_phase_off_test'length);
@@ -284,8 +291,8 @@ begin
     -- Change filter rate
     --
     wait until rising_edge(sysclk);
-    axi_addr_single <= X"0000_0008";
-    axi_data_single <= X"0000000a";
+    axi_addr_single <= X"0000_0060";
+    axi_data_single <= X"0000aaaa";
     start_single_i <= "01";
     wait until bus_s.resp(0) = '1';
     start_single_i <= "00";

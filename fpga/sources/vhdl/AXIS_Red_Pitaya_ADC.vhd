@@ -28,7 +28,14 @@ entity AXIS_Red_Pitaya_ADC is
 end AXIS_Red_Pitaya_ADC;
 
 architecture Behavioural of AXIS_Red_Pitaya_ADC is
-    
+   
+--ATTRIBUTE X_INTERFACE_INFO : STRING;
+--ATTRIBUTE X_INTERFACE_INFO of m_axis_tdata: SIGNAL is "xilinx.com:interface:axis:1.0 m_axis TDATA";
+--ATTRIBUTE X_INTERFACE_INFO of m_axis_tvalid: SIGNAL is "xilinx.com:interface:axis:1.0 m_axis TVALID";
+--ATTRIBUTE X_INTERFACE_PARAMETER : STRING;
+--ATTRIBUTE X_INTERFACE_PARAMETER of m_axis_tdata: SIGNAL is "CLK_DOMAIN system_AXIS_Red_Pitaya_ADC_0_0_adc_clk,FREQ_HZ 125000000";
+--ATTRIBUTE X_INTERFACE_PARAMETER of m_axis_tvalid: SIGNAL is "CLK_DOMAIN system_AXIS_Red_Pitaya_ADC_0_0_adc_clk,FREQ_HZ 125000000";
+
 constant PADDING_WIDTH  :   natural :=  AXIS_TDATA_WIDTH/2 - ADC_DATA_WIDTH;
 signal int_clk0, int_clk  :   std_logic;
 

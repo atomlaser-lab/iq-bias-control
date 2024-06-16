@@ -78,6 +78,7 @@ component Demodulator is
         -- Registers
         --
         filter_reg_i    :   in  t_param_reg;
+        valid_config_i  :   in  std_logic;
         dds_regs_i      :   in  t_param_reg_array(3 downto 0);
         --
         -- Input and output data
@@ -358,6 +359,7 @@ port map(
     clk             =>  adcClk,
     aresetn         =>  aresetn,
     filter_reg_i    =>  filterReg,
+    valid_config_i  =>  triggers(1),
     dds_regs_i      =>  dds_regs,
     data_i          =>  adc,
     dac_o           =>  dac_o,
@@ -526,7 +528,11 @@ begin
                         ParamCase: case(bus_m.addr(23 downto 0)) is
                             when X"000000" => rw(bus_m,bus_s,comState,triggers);
                             when X"000004" => rw(bus_m,bus_s,comState,outputReg);
-                            when X"000008" => rw(bus_m,bus_s,comState,filterReg);
+                            when X"000008" => 
+                                rw(bus_m,bus_s,comState,filterReg);
+                                if bus_m.valid(1) = '0' then
+                                    triggers(1) <= '1';
+                                end if;
                             when X"00000C" => readOnly(bus_m,bus_s,comState,adcData_i);
                             when X"000010" => readOnly(bus_m,bus_s,comState,ext_i);
                             when X"000014" => rw(bus_m,bus_s,comState,dds_phase_inc_reg);
