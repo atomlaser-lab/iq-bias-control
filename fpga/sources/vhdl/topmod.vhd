@@ -299,7 +299,7 @@ led_o <= outputReg(15 downto 8);
 --
 spi_period <= unsigned(topReg(spi_period'length downto 1));
 spi_enable <= '1';
-spi_data <= dac_reg(spi_data'left downto 0);
+spi_data <= dac_reg(13 downto 0) & "00";
 spi_o <= (0 => spi.SYNC, 1 => spi.SCLK, 2 => spi.SD);
 SPI_Trig_Process: process(adcClk,aresetn) is
 begin
