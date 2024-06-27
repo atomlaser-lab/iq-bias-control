@@ -28,6 +28,8 @@ classdef DeviceControl < handle
         pwm                     %Array of 4 PWM outputs
         control                 %Coupled integral control
         fifo_route              %Array of 4 FIFO routing options
+        log2_rate_phase         %Log2(CIC filter rate) for phase measurement
+        cic_shift_phase         %Log2(Additional digital gain after filter) for phase measurement
     end
     
     properties(SetAccess = protected)
@@ -48,6 +50,7 @@ classdef DeviceControl < handle
         controlRegs             %Registers for control
         gainRegs                %Registers for gain values
         pwmLimitRegs            %Registers for limiting PWM outputs
+        phase_filter_reg        %Register for phase filter settings
         %new_register % new register added here for dds2
     end
     
@@ -104,6 +107,9 @@ classdef DeviceControl < handle
             self.ddsPhaseOffsetReg = DeviceRegister('18',self.conn);
             self.dds2PhaseOffsetReg = DeviceRegister('20',self.conn);
             self.ddsPhaseCorrectionReg = DeviceRegister('30',self.conn);
+
+            self.phase_filter_reg = DeviceRegister('70',self.conn);
+
             self.pwmRegs = DeviceRegister.empty;
             for nn = 1:self.NUM_PWM
                 self.pwmRegs(nn) = DeviceRegister(hex2dec('50') + (nn - 1)*4,self.conn);
@@ -173,6 +179,13 @@ classdef DeviceControl < handle
             self.cic_shift = DeviceParameter([4,11],self.filterReg,'int8')...
                 .setLimits('lower',-100,'upper',100);
             %
+            % Phase filtering settings
+            %
+            self.log2_rate_phase = DeviceParameter([0,3],self.phase_filter_reg,'uint32')...
+                .setLimits('lower',2,'upper',13);
+            self.cic_shift_phase = DeviceParameter([4,11],self.phase_filter_reg,'int8')...
+                .setLimits('lower',-100,'upper',100);
+            %
             % PWM settings
             %
             self.pwm = DeviceParameter.empty;
@@ -214,6 +227,8 @@ classdef DeviceControl < handle
             self.pwm.set([0.2865,0.6272,0.8446]);
             self.log2_rate.set(13);
             self.cic_shift.set(-3);
+            self.log2_rate_phase.set(10);
+            self.cic_shift_phase.set(0);
             self.output_scale.set(1);
             self.numSamples.set(4000);
             self.control.setDefaults;
@@ -393,13 +408,47 @@ classdef DeviceControl < handle
                     end
                 end
             else
-                self.conn.write(0,'mode','command','cmd',...
-                    {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)},...
-                    'return_mode','file');
+                self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
                 d = self.convertData(raw);
                 self.data = d;
                 self.t = self.dt()*(0:(numSamples-1));
+            end
+        end
+
+        function self = getPhaseData(self,numSamples,saveType)
+            %GETDEMODULATEDDATA Fetches demodulated data from the device
+            %
+            %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of demodulated data
+            %
+            %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
+            %   users only: see the readme
+            numSamples = round(numSamples);
+            if nargin < 3
+                saveType = 1;
+            end
+            write_arg = {'./savePhaseData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)};
+            if self.auto_retry
+                for jj = 1:10
+                    try
+                        self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
+                        raw = typecast(self.conn.recvMessage,'uint8');
+                        d = self.convertData(raw);
+                        self.data = d;
+                        self.t = self.dt()*(0:(numSamples-1));
+                        break;
+                    catch e
+                        if jj == 10
+                            rethrow(e);
+                        end
+                    end
+                end
+            else
+                self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
+                raw = typecast(self.conn.recvMessage,'uint8');
+                d = self.convertData(raw);
+                self.data = d;
+                self.t = 2^(self.log2_rate_phase.value)/self.CLK*(0:(numSamples-1));
             end
         end
         

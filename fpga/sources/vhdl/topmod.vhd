@@ -88,6 +88,24 @@ component Demodulator is
     );
 end component;
 
+component PhaseMeasurement is
+    port(
+        clk             :   in  std_logic;
+        aresetn         :   in  std_logic;
+        --
+        -- Registers
+        --
+        filter_reg_i    :   in  t_param_reg;
+        mod_freq_i      :   in  t_phase;
+        --
+        -- Input and output data
+        --
+        data_i          :   in  t_adc;
+        filtered_data_o :   out t_meas_array(1 downto 0);
+        valid_o         :   out std_logic_vector(1 downto 0)
+    );
+end component;
+
 component FIFOHandler is
     port(
         wr_clk      :   in  std_logic;
@@ -167,6 +185,8 @@ signal fifoReg              :   t_param_reg;
 type t_pid_reg_array is array(natural range <>) of t_param_reg_array(2 downto 0);
 signal pid_regs             :   t_param_reg_array(4 downto 0);
 signal pwm_limit_regs       :   t_param_reg_array(3 downto 0);
+-- Phase measurement registers
+signal phase_filter_reg     :   t_param_reg;
 --
 -- DDS signals
 --
@@ -176,12 +196,12 @@ signal filter_valid         :   std_logic_vector(3 downto 0);
 --
 -- ADC signals
 --
-signal adc                  :   t_adc;
+signal adc1, adc2           :   t_adc;
 
 --
 -- FIFO signals
 --
-constant NUM_FIFOS          :   natural :=  filtered_data'length;
+constant NUM_FIFOS          :   natural :=  filtered_data'length + 2;
 type t_fifo_data_array is array(natural range <>) of std_logic_vector(FIFO_WIDTH - 1 downto 0);
 
 signal fifoData             :   t_fifo_data_array(NUM_FIFOS - 1 downto 0);
@@ -216,6 +236,11 @@ signal pwm_sum                  :   t_pwm_exp_array(2 downto 0);
 signal pwm_limit                :   t_pwm_exp_array(3 downto 0);
 signal pwm_max, pwm_min         :   t_pwm_exp_array(2 downto 0);
 signal control_valid            :   std_logic;
+--
+-- Phase measurement signals
+--
+signal phase_data        :   t_meas_array(1 downto 0);
+signal phase_valid       :   std_logic_vector(1 downto 0);
 
 begin
 
@@ -253,7 +278,7 @@ led_o <= outputReg(15 downto 8);
 --
 -- Modulator/demodulator component
 --
-adc <= resize(signed(adcData_i(15 downto 0)), adc'length) when topReg(0) = '0' else resize(signed(adcData_i(31 downto 16)), adc'length);
+adc1 <= resize(signed(adcData_i(15 downto 0)), adc1'length);
 dds_regs <= (0 => dds_phase_inc_reg, 1 => dds_phase_off_reg, 2 => dds2_phase_off_reg, 3 => dds_phase_corr_reg);
 -- 
 
@@ -266,10 +291,22 @@ port map(
     aresetn         =>  aresetn,
     filter_reg_i    =>  filterReg,
     dds_regs_i      =>  dds_regs,
-    data_i          =>  adc,
+    data_i          =>  adc1,
     dac_o           =>  dac_o,
     filtered_data_o =>  filtered_data,
     valid_o         =>  filter_valid
+);
+
+adc2 <= resize(signed(adcData_i(31 downto 16)), adc2'length);
+Measure_Phase: PhaseMeasurement
+port map(
+    clk             =>  adcClk,
+    aresetn         =>  aresetn,
+    filter_reg_i    =>  phase_filter_reg,
+    mod_freq_i      =>  unsigned(dds_regs(0)),
+    data_i          =>  adc2,
+    filtered_data_o =>  phase_data,
+    valid_o         =>  phase_valid  
 );
 
 --
@@ -329,8 +366,16 @@ enableFIFO <= fifoReg(0);
 fifoReset <= fifoReg(1);
 fifo_route <= outputReg(19 downto 16);
 FIFO_GEN: for I in 0 to NUM_FIFOS - 1 generate
-    fifoData(I) <= std_logic_vector(resize(filtered_data(I),FIFO_WIDTH)) when fifo_route(I) = '0' else std_logic_vector(resize(pwm_limit(I),FIFO_WIDTH));
-    fifoValid(I) <= ((filter_valid(I) and (not(fifo_route(I)) or not(enable))) or (control_valid and fifo_route(I) and enable)) and enableFIFO;
+    MAIN_FIFO_GEN: if I <= filtered_data'length - 1 generate
+        fifoData(I) <= std_logic_vector(resize(filtered_data(I),FIFO_WIDTH)) when fifo_route(I) = '0' else std_logic_vector(resize(pwm_limit(I),FIFO_WIDTH));
+        fifoValid(I) <= ((filter_valid(I) and (not(fifo_route(I)) or not(enable))) or (control_valid and fifo_route(I) and enable)) and enableFIFO;
+    end generate MAIN_FIFO_GEN;
+    
+    PHASE_FIFO_GEN: if I > filtered_data'length - 1 generate
+        fifoData(I) <= std_logic_vector(resize(phase_data(I - filtered_data'length),FIFO_WIDTH));
+        fifoValid(I) <= phase_valid(I - filtered_data'length);
+    end generate PHASE_FIFO_GEN;
+    
     PhaseMeas_FIFO_NORMAL_X: FIFOHandler
     port map(
         wr_clk      =>  adcClk,
@@ -343,6 +388,7 @@ FIFO_GEN: for I in 0 to NUM_FIFOS - 1 generate
         bus_s       =>  fifo_bus(I).s
   );
 end generate FIFO_GEN;
+
 --
 -- Save ADC data for debugging purposes
 --
@@ -383,6 +429,7 @@ begin
         triggers <= (others => '0');
         outputReg <= (others => '0');
         filterReg <= X"0000000a";
+        phase_filter_reg <= X"0000000a";
         dds_phase_off_reg <= (others => '0');
         dds_phase_inc_reg <= std_logic_vector(to_unsigned(34359738, 32)); -- 1 MHz with 32 bit DDS and 125 MHz clk freq
         --dds2 
@@ -441,6 +488,8 @@ begin
                             when X"000050" => rw(bus_m,bus_s,comState,pwm_regs(0));
                             when X"000054" => rw(bus_m,bus_s,comState,pwm_regs(1));
                             when X"000058" => rw(bus_m,bus_s,comState,pwm_regs(2));
+                            
+                            when X"000070" => rw(bus_m,bus_s,comState,phase_filter_reg);
                             --
                             -- PID registers
                             --
@@ -461,6 +510,8 @@ begin
                             when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
                             when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
                             when X"000094" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(3).s);
+                            when X"000098" => fifoRead(bus_m,bus_s,comState,fifo_bus(4).m,fifo_bus(4).s);
+                            when X"00009C" => fifoRead(bus_m,bus_s,comState,fifo_bus(5).m,fifo_bus(5).s);
                             --
                             -- Memory signals
                             --
