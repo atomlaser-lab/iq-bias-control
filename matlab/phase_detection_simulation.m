@@ -10,8 +10,8 @@ arguments
     NamedArgs.mode = 'diff';
 end
 
-mod_depth = [1e-2,0.1];        %radians
-mod_freq = 2*pi*[1e6,100e6];    %1/s
+mod_depth = [10.^(0.1*-23),2];        %radians
+mod_freq = 2*pi*[4e6,100e6];    %1/s
 
 %% Generate fast time signals
 dt = 1e-9;
@@ -35,11 +35,16 @@ elseif strcmpi(NamedArgs.mode,'diff')
 else
     error('Unrecognized mode options');
 end
-ph_err = 0;
-E1 = 0.5*exp(1i*mod_depth(1)*sin(mod_freq(1)*t) + 1i*mod_depth(2)*sin(mod_freq(2)*t) + 1i*ph1);
-E2 = 0.5*exp(1i*mod_depth(1)*sin(mod_freq(1)*t + pi) + 1i*mod_depth(2)*sin(mod_freq(2)*t + pi) + 1i*ph2);
-E3 = 0.5*exp(1i*mod_depth(1)*sin(mod_freq(1)*t + pi/2 + ph_err) + 1i*mod_depth(2)*sin(mod_freq(2)*t + pi/2 + ph_err) + 1i*ph3);
-E4 = 0.5*exp(1i*mod_depth(1)*sin(mod_freq(1)*t + 3*pi/2 + ph_err) + 1i*mod_depth(2)*sin(mod_freq(2)*t + 3*pi/2 + ph_err) + 1i*ph4);
+ph_err = 00e-3;
+Terr = 0.2;
+ph_diff = pi/4;
+
+mod_signal = @(f,ph,T) 1./(2*1i).*((1 + T).*exp(1i*(f*t + ph)) - (1 - T).*exp(-1i*(f*t + ph)));
+
+E1 = 0.5*exp(1i*mod_depth(1)*mod_signal(mod_freq(1),0,0) + 1i*mod_depth(2)*mod_signal(mod_freq(2),0 + ph_diff,Terr) + 1i*ph1);
+E2 = 0.5*exp(1i*mod_depth(1)*mod_signal(mod_freq(1),pi,0) + 1i*mod_depth(2)*mod_signal(mod_freq(2),pi + ph_diff,Terr) + 1i*ph2);
+E3 = 0.5*exp(1i*mod_depth(1)*mod_signal(mod_freq(1),pi/2,0) + 1i*mod_depth(2)*mod_signal(mod_freq(2),pi/2 + ph_diff + ph_err,Terr) + 1i*ph3);
+E4 = 0.5*exp(1i*mod_depth(1)*mod_signal(mod_freq(1),3*pi/2,0) + 1i*mod_depth(2)*mod_signal(mod_freq(2),3*pi/2 + ph_diff + ph_err,Terr) + 1i*ph4);
 
 EA = 1/sqrt(2)*(E1 + E2);
 EB = 1/sqrt(2)*(E3 + E4);
@@ -55,7 +60,7 @@ raw1 = Ip.*sin(mod_freq(1)*t + demod_phase1);
 raw2 = Ip.*cos(mod_freq(1)*t + demod_phase1);
 raw3 = Ip.*sin(2*mod_freq(1)*t + demod_phase2);
 
-R = 2^13;
+R = 2^16;
 [S1,tmeas] = cicfilter(t,raw1,R,3);
 S2 = cicfilter(t,raw2,R,3);
 S3 = cicfilter(t,raw3,R,3);
