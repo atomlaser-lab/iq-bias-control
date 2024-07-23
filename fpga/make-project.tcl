@@ -194,7 +194,7 @@ set_property -name "default_lib" -value "xil_defaultlib" -objects $obj
 set_property -name "enable_core_container" -value "1" -objects $obj
 set_property -name "enable_resource_estimation" -value "0" -objects $obj
 set_property -name "enable_vhdl_2008" -value "1" -objects $obj
-set_property -name "feature_set" -value "FeatureSet_Classic" -objects $obj
+# set_property -name "feature_set" -value "FeatureSet_Classic" -objects $obj
 set_property -name "ip_cache_permissions" -value "read write" -objects $obj
 set_property -name "ip_output_repo" -value "$proj_dir/${_xil_proj_name_}.cache/ip" -objects $obj
 set_property -name "mem.enable_memory_map_generation" -value "1" -objects $obj

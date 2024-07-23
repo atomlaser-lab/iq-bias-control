@@ -9,9 +9,7 @@ ph = 10:20:270;
 Npoints = 1e3;
 fig_offset = 1500;
 
-% d.log2_rate.set(13).write;
-% d.pwm(1).set(0.5).write;
-% d.pwm(2).set(0.5).write;
+estimated_zero_crossings = [d.pwm(1).get,d.pwm(2).get,d.pwm(3).get];
 
 %% Scan over 2f demodulation phase and DC3 bias
 %
@@ -78,8 +76,8 @@ t = toc;
 %
 nlf = nonlinfit(Vfine,data2(:,3));
 % nlf.ex = nlf.x >= 1;
-nlf.setFitFunc(@(A,y0,s,x0,x) y0 + A*sin(2*pi*(x - x0)/s));
-nlf.bounds2('A',[0,5*range(nlf.y),range(nlf.y)],'y0',[2*min(nlf.y),2*max(nlf.y),mean(nlf.y)],'s',[0.25,5,1.5],'x0',[0,max(nlf.x),1]);
+nlf.setFitFunc(@(A,s,x0,x) A*sin(2*pi*(x - x0)/s));
+nlf.bounds2('A',[-2*max(nlf.y),2*max(nlf.y),max(nlf.y)],'s',[0.25,5,1.5],'x0',[0,max(nlf.x),0.25]);
 nlf.fit;
 figure(fig_offset + 1);clf;
 nlf.plot('plotresiduals',0);
@@ -93,7 +91,7 @@ plot_format('DC3 [V]','Signal',sprintf('Zero-crossing voltage = %.3f',zero_cross
 textprogressbar(sprintf('\nDC3 biases = [%.3f,%.3f] V. Time taken = %.1f s',zero_crossing_voltages_2f,t));
 %% Set DC3 voltage
 check_app;
-d.pwm(3).set(zero_crossing_voltages_2f(2)).write;
+d.pwm(3).set(closest_value_to(zero_crossing_voltages_2f,estimated_zero_crossings(3))).write;
 update_app_display;
 %% Scan over DC2 and 1f demodulation phase
 %
@@ -184,27 +182,25 @@ legend('I-phase, DC1','Q-phase, DC2');
 
 nlf = nonlinfit(Vfine,data12(:,1,1));
 nlf.ex = nlf.x >= 1 | nlf.x < 0.1;
-nlf.setFitFunc(@(A,y0,s,x0,x) y0 + A*sin(2*pi*(x - x0)/s));
-nlf.bounds2('A',[0,5*range(nlf.y),range(nlf.y)],'y0',[2*min(nlf.y),2*max(nlf.y),mean(nlf.y)],'s',[0.25,5,1.5],'x0',[0,max(nlf.x),0.2]);
+nlf.setFitFunc(@(A,s,x0,x) A*sin(2*pi*(x - x0)/s));
+nlf.bounds2('A',[0,2*max(nlf.y),max(nlf.y)],'s',[0.25,5,1.5],'x0',[0,3*max(nlf.x),0.8]);
 nlf.fit;
 plot(nlf.x,nlf.f(nlf.x),'b--','handlevisibility','off');
 approx_zero_crossing_voltages_DC1 = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
 zero_crossing_voltages_DC1 = get_zero_crossing_voltages(nlf,approx_zero_crossing_voltages_DC1);
 zero_crossing_voltages_DC1 = zero_crossing_voltages_DC1(zero_crossing_voltages_DC1 > 0.1);
-
 nlf.y = data12(:,2,2);
 nlf.fit;
 plot(nlf.x,nlf.f(nlf.x),'r--','handlevisibility','off');
 approx_zero_crossing_voltages_DC2 = nlf.get('x0',1) + [0,0.5*nlf.get('s',1)];
 zero_crossing_voltages_DC2 = get_zero_crossing_voltages(nlf,approx_zero_crossing_voltages_DC2);
 zero_crossing_voltages_DC2 = zero_crossing_voltages_DC2(zero_crossing_voltages_DC2 > 0.1);
-
 textprogressbar(sprintf('\nDC1 biases = [%.3f,%.3f] V, DC2 biases = [%.3f,%.3f] V. Time taken = %.1f s',zero_crossing_voltages_DC1,zero_crossing_voltages_DC2,t));
 
 %% Set DC1 and DC2 to zero-crossing values
 check_app;
-d.pwm(1).set(min(zero_crossing_voltages_DC1(1:2))).write;
-d.pwm(2).set(max(zero_crossing_voltages_DC2(1:2))).write;
+d.pwm(1).set(closest_value_to(zero_crossing_voltages_DC1,estimated_zero_crossings(1))).write;
+d.pwm(2).set(closest_value_to(zero_crossing_voltages_DC2,estimated_zero_crossings(2))).write;
 update_app_display;
 %% Measure linear responses around zero crossing values
 %
@@ -233,7 +229,7 @@ update_app_display;
 % fprintf('Measuring dynamic responses...');
 check_app;
 tic;
-[tc,Gdynamic] = get_voltage_step_response(d,5/d.dt(),20e-3);
+[tc,Gdynamic] = get_voltage_step_response(d,1/d.dt(),20e-3);
 response_freqs = 1./(2*pi*diag(tc));
 t = toc;
 fprintf('Finished measuring dynamic responses in %.1f s\n',t);
@@ -242,7 +238,7 @@ fprintf('Finished measuring dynamic responses in %.1f s\n',t);
 % Using a target low-pass frequency (in Hz), we now compute the feedback
 % matrix K and its integer values taking into account the row-wise divisors
 %
-target_low_pass_freqs = [20,20,0.5];
+target_low_pass_freqs = 0.5*[2,2,0.5];
 % target_low_pass_freqs = 0.5*response_freqs;
 Ki_target = 2*pi*target_low_pass_freqs*d.dt()/DeviceControl.CONV_PWM;
 
@@ -300,4 +296,10 @@ end
 function update_app_display
     app = DeviceControl.get_running_app_instance();
     app.updateDisplay;
+end
+
+function closest_value = closest_value_to(values,target)
+    d = abs(values - target);
+    [~,idx] = min(d);
+    closest_value = values(idx);
 end

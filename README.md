@@ -6,7 +6,7 @@ This project implements a digital bias controller for an IQ modulator running in
 
   1. Clone both this repository and the interface repository at [https://github.com/atomlaser-lab/red-pitaya-interface](https://github.com/atomlaser-lab/red-pitaya-interface) to your computer.  
 
-  2. Connect the Red Pitaya (RP) board to an appropriate USB power source (minimum 2 A current output), and then connect it to the local network using an ethernet cable.  Using SSH (via terminal on Linux/Mac or something like PuTTY on Windows), log into the RP using the hostname `rp-{MAC}.local` where `{MAC}` is the last 6 characters of the RP's MAC address, which is written on the ethernet connector.  Your network may assign its own domain, so `.local` might not be the correct choice.  The default user name and password for RPs is `root`.  Once logged in, create two directories called `iq-bias-control` and `server`.
+  2. Connect the Red Pitaya (RP) board to an appropriate USB power source (minimum 2 A current output), and then connect it to the local network using an ethernet cable.  Using SSH (via terminal on Linux/Mac or something like PuTTY on Windows), log into the RP using the hostname `rp-{MAC}.local` where `{MAC}` is the last 6 characters of the RP's MAC address which is written on the ethernet connector.  Your network may assign its own domain, so `.local` might not be the correct choice.  The default user name and password for RPs is `root`.  Once logged in, create two directories called `iq-bias-control` and `server`.
 
   3. From this repository, copy over all files in the 'software/' directory ending in '.c' and the file `Makefile` to the `iq-bias-control` directory on the RP using either `scp` (from a terminal on your computer) or using your favourite GUI (I recommend WinSCP for Windows).  Also copy over the file `fpga/iq-bias-control.bit` to the `iq-bias-control` directory.  From the interface repository, copy over all files ending in '.py' and the file 'get_ip.sh' to the `server` directory on the RP.
 
@@ -34,27 +34,29 @@ This project implements a digital bias controller for an IQ modulator running in
 
    6. Upload the bitstream to the FPGA by navigating to the `iq-bias-control` directory and running `cat iq-bias-control.bit > /dev/xdevcfg`.
 
-   7. Start the Python server by running `python3 /root/server/appserver.py`.  If you need to specify your IP address run instead `python3 /root/server/appserver.py <ip address>`.  The script will print the IP address it is using on the command line.
+   7. Start the Python server by navigating to the `iq-bias-control` directory and running `python3 /root/server/appserver.py`.  If you need to specify your IP address run instead `python3 /root/server/appserver.py <ip address>`.  The script will print the IP address it is using on the command line, saying `Listening on <IP address>`.
 
    8. On your computer in MATLAB, add the interface repository directory to your MATLAB path.
 
-   9. Navigate to this repository's software directory, and create a new control object using `d = DeviceControl(<ip address>)` where `<ip address>` is the IP address of the RP.  If the FPGA has just been reconfigured, set the default values using `d.setDefaults` and upload them using `d.upload`.
+   9. Navigate to this repository's software directory (or add it to the MATLAB path), and create a new control object using `d = DeviceControl(<ip address>)` where `<ip address>` is the IP address of the RP.  If the FPGA has just been reconfigured, set the default values using `d.setDefaults` and upload them using `d.upload`.  If you want to retrieve the current operating values use the command `d.fetch`.
 
    10. You can control the device using the command line, but you can also use a GUI to do so.  Start the GUI by running the command `IQ_Bias_Control_GUI(d)`.  This will start up the GUI.  You can also run `IQ_Bias_Control_GUI(<ip address>)` if you don't have the `DeviceControl` object in your workspace.
 
 # Hardware set up
 
-Connect the OUT1 and OUT2 signals to the I and Q modulation ports (order doesn't matter) on the IQ modulator.  Make sure that the output voltages/powers are within the specified tolerances of the device.  The OUT1 and OUT2 signals are already 90 degrees out of phase, so they don't need to go through a 90 degree hybrid.  You may want significant attenuation on the output ports so that the auxiliary signal is much weaker than the desired main signal.  Measure the output laser power using a photodiode of sufficient bandwidth, amplify as necessary, and connect to the IN1 connector.  On the LV setting the IN1 input can only measure +/-1 V.  
+![Hardware setup](images/iq-bias-lock-hardware-setup.png)
 
-Connect the slow analog outputs 0-2 to the IQ modulator's DC biases: see [this page](https://redpitaya.readthedocs.io/en/latest/developerGuide/hardware/125-14/extent.html) for the pinout.  You may need to amplify these signals (maximum output is 1.6 V) to get the right voltage range.  The slow analog outputs are pulse width modulation (PWM) outputs with a 250 MHz clock and 8 bits of resolution, so the PWM frequency is about 1 MHz.  You will likely want additional filtering on the outputs for driving the DC biases.
+Connect the OUT1 and OUT2 signals to the I and Q modulation ports (order doesn't matter) on the IQ modulator.  If you want to use this with a high frequency signal as well, then you need a method of combining the low frequency signals from the Red Pitaya ($\Omega_{\rm LF}$) and the high frequency signals ($\Omega_{\rm HF}$).  The best option is to use diplexers as they have lower loss than simple power combiners.  Make sure that the output voltages/powers are within the specified tolerances of the device.  The OUT1 and OUT2 signals are already 90 degrees out of phase, so they don't need to go through a 90 degree hybrid.  You may want significant attenuation on the output ports so that the auxiliary signal is much weaker than the desired main signal.  Measure the output laser power using a photodiode of sufficient bandwidth, filter out the DC component using a high-pass filter or a bias tee, amplify as necessary, and connect to the IN1 connector.  On the LV setting the IN1 input can only measure +/-1 V.  
 
-Alternatively, you can build the included "shield" for the Red Pitaya that connects to the PWM analog outputs, filters them, and amplifies them to be in the range [0,14.6] V. The corner frequency is approximately 790 Hz, which suppresses the fundamental PWM frequency at 244 kHz by about 50 dB.  Choosing different filtering capacitors will give you different suppression and bandwidths.
+Connect the slow analog outputs 0-2 to the IQ modulator's DC biases: see [this page](https://redpitaya.readthedocs.io/en/latest/developerGuide/hardware/125-14/extent.html) for the pinout.  You may need to amplify these signals (maximum output is 1.6 V) to get the right voltage range.  The slow analog outputs are pulse width modulation (PWM) outputs with a 250 MHz clock and 10 bits of resolution, so the PWM frequency is about 244 kHz.  You will likely want additional filtering on the outputs for driving the DC biases.  Avoid aluminium electrolytic capacitors for the filter, as the equivalent series resistance (ESR) can severely compromise filtering capabilities at high frequencies.  
+
+Alternatively, you can build the included "shield" for the Red Pitaya that connects to the PWM analog outputs, filters them, and amplifies them to be in the range [0,14.6] V. The corner frequency is approximately \[TBD\] Hz, which suppresses the fundamental PWM frequency at 244 kHz by about \[TBD\] dB.  Choosing different filtering capacitors will give you different suppression and bandwidths.
 
 # Using the GUI
 
 The GUI is best way to control the device.  There are four categories of device settings plus the application settings.
 
-![Example GUI](gui-picture.png)
+![Example GUI](images/gui-picture.png)
 
 ## Acquisition Settings
 
@@ -62,7 +64,7 @@ The idea behind this technique is to generate a low-frequency modulation signal 
 
 ## Control
 
-Assuming that the demodulation phases are properly set, the bias voltages on the IQ modulator should independently control each demodulated signal with very limited cross-coupling.  In reality, there can be significant cross-coupling.  To account for cross-coupling, we use a multi-dimensional integral control scheme.  For a vector of voltages $\mathbf{V}$ and a vector of signals $\mathbf{S}$, we implement a control law as a 3x3 matrix $K$ such that $\mathbf{V} = -K\mathbf{S}$.  The integer values for the control matrix $K$ are given as K11, K12, etc, and these can be negative to allow for opposite polarity responses.  Additionally, to account for possibly different orders of magnitude of gain reponse, each output voltage has its own "divisor" to allow for fixed-point arithmetic.  Therefore, the output voltage $V_1$ is $V_1 = 2^{-N_1}(K_{11}S_1 + K_{12}S_2 + K_{13}S_3)$, where $N_1$ is labelled as "Divisor 1", and similarly for the other rows 2 and 3.  
+Assuming that the demodulation phases are properly set, the bias voltages on the IQ modulator should independently control each demodulated signal with very limited cross-coupling.  In reality, there can be significant cross-coupling.  To account for cross-coupling, we use a multi-dimensional integral control scheme.  For a vector of output voltages $\mathbf{v}$, a vector of signals $\mathbf{s}$, and a vector of set-points $\mathbf{r}$, we implement a control law as a 3x3 matrix $K$ such that $\mathbf{v} = K\int(\mathbf{r} - \mathbf{s})dt$.  The integer values for the control matrix $K$ are given as K11, K12, etc, and these can be negative to allow for opposite polarity responses.  Additionally, to account for possibly different orders of magnitude of gain reponse, each output voltage has its own "divisor" to allow for fixed-point arithmetic.  Therefore, the output voltage $v_1$ is $v_1 = 2^{-N_1}(K_{11}s_1 + K_{12}s_2 + K_{13}s_3)$, where $N_1$ is labelled as "Divisor 1", and similarly for the other rows 2 and 3.  
 
 Other controls are reasonably straightforward.  The `Enable` switch turns the controller on, and the `Hold` switch holds the outputs at the current values.  The different set points allow for stabilising the signals about a non-zero value, and the upper and lower limits at the bottom limit the PMW output voltages (values are prior to any amplifiers you may add).
 
@@ -70,7 +72,7 @@ Other controls are reasonably straightforward.  The `Enable` switch turns the co
 
 The voltage biases DC1, DC2, and DC3 adjust the phases of the three MZIs in the IQ modulator and thus allow for CS-SSB as well as all sorts of other, undesired output modes.  Unfortunately, simply by measuring the optical power it is fundamentally impossible to determine what frequency is on the output of the IQ modulator, as all single-frequency operation generates a steady DC value on the photodiode.  The manual control allows the user to get close to CS-SSB operation, and then the controller will ideally keep it in that mode.
 
-DC1, DC2, and DC3 are output voltages from 0 to 1 V that should be connected to the appropriate pins on the IQ modulator.  These values can be changed using the sliders or spinners.  If using the arrows on the spinners, the DC increment can be changed to allow for coarser or finer changes.  Note that the minimum DC increment is 1.6 mV.
+DC1, DC2, and DC3 are output voltages from 0 to 1.6 V that should be connected to the appropriate pins on the IQ modulator.  These values can be changed using the sliders or spinners.  If using the arrows on the spinners, the DC increment can be changed to allow for coarser or finer changes.  Note that the minimum DC increment is 1.6 mV.
 
 ## FIFO Settings
 
@@ -88,9 +90,13 @@ You can also save and load bias control configurations using the `Load` and `Sav
 
 # How to determine gain parameters
 
-The best way to get the right gain parameters is to measure the response of the system to a change in the bias voltage, and then to calculate the gain parameters from that.  There is a script called `automatically_set_feedback.m` in the `software/` folder which does this task.  Here is how it works.
+The best way to get the right gain parameters is to measure the response of the system to a change in the bias voltage, and then to calculate the gain parameters from that.  There is a script called `automatically_set_feedback.m` in the `software/` folder which does this task.  You may need to alter the script to suit your IQ modulator and system.  You will also need the MATLAB Statistics toolbox and the Optimization toolbox for the functions `range` and `fsolve`, respectively.  It is recommended that you step through the script one section at a time, checking the results as you go.  Here is how the script works.
 
-You will need a rough idea of what the right bias voltages are, first.  Set the desired modulation frequency (avoid multiples of 5 MHz!), the sample rate, and any scalings.  The first step is to measure the 2f demodulation phase.  This is done by varying the DC3 voltage and the 2f demodulation phase, and then looking at what demodulation phase gives the largest amplitude change to the 2f demodulated signal: this is the optimum demodulation phase.
+**FEEDBACK MUST BE DISABLED TO RUN THIS SCRIPT**
+
+You will need a rough idea of what the right bias voltages are, first.  The best way to do this is to use a scanning optical cavity, but beating the output field from the IQ modulator with a reference at a different frequency can also be used.  Adjust the manual voltages until you are close to CS-SSB operation.  Roughly, the algorithm is to iteratively adjust DC1 and DC2 to minimize the amount of power in the carrier, and then to adjust DC3 to choose the positive or negative sideband as desired.  
+
+Once you are close, set the desired modulation frequency (multiples of 5 MHz appear to be problematic), the sample rate, and any scalings.  The first step is to measure the 2f demodulation phase.  This is done by varying the DC3 voltage and the 2f demodulation phase, and then looking at what demodulation phase gives the largest amplitude change to the 2f demodulated signal: this is the optimum demodulation phase.
 
 The next step is to do a fine scan over the DC3 bias at the optimum demodulation phase to find the biases at which the 2f signal amplitude crosses zero.  There are two voltages, and for the ixBlue IQ modulator the best voltage is the higher voltage near 0.9 V.  This gets a fine-tuned measurement.
 
@@ -98,9 +104,28 @@ Next, we perform a scan over the DC2 bias and the 1f demodulation phase to deter
 
 With the correct 1f demodulation phase, a fine scan is applied to determine the voltages at which the 1f I and Q signals cross zero.  For the ixBlue IQ modulator, the best biases are with the DC1 voltage near 0.3 V and the DC2 voltage near 0.65 V.
 
-Finally, we then do two steps of small variations about the bias voltages that we have measured to give zero signal.  We then fit the measurements to a linear response to get a transfer matrix $G$ (the slope of the lines) and new zero crossing voltages $\mathbf{Z}$.  We then re-measure the responses around these new zero-crossing voltages, which gives a final transfer matrix $G$.  
+Finally, we then do two steps of small variations about the bias voltages that we have measured to give zero signal.  We then fit the measurements to a linear response to get a transfer matrix $G$ (the slope of the lines) and new zero crossing voltages $\mathbf{Z}$.  We then re-measure the responses around these new zero-crossing voltages, which gives a final transfer matrix $G$.  You should check that the plots of this transfer matrix show the measured signals going through zero when the DC voltages are at their nominal values.
 
 The feedback matrix is then calculated by starting with a target matrix $K_t$ and computing $K = G^{-1}K_t$.  
+
+# Troubleshooting
+
+## CS-SSB operation lost
+
+If your scanning optical cavity is showing that CS-SSB operation has been lost, then it is highly likely that the bias lock has been lost.  This can occur if the locking system has been kicked out of its capture range by, for instance, a large temperature change.  Alternatively, charge can accumulate on the electrodes and in the LiNBO3 that affects the optimum bias voltages.  Similarly, charge can be freed by the optical field that then affects the response.
+
+  1. DISABLE THE LOCK.  If you leave the lock on while changing the biases, it will do very weird things.
+  2. If, after disabling the lock, the system returns to near CS-SSB operation, try re-engaging the lock.
+  3. If this doesn't work, disable the lock, manually re-optimise the biases, re-optimise the lock parameters, and then re-lock.
+
+## GUI unresponsive
+
+If the GUI appears unresponsive, in that changing GUI parameters such as biases or the lock enable status appears to do nothing:
+
+  1. IS THE LOCK ENGAGED?  If the lock is engaged and you try to change the bias voltages, it might appear that nothing is happening because the lock forces the system into CS-SSB operation.
+  2. IS AUTO_UPDATE DISABLED?  If Auto-Update is disabled, then changed parameters on the GUI will not be uploaded to the device.  Set Auto-Update to "On".
+  3. Has the Red Pitaya been disconnected from the network?  Bring up the PuTTY or terminal window that is logged into the Red Pitaya.  If the server is running, use CTRL-Z to suspend it.  If the terminal throws an error, like "Connection lost" or somesuch, then reconnect to the Red Pitaya (on PuTTY you can right-click on the window's title bar and click "Reconnect").  Navigate back to the `iq-bias-control` directory using `cd iq-bias-control` and start the Python server again using `python3 /root/server/appserver.py`.  If the running server suspended without error, bring it back to the foreground using the command `fg`.
+  4. Is the figure data in the GUI not updating?  This is probably just an error in the timer used for non-command-line-blocking fetching of the data.  Set Auto-Fetch Data to "Off" and then "On" again.
 
 # Creating the project
 

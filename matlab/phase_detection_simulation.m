@@ -10,28 +10,12 @@ arguments
     NamedArgs.mode = 'diff';
 end
 
-% if mod(nargin,2) ~= 0
-%     error('Arguments must occur in name/value pairs!');
-% else
-%     for nn = 1:2:nargin
-%         v = varargin{nn + 1};
-%         switch lower(varargin{nn})
-%             case 'pha'
-%                 NamedArgs.phA = v;
-%             case 'phb'
-%                 NamedArgs.phB = v;
-%             case 'php'
-%                 NamedArgs.phP = v;
-%         end
-%     end
-% end
-
-mod_depth = 0.1;        %radians
-mod_freq = 2*pi*1e6;    %1/s
+mod_depth = [10.^(0.1*-23),2];        %radians
+mod_freq = 2*pi*[4e6,100e6];    %1/s
 
 %% Generate fast time signals
-dt = 8e-9;
-T = 100e-6;
+dt = 1e-9;
+T = 1000e-6;
 t = (0:dt:T)';
 
 if strcmpi(NamedArgs.mode,'')
@@ -51,11 +35,16 @@ elseif strcmpi(NamedArgs.mode,'diff')
 else
     error('Unrecognized mode options');
 end
-ph_err = 0;
-E1 = 0.5*exp(1i*mod_depth*sin(mod_freq*t) + 1i*ph1);
-E2 = 0.5*exp(1i*mod_depth*sin(mod_freq*t + pi) + 1i*ph2);
-E3 = 0.5*exp(1i*mod_depth*sin(mod_freq*t + pi/2 + ph_err) + 1i*ph3);
-E4 = 0.5*exp(1i*mod_depth*sin(mod_freq*t + 3*pi/2 + ph_err) + 1i*ph4);
+ph_err = 00e-3;
+Terr = 0.2;
+ph_diff = pi/4;
+
+mod_signal = @(f,ph,T) 1./(2*1i).*((1 + T).*exp(1i*(f*t + ph)) - (1 - T).*exp(-1i*(f*t + ph)));
+
+E1 = 0.5*exp(1i*mod_depth(1)*mod_signal(mod_freq(1),0,0) + 1i*mod_depth(2)*mod_signal(mod_freq(2),0 + ph_diff,Terr) + 1i*ph1);
+E2 = 0.5*exp(1i*mod_depth(1)*mod_signal(mod_freq(1),pi,0) + 1i*mod_depth(2)*mod_signal(mod_freq(2),pi + ph_diff,Terr) + 1i*ph2);
+E3 = 0.5*exp(1i*mod_depth(1)*mod_signal(mod_freq(1),pi/2,0) + 1i*mod_depth(2)*mod_signal(mod_freq(2),pi/2 + ph_diff + ph_err,Terr) + 1i*ph3);
+E4 = 0.5*exp(1i*mod_depth(1)*mod_signal(mod_freq(1),3*pi/2,0) + 1i*mod_depth(2)*mod_signal(mod_freq(2),3*pi/2 + ph_diff + ph_err,Terr) + 1i*ph4);
 
 EA = 1/sqrt(2)*(E1 + E2);
 EB = 1/sqrt(2)*(E3 + E4);
@@ -67,11 +56,11 @@ Ip = abs(Ep).^2;
 demod_phase1 = 0;
 demod_phase2 = 0;
 
-raw1 = Ip.*sin(mod_freq*t + demod_phase1);
-raw2 = Ip.*cos(mod_freq*t + demod_phase1);
-raw3 = Ip.*sin(2*mod_freq*t + demod_phase2);
+raw1 = Ip.*sin(mod_freq(1)*t + demod_phase1);
+raw2 = Ip.*cos(mod_freq(1)*t + demod_phase1);
+raw3 = Ip.*sin(2*mod_freq(1)*t + demod_phase2);
 
-R = 2^10;
+R = 2^16;
 [S1,tmeas] = cicfilter(t,raw1,R,3);
 S2 = cicfilter(t,raw2,R,3);
 S3 = cicfilter(t,raw3,R,3);
@@ -80,17 +69,21 @@ S3 = cicfilter(t,raw3,R,3);
 Y = fftshift(fft(Ep));
 f = 1./(2*dt)*linspace(-1,1,numel(Y));
 YP = abs(Y/numel(f)).^2;
+idx = (2*pi*f) == mod_freq(2);
+YP = YP/YP(idx);
 if nargout == 0
     figure(1);clf;
     plot(t,Ip);
-    xlim([0,1*2*pi./mod_freq]);
+    xlim([0,1*2*pi./mod_freq(1)]);
     
     figure(2);clf;
     plot(tmeas,[S1,S2,S3],'.-');
     
     figure(3);clf;
-    plot(f/1e6,YP);
-    xlim(mod_freq/(2*pi*1e6)*4*[-1,1])
+    plot(f/1e6,10*log10(YP));
+    xlim(mod_freq(2)/(2*pi*1e6)*4*[-1,1])
+    grid on;
+    ylim([-100,0]);
 else
     D = mean([S1,S2,S3],1);
     [~,idx] = min((f + mod_freq/(2*pi)).^2);
