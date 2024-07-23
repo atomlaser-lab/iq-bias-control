@@ -1,13 +1,13 @@
 {
   "design": {
     "design_info": {
-      "boundary_crc": "0xC176409AF2037415",
+      "boundary_crc": "0xC176409ACFCD512D",
       "device": "xc7z010clg400-1",
       "gen_directory": "../../../../basic-project.gen/sources_1/bd/system",
       "name": "system",
       "rev_ctrl_bd_flag": "RevCtrlBdOff",
       "synth_flow_mode": "None",
-      "tool_version": "2023.2",
+      "tool_version": "2023.1",
       "validated": "true"
     },
     "design_tree": {
@@ -21,9 +21,9 @@
         "processing_system7_0": "",
         "axi_protocol_convert_0": ""
       },
-      "AXIS_Red_Pitaya_ADC_0": "",
       "AXIS_Red_Pitaya_DAC_0": "",
       "clk_wiz_0": "",
+      "AXIS_Red_Pitaya_ADC_0": "",
       "topmod_0": ""
     },
     "interface_ports": {
@@ -397,7 +397,6 @@
         "components": {
           "util_ds_buf_1": {
             "vlnv": "xilinx.com:ip:util_ds_buf:2.2",
-            "ip_revision": "31",
             "xci_name": "system_util_ds_buf_1_0",
             "xci_path": "ip\\system_util_ds_buf_1_0\\system_util_ds_buf_1_0.xci",
             "inst_hier_path": "Utility_Buffers/util_ds_buf_1",
@@ -409,7 +408,6 @@
           },
           "util_ds_buf_2": {
             "vlnv": "xilinx.com:ip:util_ds_buf:2.2",
-            "ip_revision": "31",
             "xci_name": "system_util_ds_buf_2_0",
             "xci_path": "ip\\system_util_ds_buf_2_0\\system_util_ds_buf_2_0.xci",
             "inst_hier_path": "Utility_Buffers/util_ds_buf_2",
@@ -513,7 +511,6 @@
         "components": {
           "AXI_Parse_0": {
             "vlnv": "xilinx.com:module_ref:AXI_Parse:1.0",
-            "ip_revision": "1",
             "xci_name": "system_AXI_Parse_0_0",
             "xci_path": "ip\\system_AXI_Parse_0_0\\system_AXI_Parse_0_0.xci",
             "inst_hier_path": "PS7/AXI_Parse_0",
@@ -786,7 +783,6 @@
           },
           "proc_sys_reset_0": {
             "vlnv": "xilinx.com:ip:proc_sys_reset:5.0",
-            "ip_revision": "14",
             "xci_name": "system_proc_sys_reset_0_0",
             "xci_path": "ip\\system_proc_sys_reset_0_0\\system_proc_sys_reset_0_0.xci",
             "inst_hier_path": "PS7/proc_sys_reset_0",
@@ -798,7 +794,6 @@
           },
           "processing_system7_0": {
             "vlnv": "xilinx.com:ip:processing_system7:5.5",
-            "ip_revision": "6",
             "xci_name": "system_processing_system7_0_0",
             "xci_path": "ip\\system_processing_system7_0_0\\system_processing_system7_0_0.xci",
             "inst_hier_path": "PS7/processing_system7_0",
@@ -2646,7 +2641,6 @@
           },
           "axi_protocol_convert_0": {
             "vlnv": "xilinx.com:ip:axi_protocol_converter:2.1",
-            "ip_revision": "29",
             "xci_name": "system_axi_protocol_convert_0_0",
             "xci_path": "ip\\system_axi_protocol_convert_0_0\\system_axi_protocol_convert_0_0.xci",
             "inst_hier_path": "PS7/axi_protocol_convert_0",
@@ -2756,106 +2750,8 @@
           }
         }
       },
-      "AXIS_Red_Pitaya_ADC_0": {
-        "vlnv": "xilinx.com:module_ref:AXIS_Red_Pitaya_ADC:1.0",
-        "ip_revision": "1",
-        "xci_name": "system_AXIS_Red_Pitaya_ADC_0_0",
-        "xci_path": "ip\\system_AXIS_Red_Pitaya_ADC_0_0\\system_AXIS_Red_Pitaya_ADC_0_0.xci",
-        "inst_hier_path": "AXIS_Red_Pitaya_ADC_0",
-        "reference_info": {
-          "ref_type": "hdl",
-          "ref_name": "AXIS_Red_Pitaya_ADC",
-          "boundary_crc": "0x0"
-        },
-        "interface_ports": {
-          "m_axis": {
-            "mode": "Master",
-            "vlnv_bus_definition": "xilinx.com:interface:axis:1.0",
-            "vlnv": "xilinx.com:interface:axis_rtl:1.0",
-            "parameters": {
-              "TDATA_NUM_BYTES": {
-                "value": "4",
-                "value_src": "auto"
-              },
-              "TDEST_WIDTH": {
-                "value": "0",
-                "value_src": "constant"
-              },
-              "TID_WIDTH": {
-                "value": "0",
-                "value_src": "constant"
-              },
-              "TUSER_WIDTH": {
-                "value": "0",
-                "value_src": "constant"
-              },
-              "HAS_TREADY": {
-                "value": "0",
-                "value_src": "constant"
-              },
-              "HAS_TSTRB": {
-                "value": "0",
-                "value_src": "constant"
-              },
-              "HAS_TKEEP": {
-                "value": "0",
-                "value_src": "constant"
-              },
-              "HAS_TLAST": {
-                "value": "0",
-                "value_src": "constant"
-              }
-            },
-            "port_maps": {
-              "TDATA": {
-                "physical_name": "m_axis_tdata",
-                "direction": "O",
-                "left": "31",
-                "right": "0"
-              },
-              "TVALID": {
-                "physical_name": "m_axis_tvalid",
-                "direction": "O"
-              }
-            }
-          }
-        },
-        "ports": {
-          "adc_clk_p": {
-            "type": "clk",
-            "direction": "I"
-          },
-          "adc_clk_n": {
-            "type": "clk",
-            "direction": "I"
-          },
-          "adc_data_a": {
-            "direction": "I",
-            "left": "13",
-            "right": "0"
-          },
-          "adc_data_b": {
-            "direction": "I",
-            "left": "13",
-            "right": "0"
-          },
-          "adc_clk": {
-            "type": "clk",
-            "direction": "O",
-            "parameters": {
-              "FREQ_HZ": {
-                "value": "125000000"
-              }
-            }
-          },
-          "adc_csn": {
-            "direction": "O"
-          }
-        }
-      },
       "AXIS_Red_Pitaya_DAC_0": {
         "vlnv": "xilinx.com:module_ref:AXIS_Red_Pitaya_DAC:1.0",
-        "ip_revision": "1",
         "xci_name": "system_AXIS_Red_Pitaya_DAC_0_0",
         "xci_path": "ip\\system_AXIS_Red_Pitaya_DAC_0_0\\system_AXIS_Red_Pitaya_DAC_0_0.xci",
         "inst_hier_path": "AXIS_Red_Pitaya_DAC_0",
@@ -2997,7 +2893,6 @@
       },
       "clk_wiz_0": {
         "vlnv": "xilinx.com:ip:clk_wiz:6.0",
-        "ip_revision": "13",
         "xci_name": "system_clk_wiz_0_0",
         "xci_path": "ip\\system_clk_wiz_0_0\\system_clk_wiz_0_0.xci",
         "inst_hier_path": "clk_wiz_0",
@@ -3034,9 +2929,110 @@
           }
         }
       },
+      "AXIS_Red_Pitaya_ADC_0": {
+        "vlnv": "xilinx.com:module_ref:AXIS_Red_Pitaya_ADC:1.0",
+        "xci_name": "system_AXIS_Red_Pitaya_ADC_0_0",
+        "xci_path": "ip\\system_AXIS_Red_Pitaya_ADC_0_0\\system_AXIS_Red_Pitaya_ADC_0_0.xci",
+        "inst_hier_path": "AXIS_Red_Pitaya_ADC_0",
+        "reference_info": {
+          "ref_type": "hdl",
+          "ref_name": "AXIS_Red_Pitaya_ADC",
+          "boundary_crc": "0x0"
+        },
+        "interface_ports": {
+          "m_axis": {
+            "mode": "Master",
+            "vlnv_bus_definition": "xilinx.com:interface:axis:1.0",
+            "vlnv": "xilinx.com:interface:axis_rtl:1.0",
+            "parameters": {
+              "TDATA_NUM_BYTES": {
+                "value": "4",
+                "value_src": "auto"
+              },
+              "TDEST_WIDTH": {
+                "value": "0",
+                "value_src": "constant"
+              },
+              "TID_WIDTH": {
+                "value": "0",
+                "value_src": "constant"
+              },
+              "TUSER_WIDTH": {
+                "value": "0",
+                "value_src": "constant"
+              },
+              "HAS_TREADY": {
+                "value": "0",
+                "value_src": "constant"
+              },
+              "HAS_TSTRB": {
+                "value": "0",
+                "value_src": "constant"
+              },
+              "HAS_TKEEP": {
+                "value": "0",
+                "value_src": "constant"
+              },
+              "HAS_TLAST": {
+                "value": "0",
+                "value_src": "constant"
+              },
+              "FREQ_HZ": {
+                "value": "125000000"
+              },
+              "CLK_DOMAIN": {
+                "value": "adc_clk"
+              }
+            },
+            "port_maps": {
+              "TDATA": {
+                "physical_name": "m_axis_tdata",
+                "direction": "O",
+                "left": "31",
+                "right": "0"
+              },
+              "TVALID": {
+                "physical_name": "m_axis_tvalid",
+                "direction": "O"
+              }
+            }
+          }
+        },
+        "ports": {
+          "adc_clk_p": {
+            "type": "clk",
+            "direction": "I"
+          },
+          "adc_clk_n": {
+            "type": "clk",
+            "direction": "I"
+          },
+          "adc_data_a": {
+            "direction": "I",
+            "left": "13",
+            "right": "0"
+          },
+          "adc_data_b": {
+            "direction": "I",
+            "left": "13",
+            "right": "0"
+          },
+          "adc_clk": {
+            "type": "clk",
+            "direction": "O",
+            "parameters": {
+              "FREQ_HZ": {
+                "value": "125000000"
+              }
+            }
+          },
+          "adc_csn": {
+            "direction": "O"
+          }
+        }
+      },
       "topmod_0": {
         "vlnv": "xilinx.com:module_ref:topmod:1.0",
-        "ip_revision": "1",
         "xci_name": "system_topmod_0_0",
         "xci_path": "ip\\system_topmod_0_0\\system_topmod_0_0.xci",
         "inst_hier_path": "topmod_0",

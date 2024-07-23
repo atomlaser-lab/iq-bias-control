@@ -113,8 +113,8 @@ signal mult_o                           :   t_mult_o_array(NUM_DEMOD_SIGNALS - 1
 -- Filter signals
 --
 signal cicLog2Rate                      :   unsigned(3 downto 0);
-signal cicShift                         :   integer;
-signal setShift                         :   signed(7 downto 0);
+signal cicShift                         :   integer :=  0;
+signal setShift                         :   integer :=  0;
 signal filterConfig, filterConfig_old   :   std_logic_vector(15 downto 0);
 signal valid_config                     :   std_logic;
 signal filter_o                         :   t_cic_o_array(NUM_DEMOD_SIGNALS - 1 downto 0);
@@ -126,7 +126,7 @@ begin
 -- Parse registers
 --
 cicLog2Rate <= unsigned(filter_reg_i(3 downto 0));
-setShift <= signed(filter_reg_i(11 downto 4));
+setShift <= to_integer(signed(filter_reg_i(11 downto 4)));
 dds_output_scale <= filter_reg_i(23 downto 16);
 
 modulation_freq <= unsigned(dds_regs_i(0));
@@ -252,7 +252,7 @@ FILT_GEN: for I in 0 to NUM_DEMOD_SIGNALS - 1 generate
         m_axis_data_tdata           => filter_o(I),
         m_axis_data_tvalid          => valid_filter_o(I)
     );
-    filtered_data_o(I) <= resize(shift_right(signed(filter_o(I)),cicShift + to_integer(setShift)),t_meas'length);
+    filtered_data_o(I) <= resize(shift_right(signed(filter_o(I)),cicShift + setShift),t_meas'length);
 end generate FILT_GEN;
 
 valid_o <= valid_filter_o;

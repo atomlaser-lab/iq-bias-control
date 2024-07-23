@@ -290,7 +290,7 @@ port map(
 -- 
 -- Digital outputs
 --
-ext_o <= outputReg(7 downto 3);
+ext_o(7 downto 3) <= outputReg(7 downto 3);
 led_o <= outputReg(15 downto 8);
 --
 -- SPI control
@@ -314,6 +314,7 @@ generic map(
 port map(
     clk             =>  adcClk,
     aresetn         =>  aresetn,
+    spi_period      =>  spi_period,
     numBits         =>  to_unsigned(SPI_NUM_BITS,8),
     syncDelay       =>  SPI_SYNC_DELAY,
     dataReceived    =>  open,

@@ -28,6 +28,7 @@ classdef DeviceControl < handle
         pwm                     %Array of 4 PWM outputs
         control                 %Coupled integral control
         fifo_route              %Array of 4 FIFO routing options
+        dac                     %Auxiliary DAC value
     end
     
     properties(SetAccess = protected)
@@ -48,6 +49,7 @@ classdef DeviceControl < handle
         controlRegs             %Registers for control
         gainRegs                %Registers for gain values
         pwmLimitRegs            %Registers for limiting PWM outputs
+        dacReg                  %Register for auxiliary DAC
         %new_register % new register added here for dds2
     end
     
@@ -57,6 +59,7 @@ classdef DeviceControl < handle
         DAC_WIDTH = 14;
         ADC_WIDTH = 14;
         DDS_WIDTH = 32;
+        AUX_DAC_WIDTH = 14;
         PARAM_WIDTH = 32;
         PWM_WIDTH = 10;
         NUM_PWM = 3;
@@ -67,6 +70,7 @@ classdef DeviceControl < handle
         CONV_ADC_LV = 1.1851/2^(DeviceControl.ADC_WIDTH - 1);
         CONV_ADC_HV = 29.3570/2^(DeviceControl.ADC_WIDTH - 1);
         CONV_PWM = 1.6/(2^DeviceControl.PWM_WIDTH - 1);
+        CONV_AUX_DAC = 4*2.5/(2^DeviceControl.AUX_DAC_WIDTH - 1);
     end
     
     methods
@@ -104,6 +108,7 @@ classdef DeviceControl < handle
             self.ddsPhaseOffsetReg = DeviceRegister('18',self.conn);
             self.dds2PhaseOffsetReg = DeviceRegister('20',self.conn);
             self.ddsPhaseCorrectionReg = DeviceRegister('30',self.conn);
+            self.dacReg = DeviceRegister('60',self.conn);
             self.pwmRegs = DeviceRegister.empty;
             for nn = 1:self.NUM_PWM
                 self.pwmRegs(nn) = DeviceRegister(hex2dec('50') + (nn - 1)*4,self.conn);
@@ -182,6 +187,12 @@ classdef DeviceControl < handle
                     .setFunctions('to',@(x) x/self.CONV_PWM,'from',@(x) x*self.CONV_PWM);
             end
             %
+            % Auxiliary DAC setting
+            %
+            self.dac = DeviceParameter([0,self.AUX_DAC_WIDTH + 1],self.dacReg,'uint32')...
+                .setLimits('lower',0,'upper',2.5)...
+                .setFunctions('to',@(x) x/self.CONV_AUX_DAC,'from',@(x) x*self.CONV_AUX_DAC);
+            %
             % Number of samples for reading raw ADC data
             %
             self.numSamples = DeviceParameter([0,11],self.numSamplesReg,'uint32')...
@@ -212,6 +223,7 @@ classdef DeviceControl < handle
             self.phase_offset.set(154.8); 
             self.dds2_phase_offset.set(161);
             self.pwm.set([0.2865,0.6272,0.8446]);
+            self.dac.set(0);
             self.log2_rate.set(13);
             self.cic_shift.set(-3);
             self.output_scale.set(1);
@@ -536,6 +548,7 @@ classdef DeviceControl < handle
             self.controlRegs.print('controlRegs',strwidth);
             self.gainRegs.print('gainRegs',strwidth);
             self.pwmLimitRegs.print('pwmLimitRegs',strwidth);
+            self.dacReg.print('dacReg',strwidth);
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Parameters\n')
             
@@ -558,6 +571,7 @@ classdef DeviceControl < handle
             for nn = 1:numel(self.fifo_route)
                 self.fifo_route(nn).print(sprintf('FIFO Route %d',nn),strwidth,'%d');
             end
+            self.dac.print('Aux DAC',strwidth,'%.3f','V');
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Control Parameters\n');
             self.control.print(strwidth);
