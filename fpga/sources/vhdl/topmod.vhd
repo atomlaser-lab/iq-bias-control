@@ -23,6 +23,7 @@ entity topmod is
         ext_o           :   out std_logic_vector(7 downto 0);
         led_o           :   out std_logic_vector(7 downto 0);
         pwm_o           :   out std_logic_vector(3 downto 0);
+        spi_o           :   out std_logic_vector(2 downto 0);
         
         adcClk          :   in  std_logic;
         adcClkx2        :   in  std_logic;
@@ -139,6 +140,35 @@ component PWM_Generator is
     );
 end component;
 
+component SPI_Driver is
+	generic (
+			CPOL			:	std_logic	:=	'0';		--Serial clock idle polarity
+			CPHA			:	std_logic	:=	'0';		--Serial clock phase. '0': data valid on CPOL -> not(CPOL) transition. '1': data valid on not(CPOL) -> CPOL transition
+			ORDER			:	STRING		:=	"MSB";		--Bit order.  "LSB" or "MSB"
+			SYNC_POL		:	std_logic	:=	'0';		--Active polarity of SYNC.  '0': active low. '1': active high
+			TRIG_SYNC		:	std_logic	:=	'0';		--Use synchronous detection for trigger?
+			TRIG_EDGE		:	string		:=	"RISING";	--Edge of trigger to synchronize on. "RISING" or "FALLING"
+			ASYNC_WIDTH		:	integer		:=	2;			--Width of asynchronous update pulse
+			ASYNC_POL		:	std_logic	:=	'0';		--Active polarity of asynchronous signal
+			MAX_NUM_BITS	:	integer		:=	16			--Maximum number of bits to transfer
+			);					
+	port( 	clk				:	in	std_logic;		--Clock signal
+			aresetn			:	in	std_logic;		--Asynchronous reset
+			SPI_period		:	in  unsigned(7 downto 0);		--SCLK period
+			numBits			:	in 	unsigned(7 downto 0);		--Number of bits in current data
+			syncDelay		:	in	unsigned(7 downto 0);
+
+			dataReceived	:	out std_logic_vector(MAX_NUM_BITS - 1 downto 0);	--data that has been received
+			dataReady		:	out	std_logic;	--Pulses high for one clock cycle to indicate new data is valid on dataReceived
+			dataToSend		:	in	std_logic_vector(MAX_NUM_BITS - 1 downto 0);	--data to be sent
+			trigIn			:	in	std_logic;		--Start trigger
+			enable			:	in std_logic;		--Enable bit
+			busy			:	out std_logic;		--Busy signal
+
+			spi_o			:	out	t_spi_master;	--Output SPI signals
+			spi_i			:	in	t_spi_slave);	--Input SPI signals
+end component;
+
 --
 -- AXI communication signals
 --
@@ -167,6 +197,8 @@ signal fifoReg              :   t_param_reg;
 type t_pid_reg_array is array(natural range <>) of t_param_reg_array(2 downto 0);
 signal pid_regs             :   t_param_reg_array(4 downto 0);
 signal pwm_limit_regs       :   t_param_reg_array(3 downto 0);
+-- Aux DAC registers
+signal dac_reg              :   t_param_reg;
 --
 -- DDS signals
 --
@@ -216,6 +248,17 @@ signal pwm_sum                  :   t_pwm_exp_array(2 downto 0);
 signal pwm_limit                :   t_pwm_exp_array(3 downto 0);
 signal pwm_max, pwm_min         :   t_pwm_exp_array(2 downto 0);
 signal control_valid            :   std_logic;
+--
+-- SPI signals
+--
+constant SPI_NUM_BITS   :   integer                 :=  16;
+constant SPI_SYNC_DELAY :   unsigned(7 downto 0)    :=  to_unsigned(4,8);
+signal spi              :   t_spi_master;
+signal spi_trig         :   std_logic;
+signal spi_period       :   unsigned(7 downto 0);
+signal spi_enable       :   std_logic;
+signal spi_busy         :   std_logic;
+signal spi_data         :   std_logic_vector(SPI_NUM_BITS - 1 downto 0);
 
 begin
 
@@ -247,8 +290,41 @@ port map(
 -- 
 -- Digital outputs
 --
-ext_o <= outputReg(7 downto 0);
+ext_o <= outputReg(7 downto 3);
 led_o <= outputReg(15 downto 8);
+--
+-- SPI control
+--
+spi_period <= unsigned(topReg(spi_period'length downto 1));
+spi_data <= dac_reg(SPI_NUM_BITS - 1 downto 0);
+spi_o <= (0 => spi.SYNC, 1 => spi.SCLK, 2 => spi.SD);
+ext_o(2 downto 0) <= (0 => spi.SYNC, 1 => spi.SCLK, 2 => spi.SD);
+spi_trig <= triggers(1);
+Aux_DAC: SPI_Driver
+generic map(
+    CPOL            =>  '0',
+    CPHA            =>  '0',
+    ORDER           =>  "MSB",
+    SYNC_POL        =>  '0',
+    TRIG_SYNC       =>  '0',
+    ASYNC_WIDTH     =>  0,
+    ASYNC_POL       =>  '0',
+    MAX_NUM_BITS    =>  SPI_NUM_BITS
+)
+port map(
+    clk             =>  adcClk,
+    aresetn         =>  aresetn,
+    numBits         =>  to_unsigned(SPI_NUM_BITS,8),
+    syncDelay       =>  SPI_SYNC_DELAY,
+    dataReceived    =>  open,
+    dataReady       =>  open,
+    dataToSend      =>  spi_data,
+    trigIn          =>  spi_trig,
+    enable          =>  '1',
+    busy            =>  spi_busy,
+    spi_o           =>  spi,
+    spi_i           =>  INIT_SPI_SLAVE
+);
 
 --
 -- Modulator/demodulator component
@@ -441,6 +517,11 @@ begin
                             when X"000050" => rw(bus_m,bus_s,comState,pwm_regs(0));
                             when X"000054" => rw(bus_m,bus_s,comState,pwm_regs(1));
                             when X"000058" => rw(bus_m,bus_s,comState,pwm_regs(2));
+                            when X"000060" =>
+                                rw(bus_m,bus_s,comState,dac_reg);
+                                if bus_m.valid(1) = '0' then
+                                    triggers(1) <= '1';
+                                end if;
                             --
                             -- PID registers
                             --

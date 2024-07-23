@@ -1,7 +1,7 @@
 {
   "design": {
     "design_info": {
-      "boundary_crc": "0xC3AD17F5458098E2",
+      "boundary_crc": "0xC176409AF2037415",
       "device": "xc7z010clg400-1",
       "gen_directory": "../../../../basic-project.gen/sources_1/bd/system",
       "name": "system",
@@ -22,9 +22,9 @@
         "axi_protocol_convert_0": ""
       },
       "AXIS_Red_Pitaya_ADC_0": "",
-      "topmod_0": "",
       "AXIS_Red_Pitaya_DAC_0": "",
-      "clk_wiz_0": ""
+      "clk_wiz_0": "",
+      "topmod_0": ""
     },
     "interface_ports": {
       "Vp_Vn": {
@@ -358,6 +358,11 @@
       "exp_p_tri_io": {
         "direction": "O",
         "left": "7",
+        "right": "0"
+      },
+      "spi_o": {
+        "direction": "O",
+        "left": "2",
         "right": "0"
       }
     },
@@ -2799,12 +2804,6 @@
               "HAS_TLAST": {
                 "value": "0",
                 "value_src": "constant"
-              },
-              "FREQ_HZ": {
-                "value": "125000000"
-              },
-              "CLK_DOMAIN": {
-                "value": "adc_clk"
               }
             },
             "port_maps": {
@@ -2851,192 +2850,6 @@
           },
           "adc_csn": {
             "direction": "O"
-          }
-        }
-      },
-      "topmod_0": {
-        "vlnv": "xilinx.com:module_ref:topmod:1.0",
-        "ip_revision": "1",
-        "xci_name": "system_topmod_0_0",
-        "xci_path": "ip\\system_topmod_0_0\\system_topmod_0_0.xci",
-        "inst_hier_path": "topmod_0",
-        "reference_info": {
-          "ref_type": "hdl",
-          "ref_name": "topmod",
-          "boundary_crc": "0x0"
-        },
-        "interface_ports": {
-          "m_axis": {
-            "mode": "Master",
-            "vlnv_bus_definition": "xilinx.com:interface:axis:1.0",
-            "vlnv": "xilinx.com:interface:axis_rtl:1.0",
-            "parameters": {
-              "CLK_DOMAIN": {
-                "value": "system_AXIS_Red_Pitaya_ADC_0_0_adc_clk",
-                "value_src": "constant"
-              },
-              "FREQ_HZ": {
-                "value": "125000000",
-                "value_src": "constant"
-              },
-              "TDATA_NUM_BYTES": {
-                "value": "4",
-                "value_src": "constant"
-              },
-              "TDEST_WIDTH": {
-                "value": "0",
-                "value_src": "constant"
-              },
-              "TID_WIDTH": {
-                "value": "0",
-                "value_src": "constant"
-              },
-              "TUSER_WIDTH": {
-                "value": "0",
-                "value_src": "constant"
-              },
-              "HAS_TREADY": {
-                "value": "0",
-                "value_src": "constant"
-              },
-              "HAS_TSTRB": {
-                "value": "0",
-                "value_src": "constant"
-              },
-              "HAS_TKEEP": {
-                "value": "0",
-                "value_src": "constant"
-              },
-              "HAS_TLAST": {
-                "value": "0",
-                "value_src": "constant"
-              }
-            },
-            "port_maps": {
-              "TDATA": {
-                "physical_name": "m_axis_tdata",
-                "direction": "O",
-                "left": "31",
-                "right": "0"
-              },
-              "TVALID": {
-                "physical_name": "m_axis_tvalid",
-                "direction": "O"
-              }
-            }
-          }
-        },
-        "ports": {
-          "sysClk": {
-            "direction": "I",
-            "parameters": {
-              "FREQ_HZ": {
-                "value": "125000000",
-                "value_src": "user_prop"
-              },
-              "PHASE": {
-                "value": "0.0",
-                "value_src": "default_prop"
-              },
-              "CLK_DOMAIN": {
-                "value": "system_processing_system7_0_0_FCLK_CLK0",
-                "value_src": "default_prop"
-              }
-            }
-          },
-          "aresetn": {
-            "type": "rst",
-            "direction": "I",
-            "parameters": {
-              "POLARITY": {
-                "value": "ACTIVE_LOW",
-                "value_src": "constant"
-              }
-            }
-          },
-          "ext_i": {
-            "direction": "I",
-            "left": "7",
-            "right": "0"
-          },
-          "addr_i": {
-            "direction": "I",
-            "left": "31",
-            "right": "0"
-          },
-          "writeData_i": {
-            "direction": "I",
-            "left": "31",
-            "right": "0"
-          },
-          "dataValid_i": {
-            "direction": "I",
-            "left": "1",
-            "right": "0"
-          },
-          "readData_o": {
-            "direction": "O",
-            "left": "31",
-            "right": "0"
-          },
-          "resp_o": {
-            "direction": "O",
-            "left": "1",
-            "right": "0"
-          },
-          "ext_o": {
-            "direction": "O",
-            "left": "7",
-            "right": "0"
-          },
-          "led_o": {
-            "direction": "O",
-            "left": "7",
-            "right": "0"
-          },
-          "pwm_o": {
-            "direction": "O",
-            "left": "3",
-            "right": "0"
-          },
-          "adcClk": {
-            "direction": "I",
-            "parameters": {
-              "FREQ_HZ": {
-                "value": "125000000",
-                "value_src": "user_prop"
-              },
-              "PHASE": {
-                "value": "0.0",
-                "value_src": "default_prop"
-              },
-              "CLK_DOMAIN": {
-                "value": "system_AXIS_Red_Pitaya_ADC_0_0_adc_clk",
-                "value_src": "default_prop"
-              }
-            }
-          },
-          "adcClkx2": {
-            "direction": "I",
-            "parameters": {
-              "FREQ_HZ": {
-                "value": "250000000",
-                "value_src": "ip_prop"
-              },
-              "PHASE": {
-                "value": "0.0",
-                "value_src": "ip_prop"
-              },
-              "CLK_DOMAIN": {
-                "value": "/clk_wiz_0_clk_out1",
-                "value_src": "ip_prop"
-              }
-            }
-          },
-          "adcData_i": {
-            "direction": "I",
-            "left": "31",
-            "right": "0"
           }
         }
       },
@@ -3218,6 +3031,197 @@
           },
           "USE_RESET": {
             "value": "false"
+          }
+        }
+      },
+      "topmod_0": {
+        "vlnv": "xilinx.com:module_ref:topmod:1.0",
+        "ip_revision": "1",
+        "xci_name": "system_topmod_0_0",
+        "xci_path": "ip\\system_topmod_0_0\\system_topmod_0_0.xci",
+        "inst_hier_path": "topmod_0",
+        "reference_info": {
+          "ref_type": "hdl",
+          "ref_name": "topmod",
+          "boundary_crc": "0x0"
+        },
+        "interface_ports": {
+          "m_axis": {
+            "mode": "Master",
+            "vlnv_bus_definition": "xilinx.com:interface:axis:1.0",
+            "vlnv": "xilinx.com:interface:axis_rtl:1.0",
+            "parameters": {
+              "CLK_DOMAIN": {
+                "value": "system_AXIS_Red_Pitaya_ADC_0_0_adc_clk",
+                "value_src": "constant"
+              },
+              "FREQ_HZ": {
+                "value": "125000000",
+                "value_src": "constant"
+              },
+              "TDATA_NUM_BYTES": {
+                "value": "4",
+                "value_src": "constant"
+              },
+              "TDEST_WIDTH": {
+                "value": "0",
+                "value_src": "constant"
+              },
+              "TID_WIDTH": {
+                "value": "0",
+                "value_src": "constant"
+              },
+              "TUSER_WIDTH": {
+                "value": "0",
+                "value_src": "constant"
+              },
+              "HAS_TREADY": {
+                "value": "0",
+                "value_src": "constant"
+              },
+              "HAS_TSTRB": {
+                "value": "0",
+                "value_src": "constant"
+              },
+              "HAS_TKEEP": {
+                "value": "0",
+                "value_src": "constant"
+              },
+              "HAS_TLAST": {
+                "value": "0",
+                "value_src": "constant"
+              }
+            },
+            "port_maps": {
+              "TDATA": {
+                "physical_name": "m_axis_tdata",
+                "direction": "O",
+                "left": "31",
+                "right": "0"
+              },
+              "TVALID": {
+                "physical_name": "m_axis_tvalid",
+                "direction": "O"
+              }
+            }
+          }
+        },
+        "ports": {
+          "sysClk": {
+            "direction": "I",
+            "parameters": {
+              "FREQ_HZ": {
+                "value": "125000000",
+                "value_src": "user_prop"
+              },
+              "PHASE": {
+                "value": "0.0",
+                "value_src": "default_prop"
+              },
+              "CLK_DOMAIN": {
+                "value": "system_processing_system7_0_0_FCLK_CLK0",
+                "value_src": "default_prop"
+              }
+            }
+          },
+          "aresetn": {
+            "type": "rst",
+            "direction": "I",
+            "parameters": {
+              "POLARITY": {
+                "value": "ACTIVE_LOW",
+                "value_src": "constant"
+              }
+            }
+          },
+          "ext_i": {
+            "direction": "I",
+            "left": "7",
+            "right": "0"
+          },
+          "addr_i": {
+            "direction": "I",
+            "left": "31",
+            "right": "0"
+          },
+          "writeData_i": {
+            "direction": "I",
+            "left": "31",
+            "right": "0"
+          },
+          "dataValid_i": {
+            "direction": "I",
+            "left": "1",
+            "right": "0"
+          },
+          "readData_o": {
+            "direction": "O",
+            "left": "31",
+            "right": "0"
+          },
+          "resp_o": {
+            "direction": "O",
+            "left": "1",
+            "right": "0"
+          },
+          "ext_o": {
+            "direction": "O",
+            "left": "7",
+            "right": "0"
+          },
+          "led_o": {
+            "direction": "O",
+            "left": "7",
+            "right": "0"
+          },
+          "pwm_o": {
+            "direction": "O",
+            "left": "3",
+            "right": "0"
+          },
+          "spi_o": {
+            "direction": "O",
+            "left": "2",
+            "right": "0"
+          },
+          "adcClk": {
+            "direction": "I",
+            "parameters": {
+              "FREQ_HZ": {
+                "value": "125000000",
+                "value_src": "user_prop"
+              },
+              "PHASE": {
+                "value": "0.0",
+                "value_src": "default_prop"
+              },
+              "CLK_DOMAIN": {
+                "value": "system_AXIS_Red_Pitaya_ADC_0_0_adc_clk",
+                "value_src": "default_prop"
+              }
+            }
+          },
+          "adcClkx2": {
+            "direction": "I",
+            "parameters": {
+              "FREQ_HZ": {
+                "value": "250000000",
+                "value_src": "ip_prop"
+              },
+              "PHASE": {
+                "value": "0.0",
+                "value_src": "ip_prop"
+              },
+              "CLK_DOMAIN": {
+                "value": "/clk_wiz_0_clk_out1",
+                "value_src": "ip_prop"
+              }
+            }
+          },
+          "adcData_i": {
+            "direction": "I",
+            "left": "31",
+            "right": "0"
           }
         }
       }
@@ -3412,6 +3416,12 @@
         "ports": [
           "topmod_0/resp_o",
           "PS7/resp_i"
+        ]
+      },
+      "topmod_0_spi_o": {
+        "ports": [
+          "topmod_0/spi_o",
+          "spi_o"
         ]
       }
     },

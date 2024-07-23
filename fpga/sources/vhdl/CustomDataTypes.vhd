@@ -145,6 +145,37 @@ constant INIT_FIFO_BUS_SLAVE     :   t_fifo_bus_slave :=(data   =>  (others => '
 constant INIT_FIFO_BUS           :   t_FIFO_bus       :=(m  =>  INIT_FIFO_BUS_MASTER,
                                                         s  =>  INIT_FIFO_BUS_SLAVE);
 
+--
+-- Define SPI types
+--
+type t_spi_master is record
+	SCLK	:	std_logic;
+	SD		:	std_logic;
+	SYNC	:	std_logic;
+	ASYNC	:	std_logic;
+end record t_spi_master;
+
+type t_spi_slave is record
+	SD		:	std_logic;
+	READY	:	std_logic;
+end record t_spi_slave;
+
+constant INIT_SPI_MASTER	:	t_spi_master	:=	(
+	SCLK	=> '0',
+	SD		=>	'0',
+	SYNC	=>	'0',
+	ASYNC	=>	'0'
+);
+
+constant INIT_SPI_SLAVE		:	t_spi_slave		:=	(
+	SD		=>	'0',
+	READY	=>	'0'
+);
+
+function conv_std_logic_vector(
+	signal spi_i	:	in	t_spi_master
+) return std_logic_vector;
+
 
 function to_slv_u(ARG   :   integer; SZ :   natural) return std_logic_vector;
 function to_slv_s(ARG   :   integer; SZ :   natural) return std_logic_vector;
@@ -187,5 +218,19 @@ begin
         trig_o <= trig_o(0) & trig_i;
     end if;
 end signal_sync; 
+
+function conv_std_logic_vector(
+    signal spi_i    :   in  t_spi_master
+) return std_logic_vector is
+    variable res    :   std_logic_vector(3 downto 0);
+begin
+    res := (
+        0   =>  spi_i.SYNC,
+        1   =>  spi_i.SCLK,
+        2   =>  spi_i.SD,
+        3   =>  spi_i.ASYNC
+    );
+    return res;
+end function;
 
 end CustomDataTypes;
