@@ -258,7 +258,7 @@ signal spi_trig         :   std_logic;
 signal spi_period       :   unsigned(7 downto 0);
 signal spi_enable       :   std_logic;
 signal spi_busy         :   std_logic;
-signal spi_data         :   std_logic_vector(SPI_NUM_BITS - 1 downto 0);
+signal spi_data, spi_data_old         :   std_logic_vector(SPI_NUM_BITS - 1 downto 0);
 
 begin
 
@@ -299,7 +299,21 @@ spi_period <= unsigned(topReg(spi_period'length downto 1));
 spi_data <= dac_reg(SPI_NUM_BITS - 1 downto 0);
 spi_o <= (0 => spi.SYNC, 1 => spi.SCLK, 2 => spi.SD);
 ext_o(2 downto 0) <= (0 => spi.SYNC, 1 => spi.SCLK, 2 => spi.SD);
-spi_trig <= triggers(1);
+SPI_data_proc: process(adcClk,aresetn) is
+begin
+    if aresetn = '0' then
+        spi_data_old <= spi_data;
+        spi_trig <= '0';
+    elsif rising_edge(adcClk) then
+        spi_data_old <= spi_data;
+        if spi_data_old /= spi_data then
+            spi_trig <= '1';
+        else
+            spi_trig <= '0';
+        end if;
+    end if;
+end process;
+
 Aux_DAC: SPI_Driver
 generic map(
     CPOL            =>  '0',
@@ -518,11 +532,7 @@ begin
                             when X"000050" => rw(bus_m,bus_s,comState,pwm_regs(0));
                             when X"000054" => rw(bus_m,bus_s,comState,pwm_regs(1));
                             when X"000058" => rw(bus_m,bus_s,comState,pwm_regs(2));
-                            when X"000060" =>
-                                rw(bus_m,bus_s,comState,dac_reg);
-                                if bus_m.valid(1) = '0' then
-                                    triggers(1) <= '1';
-                                end if;
+                            when X"000060" => rw(bus_m,bus_s,comState,dac_reg);
                             --
                             -- PID registers
                             --
