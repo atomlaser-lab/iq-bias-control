@@ -29,6 +29,7 @@ classdef DeviceControl < handle
         control                 %Coupled integral control
         fifo_route              %Array of 4 FIFO routing options
         dac                     %Auxiliary DAC value
+        spi_period              %SPI period
     end
     
     properties(SetAccess = protected)
@@ -70,7 +71,7 @@ classdef DeviceControl < handle
         CONV_ADC_LV = 1.1851/2^(DeviceControl.ADC_WIDTH - 1);
         CONV_ADC_HV = 29.3570/2^(DeviceControl.ADC_WIDTH - 1);
         CONV_PWM = 1.6/(2^DeviceControl.PWM_WIDTH - 1);
-        CONV_AUX_DAC = 4*2.5/(2^DeviceControl.AUX_DAC_WIDTH - 1);
+        CONV_AUX_DAC = 2.5/(2^DeviceControl.AUX_DAC_WIDTH - 1);
     end
     
     methods
@@ -189,9 +190,12 @@ classdef DeviceControl < handle
             %
             % Auxiliary DAC setting
             %
+            self.spi_period = DeviceParameter([1,8],self.topReg)...
+                .setLimits('lower',50e-9,'upper',255/self.CLK)...
+                .setFunctions('to',@(x) ceil(x*self.CLK),'from',@(x) x/self.CLK);
             self.dac = DeviceParameter([0,self.AUX_DAC_WIDTH + 1],self.dacReg,'uint32')...
                 .setLimits('lower',0,'upper',2.5)...
-                .setFunctions('to',@(x) x/self.CONV_AUX_DAC,'from',@(x) x*self.CONV_AUX_DAC);
+                .setFunctions('to',@(x) 4*x/self.CONV_AUX_DAC,'from',@(x) x/4*self.CONV_AUX_DAC);
             %
             % Number of samples for reading raw ADC data
             %
@@ -223,6 +227,7 @@ classdef DeviceControl < handle
             self.phase_offset.set(154.8); 
             self.dds2_phase_offset.set(161);
             self.pwm.set([0.2865,0.6272,0.8446]);
+            self.spi_period.set(100e-9);
             self.dac.set(0);
             self.log2_rate.set(13);
             self.cic_shift.set(-3);
