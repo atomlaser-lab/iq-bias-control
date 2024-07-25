@@ -1170,7 +1170,7 @@
                 "value": "1"
               },
               "PCW_EN_SPI1": {
-                "value": "1"
+                "value": "0"
               },
               "PCW_EN_TRACE": {
                 "value": "0"
@@ -1774,12 +1774,12 @@
               },
               "PCW_MIO_TREE_PERIPHERALS": {
                 "value": [
-                  "GPIO#Quad SPI Flash#Quad SPI Flash#Quad SPI Flash#Quad SPI Flash#Quad SPI Flash#Quad SPI Flash#GPIO#UART 1#UART 1#SPI 1#SPI 1#SPI 1#SPI 1#UART 0#UART 0#Enet 0#Enet 0#Enet 0#Enet 0#Enet 0#Enet 0#Enet",
+                  "GPIO#Quad SPI Flash#Quad SPI Flash#Quad SPI Flash#Quad SPI Flash#Quad SPI Flash#Quad SPI Flash#GPIO#UART 1#UART 1#GPIO#GPIO#GPIO#GPIO#UART 0#UART 0#Enet 0#Enet 0#Enet 0#Enet 0#Enet 0#Enet 0#Enet",
                   "0#Enet 0#Enet 0#Enet 0#Enet 0#Enet 0#USB 0#USB 0#USB 0#USB 0#USB 0#USB 0#USB 0#USB 0#USB 0#USB 0#USB 0#USB 0#SD 0#SD 0#SD 0#SD 0#SD 0#SD 0#SD 0#SD 0#USB Reset#GPIO#I2C 0#I2C 0#GPIO#GPIO"
                 ]
               },
               "PCW_MIO_TREE_SIGNALS": {
-                "value": "gpio[0]#qspi0_ss_b#qspi0_io[0]#qspi0_io[1]#qspi0_io[2]#qspi0_io[3]/HOLD_B#qspi0_sclk#gpio[7]#tx#rx#mosi#miso#sclk#ss[0]#rx#tx#tx_clk#txd[0]#txd[1]#txd[2]#txd[3]#tx_ctl#rx_clk#rxd[0]#rxd[1]#rxd[2]#rxd[3]#rx_ctl#data[4]#dir#stp#nxt#data[0]#data[1]#data[2]#data[3]#clk#data[5]#data[6]#data[7]#clk#cmd#data[0]#data[1]#data[2]#data[3]#cd#wp#reset#gpio[49]#scl#sda#gpio[52]#gpio[53]"
+                "value": "gpio[0]#qspi0_ss_b#qspi0_io[0]#qspi0_io[1]#qspi0_io[2]#qspi0_io[3]/HOLD_B#qspi0_sclk#gpio[7]#tx#rx#gpio[10]#gpio[11]#gpio[12]#gpio[13]#rx#tx#tx_clk#txd[0]#txd[1]#txd[2]#txd[3]#tx_ctl#rx_clk#rxd[0]#rxd[1]#rxd[2]#rxd[3]#rx_ctl#data[4]#dir#stp#nxt#data[0]#data[1]#data[2]#data[3]#clk#data[5]#data[6]#data[7]#clk#cmd#data[0]#data[1]#data[2]#data[3]#cd#wp#reset#gpio[49]#scl#sda#gpio[52]#gpio[53]"
               },
               "PCW_M_AXI_GP0_ENABLE_STATIC_REMAP": {
                 "value": "0"
@@ -2063,23 +2063,8 @@
               "PCW_SPI0_SPI0_IO": {
                 "value": "EMIO"
               },
-              "PCW_SPI1_BASEADDR": {
-                "value": "0xE0007000"
-              },
-              "PCW_SPI1_GRP_SS1_ENABLE": {
-                "value": "0"
-              },
-              "PCW_SPI1_GRP_SS2_ENABLE": {
-                "value": "0"
-              },
-              "PCW_SPI1_HIGHADDR": {
-                "value": "0xE0007FFF"
-              },
               "PCW_SPI1_PERIPHERAL_ENABLE": {
-                "value": "1"
-              },
-              "PCW_SPI1_SPI1_IO": {
-                "value": "MIO 10 .. 15"
+                "value": "0"
               },
               "PCW_SPI_PERIPHERAL_CLKSRC": {
                 "value": "IO PLL"
