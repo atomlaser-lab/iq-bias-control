@@ -203,13 +203,15 @@ signal dac_reg              :   t_param_reg;
 -- DDS signals
 --
 signal dac_o                :   t_dac_array(1 downto 0);
+signal dac_gate, dac_gate_i :   std_logic;
+signal link_dac_gate        :   std_logic;
 signal filtered_data        :   t_meas_array(3 downto 0);
 signal filter_valid         :   std_logic_vector(3 downto 0);
 --
 -- ADC signals
 --
 signal adc                  :   t_adc;
-
+signal adc_select           :   std_logic;
 --
 -- FIFO signals
 --
@@ -233,11 +235,12 @@ signal mem_bus_m    :   t_mem_bus_master;
 signal mem_bus_s    :   t_mem_bus_slave;
 signal memTrig      :   std_logic;
 --
--- PID signals
+-- Bias lock signals
 --
-signal pid_control              :   t_meas_array(2 downto 0);
-signal enable, soft_hold        :   std_logic;
-signal hold_i, hold             :   std_logic;
+signal bias_controls            :   t_meas_array(2 downto 0);
+signal bias_enable              :   std_logic;
+signal bias_soft_hold           :   std_logic;
+signal bias_hold_i, bias_hold   :   std_logic;
 --
 -- PWM signals
 --
@@ -263,15 +266,66 @@ signal spi_data, spi_data_old         :   std_logic_vector(SPI_NUM_BITS - 1 down
 begin
 
 --
+-- Parse registers
+--
+-- triggers
+memTrig <= triggers(0);
+spi_trig <= triggers(1);
+
+-- topReg
+adc_select <= topReg(0);
+link_dac_gate <= topReg(1);
+spi_period <= unsigned(topReg(15 downto 8));
+
+-- outputReg
+ext_o(7 downto 3) <= outputReg(7 downto 3);
+led_o <= outputReg(15 downto 8);
+fifo_route <= outputReg(19 downto 16);
+
+-- DDS registers
+dds_regs <= (0 => dds_phase_inc_reg, 1 => dds_phase_off_reg, 2 => dds2_phase_off_reg, 3 => dds_phase_corr_reg);
+
+-- Control registers
+bias_enable <= pid_regs(0)(0);
+bias_soft_hold <= pid_regs(0)(1);
+
+bias_controls(0) <= resize(signed(pid_regs(0)(31 downto 16)),t_meas'length);
+bias_controls(1) <= resize(signed(pid_regs(1)(15 downto 0)),t_meas'length);
+bias_controls(2) <= resize(signed(pid_regs(1)(31 downto 16)),t_meas'length);
+
+-- Aux DAC register
+spi_data <= dac_reg(SPI_NUM_BITS - 1 downto 0);
+
+-- PWM registers
+PWM_reg_gen: for I in 0 to 2 generate
+    pwm_data(I) <= unsigned(pwm_regs(I)(t_pwm'left downto 0));
+    -- Parse limits, expand to 11 bits as signed values
+    pwm_min(I) <= signed(resize(unsigned(pwm_limit_regs(I)(PWM_DATA_WIDTH - 1 downto 0)),PWM_EXP_WIDTH));
+    pwm_max(I) <= signed(resize(unsigned(pwm_limit_regs(I)(2*PWM_DATA_WIDTH - 1 downto PWM_DATA_WIDTH)),PWM_EXP_WIDTH));
+end generate PWM_reg_gen;
+
+-- FIFO registers
+enableFIFO <= fifoReg(0);
+fifoReset <= fifoReg(1);
+
+
+--
+-- Parse inputs
+--
+bias_hold_i <= ext_i(0);
+dac_gate_i <= ext_i(1);
+
+--
 -- DAC Outputs
 --
-m_axis_tdata <= std_logic_vector(dac_o(1)) & std_logic_vector(dac_o(0));
-m_axis_tvalid <= '1';
+dac_gate <= dac_gate_i or (bias_hold and link_dac_gate);
 
+m_axis_tdata <= std_logic_vector(dac_o(1)) & std_logic_vector(dac_o(0)) when dac_gate = '0' else (others => '0');
+m_axis_tvalid <= '1';
+--
 -- PWM outputs
 --
 PWM_Gen: for I in 0 to 2 generate
-    pwm_data(I) <= unsigned(pwm_regs(I)(t_pwm'left downto 0));
     pwm_data_i(I) <= resize(unsigned(std_logic_vector(pwm_limit(I))),PWM_DATA_WIDTH);
 end generate PWM_Gen;
  
@@ -287,32 +341,26 @@ port map(
   valid_i => '1',
   pwm_o   =>  pwm_o
 );
--- 
--- Digital outputs
---
-ext_o(7 downto 3) <= outputReg(7 downto 3);
-led_o <= outputReg(15 downto 8);
+
 --
 -- SPI control
 --
-spi_period <= unsigned(topReg(spi_period'length downto 1));
-spi_data <= dac_reg(SPI_NUM_BITS - 1 downto 0);
 spi_o <= (0 => spi.SYNC, 1 => spi.SCLK, 2 => spi.SD);
 ext_o(2 downto 0) <= (0 => spi.SYNC, 1 => spi.SCLK, 2 => spi.SD);
-SPI_data_proc: process(adcClk,aresetn) is
-begin
-    if aresetn = '0' then
-        spi_data_old <= spi_data;
-        spi_trig <= '0';
-    elsif rising_edge(adcClk) then
-        spi_data_old <= spi_data;
-        if spi_data_old /= spi_data then
-            spi_trig <= '1';
-        else
-            spi_trig <= '0';
-        end if;
-    end if;
-end process;
+--SPI_data_proc: process(adcClk,aresetn) is
+--begin
+--    if aresetn = '0' then
+--        spi_data_old <= spi_data;
+--        spi_trig <= '0';
+--    elsif rising_edge(adcClk) then
+--        spi_data_old <= spi_data;
+--        if spi_data_old /= spi_data then
+--            spi_trig <= '1';
+--        else
+--            spi_trig <= '0';
+--        end if;
+--    end if;
+--end process;
 
 Aux_DAC: SPI_Driver
 generic map(
@@ -344,9 +392,7 @@ port map(
 --
 -- Modulator/demodulator component
 --
-adc <= resize(signed(adcData_i(15 downto 0)), adc'length) when topReg(0) = '0' else resize(signed(adcData_i(31 downto 16)), adc'length);
-dds_regs <= (0 => dds_phase_inc_reg, 1 => dds_phase_off_reg, 2 => dds2_phase_off_reg, 3 => dds_phase_corr_reg);
--- 
+adc <= resize(signed(adcData_i(15 downto 0)), adc'length) when adc_select = '0' else resize(signed(adcData_i(31 downto 16)), adc'length);
 
 Main_Demodulator: Demodulator
 generic map(
@@ -366,34 +412,23 @@ port map(
 --
 -- Apply feedback
 --
--- Top-level parameters
-enable <= pid_regs(0)(0);
-soft_hold <= pid_regs(0)(1);
-hold_i <= ext_i(0);
-hold <= soft_hold or hold_i;
---
--- Control signals
---
-pid_control(0) <= resize(signed(pid_regs(0)(31 downto 16)),t_meas'length);
-pid_control(1) <= resize(signed(pid_regs(1)(15 downto 0)),t_meas'length);
-pid_control(2) <= resize(signed(pid_regs(1)(31 downto 16)),t_meas'length);
+bias_hold <= bias_soft_hold or bias_hold_i;
 --
 -- Control module
 --
-Coupled_Control : Control
+Bias_Control : Control
 port map(
     clk               =>  adcClk,
     aresetn           =>  aresetn,
     meas_i            =>  filtered_data(2 downto 0),
-    control_i         =>  pid_control,
+    control_i         =>  bias_controls,
     valid_i           =>  filter_valid(0),
-    enable_i          =>  enable,
-    hold_i            =>  hold,
+    enable_i          =>  bias_enable,
+    hold_i            =>  bias_hold,
     gains_i           =>  pid_regs(4 downto 2),
     valid_o           =>  control_valid,
     control_signal_o  =>  control_signal_o
 );
-
 
 
 PWM_LIMIT_GEN: for I in 0 to 2 generate
@@ -401,9 +436,6 @@ PWM_LIMIT_GEN: for I in 0 to 2 generate
     pwm_data_exp(I) <= signed(std_logic_vector(resize(pwm_data(I),PWM_EXP_WIDTH)));
     -- Sum expanded manual data and control data
     pwm_sum(I) <= pwm_data_exp(I) + resize(control_signal_o(I),PWM_EXP_WIDTH);
-    -- Parse limits, expand to 11 bits as signed values
-    pwm_min(I) <= signed(resize(unsigned(pwm_limit_regs(I)(PWM_DATA_WIDTH - 1 downto 0)),PWM_EXP_WIDTH));
-    pwm_max(I) <= signed(resize(unsigned(pwm_limit_regs(I)(2*PWM_DATA_WIDTH - 1 downto PWM_DATA_WIDTH)),PWM_EXP_WIDTH));
     -- Limit the summed manual and control values to their max/min limits
     pwm_limit(I) <= pwm_sum(I) when pwm_sum(I) < pwm_max(I) and pwm_sum(I) > pwm_min(I) else
                     pwm_max(I) when pwm_sum(I) >= pwm_max(I) else
@@ -416,12 +448,9 @@ pwm_limit(3) <= (others => '0');
 -- Collect demodulated data at lower sampling rate in FIFO buffers
 -- to be read out continuously by CPU
 --
-enableFIFO <= fifoReg(0);
-fifoReset <= fifoReg(1);
-fifo_route <= outputReg(19 downto 16);
 FIFO_GEN: for I in 0 to NUM_FIFOS - 1 generate
     fifoData(I) <= std_logic_vector(resize(filtered_data(I),FIFO_WIDTH)) when fifo_route(I) = '0' else std_logic_vector(resize(pwm_limit(I),FIFO_WIDTH));
-    fifoValid(I) <= ((filter_valid(I) and (not(fifo_route(I)) or not(enable))) or (control_valid and fifo_route(I) and enable)) and enableFIFO;
+    fifoValid(I) <= ((filter_valid(I) and (not(fifo_route(I)) or not(bias_enable))) or (control_valid and fifo_route(I) and bias_enable)) and enableFIFO;
     PhaseMeas_FIFO_NORMAL_X: FIFOHandler
     port map(
         wr_clk      =>  adcClk,
@@ -438,7 +467,6 @@ end generate FIFO_GEN;
 -- Save ADC data for debugging purposes
 --
 delay     <= (others => '0');
-memTrig   <= triggers(0);
 SaveData: SaveADCData
 port map(
     readClk     =>  sysClk,
@@ -461,9 +489,6 @@ bus_m.valid <= dataValid_i;
 bus_m.data <= writeData_i;
 readData_o <= bus_s.data;
 resp_o <= bus_s.resp;
-
--- Assigning the ouput control signal to pwm output values
-
 
 Parse: process(sysClk,aresetn) is
 begin
@@ -532,7 +557,7 @@ begin
                             when X"000050" => rw(bus_m,bus_s,comState,pwm_regs(0));
                             when X"000054" => rw(bus_m,bus_s,comState,pwm_regs(1));
                             when X"000058" => rw(bus_m,bus_s,comState,pwm_regs(2));
-                            when X"000060" => rw(bus_m,bus_s,comState,dac_reg);
+                            when X"000060" => rw(bus_m,bus_s,comState,dac_reg,triggers(1));
                             --
                             -- PID registers
                             --

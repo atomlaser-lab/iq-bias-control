@@ -74,6 +74,13 @@ procedure rw(
     signal bus_o    :   out     t_axi_bus_slave;
     signal state    :   inout   t_status;
     signal param    :   inout   std_logic_vector);
+    
+procedure rw(
+    signal bus_i    :   in      t_axi_bus_master;
+    signal bus_o    :   out     t_axi_bus_slave;
+    signal state    :   inout   t_status;
+    signal param    :   inout   std_logic_vector;
+    signal trig_o   :   out     std_logic);
 
 procedure rw(
     signal bus_i    :   in      t_axi_bus_master;
@@ -167,6 +174,27 @@ begin
     state <= finishing;
     if bus_i.valid(1) = '0' then
         param <= bus_i.data(param'length-1 downto 0);
+    else
+        if param'length >= AXI_DATA_WIDTH then
+            bus_o.data <= param(AXI_DATA_WIDTH-1 downto 0);
+        else
+            bus_o.data <= (AXI_DATA_WIDTH-1 downto param'length => '0') & param;
+        end if;
+    end if;
+end rw;
+
+procedure rw(
+    signal bus_i    :   in      t_axi_bus_master;
+    signal bus_o    :   out     t_axi_bus_slave;
+    signal state    :   inout   t_status;
+    signal param    :   inout   std_logic_vector;
+    signal trig_o   :   out     std_logic) is 
+begin
+    bus_o.resp <= "01";
+    state <= finishing;
+    if bus_i.valid(1) = '0' then
+        param <= bus_i.data(param'length-1 downto 0);
+        trig_o <= '1';
     else
         if param'length >= AXI_DATA_WIDTH then
             bus_o.data <= param(AXI_DATA_WIDTH-1 downto 0);
