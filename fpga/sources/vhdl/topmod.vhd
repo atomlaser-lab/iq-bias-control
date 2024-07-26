@@ -23,7 +23,6 @@ entity topmod is
         ext_o           :   out std_logic_vector(7 downto 0);
         led_o           :   out std_logic_vector(7 downto 0);
         pwm_o           :   out std_logic_vector(3 downto 0);
-        spi_o           :   out std_logic_vector(2 downto 0);
         
         adcClk          :   in  std_logic;
         adcClkx2        :   in  std_logic;
@@ -345,7 +344,6 @@ port map(
 --
 -- SPI control
 --
-spi_o <= (0 => spi.SYNC, 1 => spi.SCLK, 2 => spi.SD);
 ext_o(2 downto 0) <= (0 => spi.SYNC, 1 => spi.SCLK, 2 => spi.SD);
 --SPI_data_proc: process(adcClk,aresetn) is
 --begin

@@ -219,13 +219,3 @@ set_property PACKAGE_PIN K14 [get_ports {led_o[4]}]
 set_property PACKAGE_PIN G14 [get_ports {led_o[5]}]
 set_property PACKAGE_PIN J15 [get_ports {led_o[6]}]
 set_property PACKAGE_PIN J14 [get_ports {led_o[7]}]
-
-### SPI signals
-
-set_property IOSTANDARD LVCMOS33 [get_ports {spi_o[*]}]
-set_property SLEW SLOW [get_ports {spi_o[*]}]
-set_property DRIVE 8 [get_ports {spi_o[*]}]
-
-set_property PACKAGE_PIN E8 [get_ports {spi_o[0]}]
-set_property PACKAGE_PIN D9 [get_ports {spi_o[1]}]
-set_property PACKAGE_PIN E9 [get_ports {spi_o[2]}]

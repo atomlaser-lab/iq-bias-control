@@ -1,3 +1,5 @@
-"Part number", "Quantity"
-"1276-1106-1-ND", "12"
-"1276-1264-1-ND", "8"
+"Part number", "Quantity", "Description"
+"1276-1106-1-ND", "12", "0.22u cap"
+"1276-1264-1-ND", "12", "2.2u cap"
+"1276-1097-1-ND", "12", "1u cap",
+"399-C1206C104K5RAC7800CT-ND", "12", "0.1u cap"

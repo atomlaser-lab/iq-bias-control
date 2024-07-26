@@ -5,18 +5,17 @@
 clock_freq = 250e6;
 pwm_bit_depth = 10;
 pwm_freq = clock_freq/2^pwm_bit_depth;
-gain = 9.3;
 Vin_peak = 0.8;
 
 f = logspace(-1,7,1e4);
 w = 2*pi*f;
 
-% R1 = 100;
-% C1 = 8.2e-9 + 4.7e-6;
-% R2 = 1e3;
-% Resr = 0;
-% C2 = .47e-6;
-% C3 = 0e-6;
+R1 = 100;
+C1 = 8.2e-9 + 1e-6;%4.7e-6;
+R2 = 1e3;
+Resr = 0;
+C2 = .1e-6;%47e-6;
+C3 = 0e-6;
 
 % R1 = 100;
 % C1 = 8.2e-9;
@@ -25,12 +24,12 @@ w = 2*pi*f;
 % C2 = 47e-6;
 % C3 = 0e-6;
 
-R1 = 100;
-C1 = 8.2e-9;
-R2 = 1.2e3;
-Resr = 2.478;
-C2 = 10e-6;
-C3 = 0e-6;
+% R1 = 100;
+% C1 = 8.2e-9;
+% R2 = 1.2e4;
+% Resr = 2.478;
+% C2 = 10e-6;
+% C3 = 0e-6;
 gain = 1 + 10/1.2;
 
 ZC1 = 1./(1i*w*C1);
@@ -49,4 +48,5 @@ loglog(f,abs(H));
 hold on;
 grid on;
 
-fprintf('Amplitude at PWM freq is %.3f mV\n',1e3*g(pwm_freq));
+[~,idx] = find(abs(H).^2 <= 0.5,1,'first');
+fprintf('Amplitude at PWM freq is %.3f mV, 3 dB freq is %.2f Hz\n',1e3*g(pwm_freq),f(idx));
