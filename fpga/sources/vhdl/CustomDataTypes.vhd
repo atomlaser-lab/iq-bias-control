@@ -49,8 +49,29 @@ constant PID_WIDTH          :   natural :=  8;
 -- Defines DDS-related types
 --
 constant DDS_PHASE_WIDTH    :   natural :=  32;
-subtype t_phase is unsigned(DDS_PHASE_WIDTH - 1 downto 0);
+constant DDS_OUTPUT_WIDTH   :   natural :=  10;
+subtype t_dds_phase is unsigned(DDS_PHASE_WIDTH - 1 downto 0);
+type t_dds_phase_array is array(natural range <>) of t_dds_phase;
+subtype t_dds is signed(DDS_OUTPUT_WIDTH - 1 downto 0);
+type t_dds_array is array(natural range <>) of t_dds;
+subtype t_dds_slv is std_logic_vector(DDS_OUTPUT_WIDTH - 1 downto 0);
+type t_dds_combined is record
+    cos :   t_dds;
+    sin :   t_dds;
+end record t_dds_combined;
+
+type t_dds_combined_slv is record
+    cos :   t_dds_slv;
+    sin :   t_dds_slv;
+end record t_dds_combined_slv;
+
+--
+-- Phase calculation types
+--
+constant PHASE_WIDTH    :   natural :=  16;
+subtype t_phase is signed(PHASE_WIDTH - 1 downto 0);
 type t_phase_array is array(natural range <>) of t_phase;
+
 --
 -- Defines filter related types
 --

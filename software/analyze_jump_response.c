@@ -11,8 +11,8 @@
 
 #define MAP_SIZE  262144UL
 #define MEM_LOC   0x40000000
-#define DATA_LOC 0x00000088
-#define FIFO_LOC  0x00000084
+#define DATA_LOC 0x00000084
+#define FIFO_LOC  0x00000080
 #define PWM_LOC   0x00000050
 
 int start_fifo(void *cfg) {

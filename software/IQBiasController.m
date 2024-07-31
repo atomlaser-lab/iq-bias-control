@@ -1,4 +1,4 @@
-classdef IQBiasController < handle
+classdef IQBiasController < DeviceControlSubModule
     %IQBIASCONTROLLER Defines a class for handling the PID modules in the
     %IQ bias controller
     
@@ -92,27 +92,6 @@ classdef IQBiasController < handle
             end
         end
         
-        function self = get(self)
-            %GET Retrieves parameter values from associated registers
-            %
-            %   SELF = GET(SELF) Retrieves values for parameters associated
-            %   with object SELF
-            
-            if numel(self) > 1
-                for nn = 1:numel(self)
-                    self(nn).get;
-                end
-            else
-                self.enable.get;
-                self.hold.get;
-                self.controls.get;
-                self.gains.get;
-                self.divisors.get;
-                self.lower_limits.get;
-                self.upper_limits.get;
-            end
-        end
-        
         function K = calculateRealGains(self)
             %CALCULATEREALGAINS Calculates the "real",
             %continuous-controller equivalent gains
@@ -156,42 +135,8 @@ classdef IQBiasController < handle
         
         function disp(self)
             %DISP Displays the object properties
-            disp('IQBiasPID object with properties:');
+            disp('IQBiasController object with properties:');
             disp(self.print(25));
-        end
-        
-        function s = struct(self)
-            %STRUCT Creates a struct from the object
-            if numel(self) == 1
-                s.gains = self.gains.struct;
-                s.divisors = self.divisors.struct;
-                s.enable = self.enable.struct;
-                s.hold = self.hold.struct;
-                s.controls = self.controls.struct;
-                s.lower_limits = self.lower_limits.struct;
-                s.upper_limits = self.upper_limits.struct;
-            else
-                for nn = 1:numel(self)
-                    s(nn) = self(nn).struct;
-                end
-            end
-        end
-        
-        function self = loadstruct(self,s)
-            %LOADSTRUCT Loads a struct into the object
-            if numel(self) == 1
-                self.gains.set(s.gains.value);
-                self.divisors.set(s.divisor.value);
-                self.enable.set(s.enable.value);
-                self.hold.set(s.hold.value);
-                self.controls.set(s.controls.value);
-                self.lower_limits.set(s.lower_limits.value);
-                self.upper_limits.set(s.upper_limits.value);
-            else
-                for nn = 1:numel(self)
-                    self(nn).loadstruct(s(nn));
-                end
-            end
         end
         
     end

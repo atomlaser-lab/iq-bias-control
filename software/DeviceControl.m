@@ -27,6 +27,7 @@ classdef DeviceControl < handle
         output_scale            %Output scaling from 0 to 1
         pwm                     %Array of 4 PWM outputs
         control                 %Coupled integral control
+        phase_lock              %Phase lock module
         fifo_route              %Array of 4 FIFO routing options
         dac                     %Auxiliary DAC value
         spi_period              %SPI period
@@ -51,7 +52,8 @@ classdef DeviceControl < handle
         gainRegs                %Registers for gain values
         pwmLimitRegs            %Registers for limiting PWM outputs
         dacReg                  %Register for auxiliary DAC
-        %new_register % new register added here for dds2
+        phaseControlReg         %Register for control of phase measurement
+        phaseGainReg            %Register for phase measurement PID gains
     end
     
     properties(Constant)
@@ -61,9 +63,10 @@ classdef DeviceControl < handle
         ADC_WIDTH = 14;
         DDS_WIDTH = 32;
         AUX_DAC_WIDTH = 14;
+        PHASE_WIDTH = 16;
         PARAM_WIDTH = 32;
         PWM_WIDTH = 10;
-        NUM_PWM = 3;
+        NUM_PWM = 4;
         NUM_MEAS = 4;
         %
         % Conversion values going from integer values to volts
@@ -72,6 +75,7 @@ classdef DeviceControl < handle
         CONV_ADC_HV = 29.3570/2^(DeviceControl.ADC_WIDTH - 1);
         CONV_PWM = 1.6/(2^DeviceControl.PWM_WIDTH - 1);
         CONV_AUX_DAC = 2.5/(2^DeviceControl.AUX_DAC_WIDTH - 1);
+        CONV_PHASE = pi/2^(DeviceControl.PHASE_WIDTH - 3);
     end
     
     methods
@@ -114,6 +118,10 @@ classdef DeviceControl < handle
             for nn = 1:self.NUM_PWM
                 self.pwmRegs(nn) = DeviceRegister(hex2dec('50') + (nn - 1)*4,self.conn);
             end
+
+            self.phaseControlReg = DeviceRegister('200',self.conn);
+            self.phaseGainReg = DeviceRegister('204',self.conn);
+
             self.numSamplesReg = DeviceRegister('100000',self.conn);
             %
             % PID registers: there are 3 PIDs with IQBiasPID.NUM_REGS registers
@@ -202,9 +210,13 @@ classdef DeviceControl < handle
             self.numSamples = DeviceParameter([0,11],self.numSamplesReg,'uint32')...
                 .setLimits('lower',0,'upper',2^12);
             %
-            % PID settings
+            % IQ bias controller settings
             %
-            self.control = IQBiasController(self,self.controlRegs,self.gainRegs,self.pwmLimitRegs);
+            self.control = IQBiasController(self,self.controlRegs,self.gainRegs,self.pwmLimitRegs(1:3));
+            %
+            % Phase lock settings
+            %
+            self.phase_lock = IQPhaseControl(self,self.phaseControlReg,self.phaseGainReg,self.pwmLimitRegs(4));
             %
             % FIFO routing
             %
@@ -234,6 +246,7 @@ classdef DeviceControl < handle
             self.output_scale.set(1);
             self.numSamples.set(4000);
             self.control.setDefaults;
+            self.phase_lock.setDefaults;
             for nn = 1:numel(self.fifo_route)
                 self.fifo_route(nn).set(0);
             end
@@ -343,7 +356,7 @@ classdef DeviceControl < handle
             %
             p = properties(self);
             for nn = 1:numel(p)
-                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController')
+                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'DeviceControlSubModule')
                     self.(p{nn}).get;
                 end
             end
@@ -415,6 +428,44 @@ classdef DeviceControl < handle
                     'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
                 d = self.convertData(raw);
+                self.data = d;
+                self.t = self.dt()*(0:(numSamples-1));
+            end
+        end
+
+        function self = getPhaseData(self,numSamples,saveType)
+            %GETDEMODULATEDDATA Fetches phase data from the device
+            %
+            %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of phase data
+            %
+            %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
+            %   users only: see the readme
+            numSamples = round(numSamples);
+            if nargin < 3
+                saveType = 1;
+            end
+            write_arg = {'./savePhaseData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType)};
+            if self.auto_retry
+                for jj = 1:10
+                    try
+                        self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
+                        raw = typecast(self.conn.recvMessage,'uint8');
+                        d = self.convertPhaseData(raw);
+                        self.data = d;
+                        self.t = self.dt()*(0:(numSamples-1));
+                        break;
+                    catch e
+                        if jj == 10
+                            rethrow(e);
+                        end
+                    end
+                end
+            else
+                self.conn.write(0,'mode','command','cmd',...
+                    {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)},...
+                    'return_mode','file');
+                raw = typecast(self.conn.recvMessage,'uint8');
+                d = self.convertPhaseData(raw);
                 self.data = d;
                 self.t = self.dt()*(0:(numSamples-1));
             end
@@ -655,6 +706,21 @@ classdef DeviceControl < handle
                 d(:,nn) = typecast(uint8(reshape(raw((nn-1)*4 + (1:4),:),4*size(d,1),1)),'int32');
             end
             d = double(d);
+        end
+
+        function d = convertPhaseData(raw)
+            raw = raw(:);
+            Nraw = numel(raw);
+            numStreams = 3;
+            d = zeros(Nraw/(numStreams*4),numStreams,'int32');
+            
+            raw = reshape(raw,4*numStreams,Nraw/(4*numStreams));
+            for nn = 1:numStreams
+                d(:,nn) = typecast(uint8(reshape(raw((nn-1)*4 + (1:4),:),4*size(d,1),1)),'int32');
+            end
+            d = double(d);
+            d(:,1:2) = d(:,1:2)*DeviceControl.CONV_PHASE;
+            d(:,3) = d(:,3)*DeviceControl.CONV_PWM;
         end
 
         function v = convertADCData(raw,c)

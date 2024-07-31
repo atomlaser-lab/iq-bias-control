@@ -15,8 +15,8 @@ entity PIDController is
         --
         -- Inputs
         --
-        meas_i      :   in  t_phase;
-        control_i   :   in  t_phase;
+        meas_i      :   in  signed;
+        control_i   :   in  signed;
         valid_i     :   in  std_logic;
         --
         -- Parameters
@@ -29,35 +29,35 @@ entity PIDController is
         -- Outputs
         --
         valid_o     :   out std_logic;
-        data_o      :   out t_phase
+        data_o      :   out signed
     );
 end PIDController;
 
 architecture Behavioral of PIDController is
 
-COMPONENT PID_Multipliers
+COMPONENT PIDmultipliers
   PORT (
     CLK : IN STD_LOGIC;
     A : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
-    B : IN STD_LOGIC_VECTOR(27 DOWNTO 0);
-    P : OUT STD_LOGIC_VECTOR(35 DOWNTO 0)
+    B : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
+    P : OUT STD_LOGIC_VECTOR(23 DOWNTO 0)
   );
 END COMPONENT;
 --
 -- Constants
 --
 constant MULT_LATENCY   :   natural :=  3;
-constant EXP_WIDTH      :   natural :=  28;
+constant MEAS_WIDTH     :   natural :=  16;
 constant GAIN_WIDTH     :   natural :=  8;
-constant MULT_WIDTH     :   natural :=  EXP_WIDTH + GAIN_WIDTH;
+constant MULT_WIDTH     :   natural :=  MEAS_WIDTH + GAIN_WIDTH;
+constant ACCUM_WIDTH    :   natural :=  32;
 --
 -- Type definitions
 --
-type t_state_local          is (idle,multiplying,dividing,summing,outputting);
-subtype t_input_local       is signed(EXP_WIDTH-1 downto 0);
-subtype t_gain_local        is std_logic_vector(GAIN_WIDTH-1 downto 0);
-subtype t_mult_local        is signed(MULT_WIDTH-1 downto 0);
-subtype t_phase_local       is signed(PHASE_WIDTH-1 downto 0);
+subtype t_input_local       is signed(MEAS_WIDTH - 1 downto 0);
+subtype t_gain_local        is std_logic_vector(GAIN_WIDTH - 1 downto 0);
+subtype t_mult_local        is signed(MULT_WIDTH - 1 downto 0);
+subtype t_accum_local       is signed(ACCUM_WIDTH - 1 downto 0);
 type t_input_local_array    is array(natural range <>) of t_input_local;
 --
 -- Parameters
@@ -71,7 +71,7 @@ signal err                      :   t_input_local_array(2 downto 0);
 signal measurement, control     :   t_input_local;
 signal prop_i, int_i, deriv_i   :   t_input_local;
 signal prop_o, int_o, deriv_o   :   std_logic_vector(MULT_WIDTH - 1 downto 0);
-signal pidSum, pidAccumulate    :   t_mult_local;
+signal pidSum, pidAccumulate    :   t_accum_local;
 
 signal valid_p                  :   std_logic_vector(7 downto 0);
 
@@ -95,7 +95,7 @@ prop_i <= err(0) - err(1);
 int_i <= shift_right(err(0) + err(1),1);
 deriv_i <= err(0) - shift_left(err(1),1) + err(2);
 
-PropMult: PID_Multipliers
+PropMult: PIDmultipliers
 port map(
     clk     =>  clk,
     A       =>  Kp,
@@ -103,7 +103,7 @@ port map(
     P       =>  prop_o
 );
 
-IntMult: PID_Multipliers
+IntMult: PIDmultipliers
 port map(
     clk     =>  clk,
     A       =>  Ki,
@@ -111,7 +111,7 @@ port map(
     P       =>  int_o
 );
 
-DerivMult: PID_Multipliers
+DerivMult: PIDmultipliers
 port map(
     clk     =>  clk,
     A       =>  Kd,
@@ -121,7 +121,7 @@ port map(
 --
 -- Sum outputs of multipliers and divide to get correct output
 --
-pidSum <= signed(prop_o) + signed(int_o) + signed(deriv_o);
+pidSum <= resize(signed(prop_o) + signed(int_o) + signed(deriv_o),pidSum'length);
 --
 -- Main process
 --

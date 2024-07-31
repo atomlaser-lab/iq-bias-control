@@ -22,6 +22,7 @@ entity Demodulator is
         --
         data_i          :   in  t_adc;
         dac_o           :   out t_dac_array(1 downto 0);
+        dds_x2_o        :   out t_dds_combined;
         filtered_data_o :   out t_meas_array(NUM_DEMOD_SIGNALS - 1 downto 0);
         valid_o         :   out std_logic_vector(NUM_DEMOD_SIGNALS - 1 downto 0)
     );
@@ -86,8 +87,7 @@ type t_dds_phase_combined_slv_array is array(natural range <>) of t_dds_phase_co
 subtype t_dds_o_slv                 is std_logic_vector(31 downto 0);
 type t_dds_o_slv_array              is array(natural range <>) of t_dds_o_slv;
 -- Used for separated DDS outputs
-subtype t_dds                       is signed(DDS_OUTPUT_WIDTH - 1 downto 0);
-type t_dds_array                    is array(natural range <>) of t_dds;
+
 -- Multiplier outputs
 constant MULT_OUTPUT_WIDTH  :   natural :=  ADC_ACTUAL_WIDTH + DDS_OUTPUT_WIDTH;
 type t_mult_o_array is array(natural range <>) of std_logic_vector(MULT_OUTPUT_WIDTH - 1 downto 0);
@@ -98,8 +98,8 @@ type t_cic_o_array is array(natural range <>) of std_logic_vector(CIC_OUTPUT_WID
 --
 -- DDS signals
 --
-signal modulation_freq                  :   t_phase;
-signal phase_offsets                    :   t_phase_array(2 downto 0);
+signal modulation_freq                  :   t_dds_phase;
+signal phase_offsets                    :   t_dds_phase_array(2 downto 0);
 signal dds_phase_i                      :   t_dds_phase_combined_slv_array(3 downto 0);
 signal dds_o                            :   t_dds_o_slv_array(3 downto 0);
 signal dds_cos, dds_sin                 :   t_dds_array(3 downto 0);
@@ -154,6 +154,8 @@ DDS_GEN: for I in 0 to dds_phase_i'length - 1 generate
     dds_cos(I) <= signed(dds_o(I)(DDS_OUTPUT_WIDTH - 1 downto 0));
     dds_sin(I) <= signed(dds_o(I)(16 + DDS_OUTPUT_WIDTH - 1 downto 16));
 end generate DDS_GEN;
+-- Send second harmonic DDS data out for phase calculation
+dds_x2_o <= (cos => dds_cos(2), sin => dds_sin(2));
 
 --
 -- DAC outputs are scaled: these are dds_cos(0) and dds_sin(0)

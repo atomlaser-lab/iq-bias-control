@@ -11,7 +11,7 @@
 
 #define MAP_SIZE 262144UL
 #define MEM_LOC 0x40000000
-#define DATA_LOC 0x00000084
+#define DATA_LOC 0x00000094
 #define FIFO_LOC 0x00000080
  
 int main(int argc, char **argv)
@@ -24,7 +24,7 @@ int main(int argc, char **argv)
 
   uint32_t i, incr = 0;
   uint8_t saveType = 2;
-  int saveFactor = 4;
+  int saveFactor = 3;
   uint32_t tmp;
   uint32_t *data;
   uint8_t debugFlag = 0;
