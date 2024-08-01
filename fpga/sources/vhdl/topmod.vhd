@@ -258,12 +258,14 @@ constant NUM_PHASE_FIFOS    :   natural :=  3;
 constant NUM_FIFOS          :   natural :=  NUM_BIAS_FIFOS + NUM_PHASE_FIFOS;
 type t_fifo_data_array is array(natural range <>) of std_logic_vector(FIFO_WIDTH - 1 downto 0);
 
-signal fifoData             :   t_fifo_data_array(NUM_FIFOS - 1 downto 0);
-signal fifoValid            :   std_logic_vector(NUM_FIFOS - 1 downto 0);
 signal fifo_bus             :   t_fifo_bus_array(NUM_FIFOS - 1 downto 0)  :=  (others => INIT_FIFO_BUS);
 signal enableFIFO           :   std_logic;
 signal fifoReset            :   std_logic;
-signal fifo_route           :   std_logic_vector(3 downto 0);
+
+signal bias_fifo_route      :   std_logic_vector(NUM_BIAS_FIFOS - 1 downto 0);
+signal bias_fifo_data       :   t_fifo_data_array(NUM_BIAS_FIFOS - 1 downto 0);
+signal bias_fifo_valid      :   std_logic_vector(NUM_BIAS_FIFOS - 1 downto 0);
+
 
 --
 -- Memory signals
@@ -336,7 +338,7 @@ spi_period <= unsigned(topReg(15 downto 8));
 -- outputReg
 ext_o(7 downto 3) <= outputReg(7 downto 3);
 led_o <= outputReg(15 downto 8);
-fifo_route <= outputReg(19 downto 16);
+bias_fifo_route <= outputReg(19 downto 16);
 
 -- DDS registers
 dds_regs <= (0 => dds_phase_inc_reg, 1 => dds_phase_off_reg, 2 => dds2_phase_off_reg, 3 => dds_phase_corr_reg);
@@ -370,6 +372,8 @@ fifoReset <= fifoReg(1);
 --
 bias_hold_i <= ext_i(0);
 dac_gate_i <= ext_i(1);
+phase_pid_enable <= ext_i(2);
+phase_pid_hold <= ext_i(3);
 
 --
 -- DAC Outputs
@@ -523,15 +527,15 @@ pwm_limit(3) <= pwm_sum(3) when pwm_sum(3) < pwm_max(3) and pwm_sum(3) > pwm_min
 -- to be read out continuously by CPU
 --
 BIAS_FIFO_GEN: for I in 0 to NUM_BIAS_FIFOS - 1 generate
-    fifoData(I) <= std_logic_vector(resize(filtered_data(I),FIFO_WIDTH)) when fifo_route(I) = '0' else std_logic_vector(resize(pwm_limit(I),FIFO_WIDTH));
-    fifoValid(I) <= ((filter_valid(I) and (not(fifo_route(I)) or not(bias_enable))) or (control_valid and fifo_route(I) and bias_enable)) and enableFIFO;
+    bias_fifo_data(I) <= std_logic_vector(resize(filtered_data(I),FIFO_WIDTH)) when bias_fifo_route(I) = '0' else std_logic_vector(resize(pwm_limit(I),FIFO_WIDTH));
+    bias_fifo_valid(I) <= ((filter_valid(I) and (not(bias_fifo_route(I)) or not(bias_enable))) or (control_valid and bias_fifo_route(I) and bias_enable)) and enableFIFO;
     BIAS_FIFO_X: FIFOHandler
     port map(
         wr_clk      =>  adcClk,
         rd_clk      =>  sysClk,
         aresetn     =>  aresetn,
-        data_i      =>  fifoData(I),
-        valid_i     =>  fifoValid(I),
+        data_i      =>  bias_fifo_data(I),
+        valid_i     =>  bias_fifo_valid(I),
         fifoReset   =>  fifoReset,
         bus_m       =>  fifo_bus(I).m,
         bus_s       =>  fifo_bus(I).s
@@ -686,9 +690,9 @@ begin
                             when X"000088" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
                             when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
                             when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(3).s);
-                            when X"000094" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(4).s);
-                            when X"000098" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(5).s);
-                            when X"00009C" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(6).s);
+                            when X"000094" => fifoRead(bus_m,bus_s,comState,fifo_bus(4).m,fifo_bus(4).s);
+                            when X"000098" => fifoRead(bus_m,bus_s,comState,fifo_bus(5).m,fifo_bus(5).s);
+                            when X"00009C" => fifoRead(bus_m,bus_s,comState,fifo_bus(6).m,fifo_bus(6).s);
                             --
                             -- Memory signals
                             --

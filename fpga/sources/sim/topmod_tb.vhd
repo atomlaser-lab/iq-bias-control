@@ -27,7 +27,6 @@ component topmod is
         ext_o           :   out std_logic_vector(7 downto 0);
         led_o           :   out std_logic_vector(7 downto 0);
         pwm_o           :   out std_logic_vector(3 downto 0);
-        spi_o           :   out std_logic_vector(2 downto 0);
         
         adcClk          :   in  std_logic;
         adcClkx2        :   in  std_logic;
@@ -80,7 +79,7 @@ END COMPONENT;
 --
 -- Clocks and reset
 --
-signal clk_period   :   time    :=  10 ns;
+signal clk_period   :   time    :=  8 ns;
 signal sysClk,adcClk,adcClkx2:   std_logic;
 signal aresetn      :   std_logic;
 --
@@ -94,7 +93,6 @@ signal pwm_o        :   std_logic_vector(3 downto 0);
 -- External inputs and outputs
 --
 signal ext_i,ext_o  :   std_logic_vector(7 downto 0);
-signal spi_o        :   std_logic_vector(2 downto 0);
 --
 -- AXI signals
 --
@@ -107,27 +105,62 @@ signal bus_s                    :   t_axi_bus_slave;
 --
 -- AXI data
 --
-
-constant axi_addresses   :   t_axi_addr_array(6 downto 0)  :=   (0  =>  X"00000000",
-                                                                 1  =>  X"00000004",
-                                                                 2  =>  X"00000008",
-                                                                 3  =>  X"00000014",
-                                                                 4  =>  X"00000018",
-                                                                 5  =>  X"00000020",
-                                                                 6  =>  X"00000040");
+constant axi_addresses   :   t_axi_addr_array(25 downto 0) := (0  =>  X"00000040",
+                                                               1  =>  X"00000000",
+                                                               2  =>  X"00000004",
+                                                               3  =>  X"00000008",
+                                                               4  =>  X"00000014",
+                                                               5  =>  X"00000030",
+                                                               6  =>  X"00000018",
+                                                               7  =>  X"00000020",
+                                                               8  =>  X"00100000",
+                                                               9  =>  X"00000050",
+                                                               10  =>  X"00000054",
+                                                               11  =>  X"00000058",
+                                                               12  =>  X"0000005c",
+                                                               13  =>  X"00100004",
+                                                               14  =>  X"00000100",
+                                                               15  =>  X"00000104",
+                                                               16  =>  X"00000108",
+                                                               17  =>  X"0000010c",
+                                                               18  =>  X"00000110",
+                                                               19  =>  X"00000120",
+                                                               20  =>  X"00000124",
+                                                               21  =>  X"00000128",
+                                                               22  =>  X"0000012c",
+                                                               23  =>  X"00000060",
+                                                               24  =>  X"00000200",
+                                                               25  =>  X"00000204");
                                                      
 
-signal axi_data :   t_axi_data_array(axi_addresses'length - 1 downto 0);          
-
-signal triggers, outputReg, filterReg, topReg          :   t_param_reg;
+constant axi_data   :   t_axi_data_array(25 downto 0) := (0  =>  X"0000001a",
+                                                          1  =>  X"00000000",
+                                                          2  =>  X"00000000",
+                                                          3  =>  X"00ff0fdd",
+                                                          4  =>  X"083126e9",
+                                                          5  =>  X"00000000",
+                                                          6  =>  X"6e147ae1",
+                                                          7  =>  X"727d27d2",
+                                                          8  =>  X"00000fa0",
+                                                          9  =>  X"000000b7",
+                                                          10  =>  X"00000191",
+                                                          11  =>  X"0000021c",
+                                                          12  =>  X"00000000",
+                                                          13  =>  X"00000000",
+                                                          14  =>  X"00000000",
+                                                          15  =>  X"00000000",
+                                                          16  =>  X"00000000",
+                                                          17  =>  X"00000000",
+                                                          18  =>  X"00000000",
+                                                          19  =>  X"000ffc00",
+                                                          20  =>  X"000ffc00",
+                                                          21  =>  X"000ffc00",
+                                                          22  =>  X"03bf0000",
+                                                          23  =>  X"00000000",
+                                                          24  =>  X"0000000a",
+                                                          25  =>  X"08000000");
+                                                               
 signal dds_phase_inc_reg            :   t_param_reg;
-signal dds_phase_off_reg            :   t_param_reg;
--- DDS2
-signal dds2_phase_inc_reg            :   t_param_reg; -- added this
-signal dds2_phase_off_reg            :   t_param_reg; -- added this
--- DDS3
-signal dds3_phase_inc_reg            :   t_param_reg; -- added this
-signal dds3_phase_off_reg            :   t_param_reg; -- added this
 
 --
 -- AXI control signals
@@ -178,7 +211,6 @@ port map(
     ext_i           =>  ext_i,
     ext_o           =>  ext_o,
     pwm_o           =>  pwm_o,
-    spi_o           =>  spi_o,
     m_axis_tdata    =>  m_axis_tdata,
     m_axis_tvalid   =>  m_axis_tvalid,
     adcData_i       =>  adcData_i
@@ -218,6 +250,8 @@ DDS2_inst : DDS1
     m_axis_data_tdata        => dds2_o
 );
 
+dds_phase_inc_reg <= axi_data(6);
+
 dds_phase_i <= std_logic_vector(dds_phase_off_test) & dds_phase_inc_reg;
 dds2_phase_i <= std_logic_vector(dds2_phase_off_test) & std_logic_vector(shift_left(unsigned(dds_phase_inc_reg),1));
 
@@ -227,21 +261,10 @@ dataValid_i <= bus_m.valid;
 bus_s.data <= readData_o;
 bus_s.resp <= resp_o;
 
---
--- Assign AXI registers
---
-axi_data <= (0  =>  triggers,
-             1  =>  outputReg,
-             2  =>  filterReg,
-             3  =>  dds_phase_inc_reg, -- added this
-             4  =>  dds_phase_off_reg, -- added this
-             5  =>  dds2_phase_off_reg,
-             6  =>  topReg -- added this
-            -- 7  =>  dds3_phase_off_reg  -- added this
-             );
+
              
 adc_data <= resize(signed(dds1_o(9 downto 0)),16) + resize(signed(dds2_o(25 downto 16)),16);
-adcData_i <= X"0000" & std_logic_vector(adc_data);
+adcData_i <= std_logic_vector(resize(signed(dds2_o(25 downto 16)),16)) & std_logic_vector(adc_data);
 --adcData_i <= m_axis_tdata;
 
 
@@ -255,21 +278,9 @@ begin
     aresetn <= '0';
     startAXI <= '0';
     ext_i <= (others => '0');
-    triggers <= (others => '0');
-    outputReg <= (others => '0');
-    dds_phase_inc_reg <= std_logic_vector(to_unsigned(171798692,32));
-    dds_phase_off_reg <= (others => '0');
-    dds2_phase_off_reg <= (others => '0');
-    topReg(8 downto 1) <= std_logic_vector(to_unsigned(10,8));
-    filterReg <= X"00" & X"ff" & X"00" & X"09";
 
     dds_phase_off_test <= to_unsigned(0,dds_phase_off_test'length);
     dds2_phase_off_test <= to_unsigned(0,dds2_phase_off_test'length);
-    
-   --dds2_phase_inc_reg <= std_logic_vector(to_unsigned(34359738,32)); -- added this
-   -- dds2_phase_off_reg <= (others => '0'); -- added this
-   -- dds3_phase_inc_reg <= std_logic_vector(to_unsigned(34359738,32)); -- added this
-   -- dds3_phase_off_reg <= (others => '0'); -- added this
     
     axi_addr_single <= (others => '0');
     axi_data_single <= (others => '0');
@@ -288,13 +299,13 @@ begin
     --
     -- Change filter rate
     --
-    wait until rising_edge(sysclk);
-    axi_addr_single <= X"0000_0060";
-    axi_data_single <= X"0000" & "1010000000001111";
-    start_single_i <= "01";
-    wait until bus_s.resp(0) = '1';
-    start_single_i <= "00";
-    wait for 500 ns;
+--    wait until rising_edge(sysclk);
+--    axi_addr_single <= X"0000_0060";
+--    axi_data_single <= X"0000" & "1010000000001111";
+--    start_single_i <= "01";
+--    wait until bus_s.resp(0) = '1';
+--    start_single_i <= "00";
+--    wait for 500 ns;
     --
     -- Change demodulation phase for 2x freq
     --
@@ -306,6 +317,53 @@ begin
 --    wait until bus_s.resp(0) = '1';
 --    start_single_i <= "00";
 --    wait for 500 ns;
+    
+    wait until rising_edge(sysclk);
+    axi_addr_single <= X"0000_0080";
+    axi_data_single <= X"0000_0002";
+    start_single_i <= "01";
+    wait until bus_s.resp(0) = '1';
+    start_single_i <= "00";
+    wait for 500 ns;
+    wait until rising_edge(sysclk);
+    axi_addr_single <= X"0000_0080";
+    axi_data_single <= X"0000_0001";
+    start_single_i <= "01";
+    wait until bus_s.resp(0) = '1';
+    start_single_i <= "00";
+    wait for 500 ns;
+    
+    wait until rising_edge(sysclk);
+    axi_addr_single <= X"0000_0094";
+    axi_data_single <= X"0000_0000";
+    start_single_i <= "10";
+    wait until bus_s.resp(0) = '1';
+    start_single_i <= "00";
+    wait for 500 ns;
+    
+    wait until rising_edge(sysclk);
+    axi_addr_single <= X"0000_0094";
+    axi_data_single <= X"0000_0000";
+    start_single_i <= "10";
+    wait until bus_s.resp(0) = '1';
+    start_single_i <= "00";
+    wait for 500 ns;
+    
+    wait until rising_edge(sysclk);
+    axi_addr_single <= X"0000_0094";
+    axi_data_single <= X"0000_0000";
+    start_single_i <= "10";
+    wait until bus_s.resp(0) = '1';
+    start_single_i <= "00";
+    wait for 500 ns;
+    
+    wait until rising_edge(sysclk);
+    axi_addr_single <= X"0000_0094";
+    axi_data_single <= X"0000_0000";
+    start_single_i <= "10";
+    wait until bus_s.resp(0) = '1';
+    start_single_i <= "00";
+    wait for 500 ns;
     
 
     wait;
