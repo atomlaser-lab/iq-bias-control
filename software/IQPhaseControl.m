@@ -16,10 +16,6 @@ classdef IQPhaseControl < DeviceControlSubModule
         lower_limit     %Lower output limit for the module
         upper_limit     %Upper output limit for the module
     end
-    
-    properties(SetAccess = protected)
-        parent          %Parent object
-    end
 
     properties(Constant)
         NUM_REGS = 3;   %Number of registers needed for PID
@@ -60,10 +56,10 @@ classdef IQPhaseControl < DeviceControlSubModule
                 .setLimits('lower',0,'upper',2^8-1);
 
             self.lower_limit = DeviceParameter([0,15],limit_reg,'uint32')...
-                .setLimits('lower',0,'upper',1)...
+                .setLimits('lower',0,'upper',1.6)...
                 .setFunctions('to',@(x) x/self.parent.CONV_PWM,'from',@(x) x*self.parent.CONV_PWM);
             self.upper_limit = DeviceParameter([16,31],limit_reg,'uint32')...
-                .setLimits('lower',0,'upper',1)...
+                .setLimits('lower',0,'upper',1.6)...
                 .setFunctions('to',@(x) x/self.parent.CONV_PWM,'from',@(x) x*self.parent.CONV_PWM);
         end
         
@@ -91,7 +87,7 @@ classdef IQPhaseControl < DeviceControlSubModule
                 self.Kd.set(0);
                 self.divisor.set(8);
                 self.lower_limit.set(0);
-                self.upper_limit.set(1.6);
+                self.upper_limit.set(1.5);
             end
         end
         
@@ -119,7 +115,7 @@ classdef IQPhaseControl < DeviceControlSubModule
             s{3} = self.enable.print('Enable',width,'%d');
             s{4} = self.polarity.print('Polarity',width,'%d');
             s{5} = self.hold.print('Hold',width,'%d');
-            s{6} = self.control.print('Control',width,'%.3f','V');
+            s{6} = self.control.print('Control',width,'%.3f','rad');
             s{7} = self.Kp.print('Kp',width,'%d');
             s{8} = self.Ki.print('Ki',width,'%d');
             s{9} = self.Kd.print('Kd',width,'%d');

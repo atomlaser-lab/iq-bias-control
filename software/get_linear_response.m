@@ -1,5 +1,5 @@
 function [G,zero_voltages,data_lin] = get_linear_response(d,zero_voltages,V,Npoints)
-
+NUM_PWM = 3;
 if nargin < 4
     Npoints = 1000;
 end
@@ -7,7 +7,7 @@ textprogressbar('RESET');
 textprogressbar('Measuring linear responses...');
 data_lin = zeros(numel(V),4,3);
 tic;
-for mm = 1:d.NUM_PWM
+for mm = 1:NUM_PWM
     d.pwm.set(zero_voltages).write;
     for nn = 1:numel(V)
         textprogressbar(round((nn/(numel(V)*d.NUM_PWM) + (mm - 1)/d.NUM_PWM)*100));

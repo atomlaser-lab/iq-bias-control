@@ -136,8 +136,8 @@ classdef DeviceControl < handle
             for nn = 1:IQBiasController.NUM_GAIN_REGS
                 self.gainRegs(nn,1) = DeviceRegister(hex2dec('108') + (nn - 1)*4,self.conn);
             end
-            for nn = 1:IQBiasController.NUM_LIMIT_REGS
-                self.pwmLimitRegs(nn,1) = DeviceRegister(hex2dec('114') + (nn - 1)*4,self.conn);
+            for nn = 1:DeviceControl.NUM_PWM
+                self.pwmLimitRegs(nn,1) = DeviceRegister(hex2dec('120') + (nn - 1)*4,self.conn);
             end
             %
             % Auxiliary register for all and sundry
@@ -631,6 +631,9 @@ classdef DeviceControl < handle
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Control Parameters\n');
             self.control.print(strwidth);
+            fprintf(1,'\t ----------------------------------\n');
+            fprintf(1,'\t Phase Lock Parameters\n');
+            self.phase_lock.print(strwidth);
         end
         
         function s = struct(self)

@@ -11,10 +11,6 @@ classdef IQBiasController < DeviceControlSubModule
         lower_limits    %Lower output limits for the module outputs (3x1)
         upper_limits    %Upper output limits for the module outputs (3x1)
     end
-    
-    properties(SetAccess = protected)
-        parent          %Parent object
-    end
 
     properties(Constant)
         NUM_CONTROL_REGS = 2;   %Number of registers needed for control
