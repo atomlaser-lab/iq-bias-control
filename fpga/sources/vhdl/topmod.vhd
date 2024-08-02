@@ -195,6 +195,7 @@ component PhaseControl is
         -- Output data
         --
         phase_o         :   out t_phase;
+        iq_o            :   out t_iq_combined;
         valid_phase_o   :   out std_logic;
         phase_unwrap_o  :   out t_phase;
         valid_unwrap_o  :   out std_logic;
@@ -254,7 +255,7 @@ signal adc_select           :   std_logic;
 -- FIFO signals
 --
 constant NUM_BIAS_FIFOS     :   natural :=  filtered_data'length;
-constant NUM_PHASE_FIFOS    :   natural :=  3;
+constant NUM_PHASE_FIFOS    :   natural :=  5;
 constant NUM_FIFOS          :   natural :=  NUM_BIAS_FIFOS + NUM_PHASE_FIFOS;
 type t_fifo_data_array is array(natural range <>) of std_logic_vector(FIFO_WIDTH - 1 downto 0);
 
@@ -312,6 +313,7 @@ signal dds_x2               :   t_dds_combined;
 signal phase_pid_enable     :   std_logic;
 signal phase_pid_hold       :   std_logic;
 signal phase, phase_unwrap  :   t_phase;
+signal iq                   :   t_iq_combined;
 signal valid_phase          :   std_logic;
 signal valid_unwrap         :   std_logic;
 signal phase_actuator       :   t_phase_actuator;
@@ -334,11 +336,11 @@ spi_trig <= triggers(1);
 adc_select <= topReg(0);
 link_dac_gate <= topReg(1);
 spi_period <= unsigned(topReg(15 downto 8));
+bias_fifo_route <= topReg(19 downto 16);
 
 -- outputReg
 ext_o(7 downto 3) <= outputReg(7 downto 3);
 led_o <= outputReg(15 downto 8);
-bias_fifo_route <= outputReg(19 downto 16);
 
 -- DDS registers
 dds_regs <= (0 => dds_phase_inc_reg, 1 => dds_phase_off_reg, 2 => dds2_phase_off_reg, 3 => dds_phase_corr_reg);
@@ -506,6 +508,7 @@ port map(
     pid_enable_i    =>  phase_pid_enable,
     pid_hold_i      =>  phase_pid_hold,
     phase_o         =>  phase,
+    iq_o            =>  iq,
     valid_phase_o   =>  valid_phase,
     phase_unwrap_o  =>  phase_unwrap,
     valid_unwrap_o  =>  valid_unwrap,
@@ -550,6 +553,10 @@ phase_fifo_data(1)  <= std_logic_vector(resize(phase_unwrap,FIFO_WIDTH));
 phase_fifo_valid(1) <= valid_unwrap and enableFIFO;
 phase_fifo_data(2)  <= std_logic_vector(resize(phase_actuator,FIFO_WIDTH));
 phase_fifo_valid(2) <= valid_unwrap and enableFIFO;
+phase_fifo_data(3)  <= std_logic_vector(resize(iq.I,FIFO_WIDTH));
+phase_fifo_valid(3) <= iq.valid and enableFIFO;
+phase_fifo_data(4)  <= std_logic_vector(resize(iq.Q,FIFO_WIDTH));
+phase_fifo_valid(4) <= iq.valid and enableFIFO;
 
 PHASE_FIFO_GEN: for I in 0 to NUM_PHASE_FIFOS - 1 generate
     PHASE_FIFO_X: FIFOHandler
@@ -645,62 +652,65 @@ begin
                     when X"00" =>
                         ParamCase: case(bus_m.addr(23 downto 0)) is
                             when X"000000" => rw(bus_m,bus_s,comState,triggers);
-                            when X"000004" => rw(bus_m,bus_s,comState,outputReg);
-                            when X"000008" => rw(bus_m,bus_s,comState,filterReg);
-                            when X"00000C" => readOnly(bus_m,bus_s,comState,adcData_i);
-                            when X"000010" => readOnly(bus_m,bus_s,comState,ext_i);
-                            when X"000014" => rw(bus_m,bus_s,comState,dds_phase_inc_reg);
-                            when X"000018" => rw(bus_m,bus_s,comState,dds_phase_off_reg);
-                            when X"000020" => rw(bus_m,bus_s,comState,dds2_phase_off_reg);
-                            when X"000030" => rw(bus_m,bus_s,comState,dds_phase_corr_reg);
-                            when X"000040" => rw(bus_m,bus_s,comState,topReg);
-                            -- Manual PWM registers
-                            when X"000050" => rw(bus_m,bus_s,comState,pwm_regs(0));
-                            when X"000054" => rw(bus_m,bus_s,comState,pwm_regs(1));
-                            when X"000058" => rw(bus_m,bus_s,comState,pwm_regs(2));
-                            when X"00005C" => rw(bus_m,bus_s,comState,pwm_regs(3));
-                            -- DAC register
-                            when X"000060" => rw(bus_m,bus_s,comState,dac_reg,triggers(1));
+                            when X"000004" => rw(bus_m,bus_s,comState,topReg);
+                            when X"000008" => rw(bus_m,bus_s,comState,outputReg);
+                            when X"00000C" => rw(bus_m,bus_s,comState,filterReg);
+                            when X"000010" => rw(bus_m,bus_s,comState,dds_phase_inc_reg);
+                            when X"000014" => rw(bus_m,bus_s,comState,dds_phase_off_reg);
+                            when X"000018" => rw(bus_m,bus_s,comState,dds2_phase_off_reg);
+                            when X"00001C" => rw(bus_m,bus_s,comState,dds_phase_corr_reg);
+                            when X"000020" => rw(bus_m,bus_s,comState,dac_reg,triggers(1));
                             --
-                            -- PID registers
+                            -- PWM subsystem
                             --
-                            when X"000100" => rw(bus_m,bus_s,comState,pid_regs(0));
-                            when X"000104" => rw(bus_m,bus_s,comState,pid_regs(1));
-                            when X"000108" => rw(bus_m,bus_s,comState,pid_regs(2));
-                            when X"00010C" => rw(bus_m,bus_s,comState,pid_regs(3));
-                            when X"000110" => rw(bus_m,bus_s,comState,pid_regs(4));
-                            -- 
-                            -- PWM limit registers
+                            -- Manual PWM data
+                            when X"000100" => rw(bus_m,bus_s,comState,pwm_regs(0));
+                            when X"000104" => rw(bus_m,bus_s,comState,pwm_regs(1));
+                            when X"000108" => rw(bus_m,bus_s,comState,pwm_regs(2));
+                            when X"00010C" => rw(bus_m,bus_s,comState,pwm_regs(3));
+                            -- PWM limits
+                            when X"000110" => rw(bus_m,bus_s,comState,pwm_limit_regs(0));
+                            when X"000114" => rw(bus_m,bus_s,comState,pwm_limit_regs(1));
+                            when X"000118" => rw(bus_m,bus_s,comState,pwm_limit_regs(2));
+                            when X"00011C" => rw(bus_m,bus_s,comState,pwm_limit_regs(3));
                             --
-                            when X"000120" => rw(bus_m,bus_s,comState,pwm_limit_regs(0));
-                            when X"000124" => rw(bus_m,bus_s,comState,pwm_limit_regs(1));
-                            when X"000128" => rw(bus_m,bus_s,comState,pwm_limit_regs(2));
-                            when X"00012C" => rw(bus_m,bus_s,comState,pwm_limit_regs(3));
+                            -- Bias control subsystem
                             --
-                            -- Phase lock registers
+                            when X"000200" => rw(bus_m,bus_s,comState,pid_regs(0));
+                            when X"000204" => rw(bus_m,bus_s,comState,pid_regs(1));
+                            when X"000208" => rw(bus_m,bus_s,comState,pid_regs(2));
+                            when X"00020C" => rw(bus_m,bus_s,comState,pid_regs(3));
+                            when X"000210" => rw(bus_m,bus_s,comState,pid_regs(4));
                             --
-                            when X"000200" => rw(bus_m,bus_s,comState,phaseControlReg);
-                            when X"000204" => rw(bus_m,bus_s,comState,phaseGainReg);
-
+                            -- Phase lock subsystem
+                            --
+                            when X"000300" => rw(bus_m,bus_s,comState,phaseControlReg);
+                            when X"000304" => rw(bus_m,bus_s,comState,phaseGainReg);
                             --
                             -- FIFO control and data retrieval
                             --
-                            when X"000080" => rw(bus_m,bus_s,comState,fifoReg);
-                            when X"000084" => fifoRead(bus_m,bus_s,comState,fifo_bus(0).m,fifo_bus(0).s);
-                            when X"000088" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
-                            when X"00008C" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
-                            when X"000090" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(3).s);
-                            when X"000094" => fifoRead(bus_m,bus_s,comState,fifo_bus(4).m,fifo_bus(4).s);
-                            when X"000098" => fifoRead(bus_m,bus_s,comState,fifo_bus(5).m,fifo_bus(5).s);
-                            when X"00009C" => fifoRead(bus_m,bus_s,comState,fifo_bus(6).m,fifo_bus(6).s);
+                            when X"100000" => rw(bus_m,bus_s,comState,fifoReg);
+                            when X"100004" => fifoRead(bus_m,bus_s,comState,fifo_bus(0).m,fifo_bus(0).s);
+                            when X"100008" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
+                            when X"10000C" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
+                            when X"100010" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(3).s);
+                            when X"100014" => fifoRead(bus_m,bus_s,comState,fifo_bus(4).m,fifo_bus(4).s);
+                            when X"100018" => fifoRead(bus_m,bus_s,comState,fifo_bus(5).m,fifo_bus(5).s);
+                            when X"10001C" => fifoRead(bus_m,bus_s,comState,fifo_bus(6).m,fifo_bus(6).s);
+                            when X"100020" => fifoRead(bus_m,bus_s,comState,fifo_bus(7).m,fifo_bus(7).s);
                             --
                             -- Memory signals
                             --
-                            when X"100000" => rw(bus_m,bus_s,comState,numSamples);
-                            when X"100004" =>
+                            when X"200000" => rw(bus_m,bus_s,comState,numSamples);
+                            when X"200004" =>
                                 bus_s.resp <= "01";
                                 comState <= finishing;
                                 mem_bus.m.reset <= '1';
+                            --
+                            -- Read-only signals
+                            --
+                            when X"300000" => readOnly(bus_m,bus_s,comState,adcData_i);
+                            when X"300004" => readOnly(bus_m,bus_s,comState,ext_i);
                            
                             when others => 
                                 comState <= finishing;
@@ -723,7 +733,7 @@ begin
                           mem_bus.m.status <= idle;
                           mem_bus.m.trig <= '0';
                       elsif mem_bus.s.status = idle then
-                          mem_bus.m.addr <= bus_m.addr(MEM_ADDR_WIDTH+1 downto 2);
+                          mem_bus.m.addr <= bus_m.addr(MEM_ADDR_WIDTH + 1 downto 2);
                           mem_bus.m.status <= waiting;
                           mem_bus.m.trig <= '1';
                       else

@@ -9,10 +9,7 @@
 #include <math.h>
 #include <time.h>
 
-#define MAP_SIZE 262144UL
-#define MEM_LOC 0x40000000
-#define DATA_LOC 0x00000084
-#define FIFO_LOC 0x00000080
+#include "iq_bias_control.h"
  
 int main(int argc, char **argv)
 {
@@ -90,14 +87,14 @@ int main(int argc, char **argv)
   cfg = mmap(0,MAP_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,MEM_LOC);
 
   //Disable FIFO
-  *((uint32_t *)(cfg + FIFO_LOC)) = 0;
+  *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = 0;
 //  printf("FIFO Disabled!\n");
   //Reset FIFO
   *((uint32_t *)(cfg + 0)) = (1 << 2);
 //  printf("FIFO Reset!\n");
   usleep(1000);
   //Enable FIFO
-  *((uint32_t *)(cfg + FIFO_LOC)) = 1;
+  *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = 1;
 //  printf("FIFO Enabled!\n");
   //Record data
   if (saveType == 1 | saveType == 2) {
@@ -108,21 +105,21 @@ int main(int argc, char **argv)
     // This is if we are not saving to file, but saving to memory instead
     for (i = 0;i<dataSize;i += saveFactor) {
       for (incr = 0;incr < saveFactor;incr++) {
-        *(data + i + incr) = *((uint32_t *)(cfg + DATA_LOC + incr*4));
+        *(data + i + incr) = *((uint32_t *)(cfg + FIFO_BIAS_DATA_START_LOC + incr*4));
       }
     }
   } else {
     // This is for if we are saving to file
     for (i = 0;i<dataSize;i += saveFactor) {
       for (incr = 0;incr < saveFactor;incr++) {
-        tmp = *((uint32_t *)(cfg + DATA_LOC + incr*4));
+        tmp = *((uint32_t *)(cfg + FIFO_BIAS_DATA_START_LOC + incr*4));
         fwrite(&tmp,4,1,ptr);
       }
     }
   }
   
   //Disable FIFO
-  *((uint32_t *)(cfg + FIFO_LOC)) = 0;
+  *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = 0;
   // Print debugging information
   if ((saveType == 1 | saveType == 2) & debugFlag) {
     stop = clock();

@@ -31,6 +31,7 @@ entity PhaseControl is
         -- Output data
         --
         phase_o         :   out t_phase;
+        iq_o            :   out t_iq_combined;
         valid_phase_o   :   out std_logic;
         phase_unwrap_o  :   out t_phase;
         valid_unwrap_o  :   out std_logic;
@@ -57,6 +58,7 @@ component PhaseCalculation is
         filter_reg_i    :   in  t_param_reg;
         
         phase_o         :   out t_phase;            --Output phase
+        iq_o            :   out t_iq_combined;      --Output I/Q data
         valid_o         :   out std_logic           --Output phase valid signal
     );
 end component;
@@ -143,6 +145,7 @@ port map(
     dds_i           =>  dds_i,
     filter_reg_i    =>  control_reg_i,
     phase_o         =>  phase,
+    iq_o            =>  iq_o,
     valid_o         =>  valid_phase
 );
 phase_o <= phase;

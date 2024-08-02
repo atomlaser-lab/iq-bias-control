@@ -9,8 +9,7 @@
 #include <math.h>
 #include <time.h>
 
-#define MAP_SIZE 262144UL
-#define DATA_LOC 0x41000000
+#include "iq_bias_control.h"
  
 int main(int argc, char **argv)
 {
@@ -47,7 +46,7 @@ int main(int argc, char **argv)
     /*
     * mmap maps the memory location 0x40000000 to the pointer cfg, which "points" to that location in memory.
     */
-    cfg = mmap(0,MAP_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,DATA_LOC);
+    cfg = mmap(0,MAP_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,RAM_DATA_LOC);
     for (i = 0;i<numSamples;i++) {
       *(data + i) = *((uint32_t *)(cfg + (i << 2)));
     }

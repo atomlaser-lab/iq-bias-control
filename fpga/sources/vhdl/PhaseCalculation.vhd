@@ -25,6 +25,7 @@ entity PhaseCalculation is
         filter_reg_i    :   in  t_param_reg;
         
         phase_o         :   out t_phase;            --Output phase
+        iq_o            :   out t_iq_combined;      --Output I/Q data
         valid_o         :   out std_logic           --Output phase valid signal
     );
 end PhaseCalculation;
@@ -219,5 +220,6 @@ PORT MAP (
 
 valid_o <= validPhase;
 phase_o <= resize(signed(phase),phase_o'length);
+iq_o <= (I => signed(Iphase_i), Q => signed(Qphase_i), valid => validPhase_i);
 
 end Behavioral;

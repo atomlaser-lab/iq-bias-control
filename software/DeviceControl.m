@@ -46,6 +46,7 @@ classdef DeviceControl < handle
         ddsPhaseOffsetReg       %Register for phase offset at fundamental
         dds2PhaseOffsetReg      %Register for phase offset at 2nd harmonic
         numSamplesReg           %Register for storing number of samples of ADC data to fetch
+        memResetReg             %Memory reset register
         pwmRegs                 %Registers for PWM signals
         auxReg                  %Auxiliary register
         controlRegs             %Registers for control
@@ -100,49 +101,55 @@ classdef DeviceControl < handle
             % Set jumper values
             %
             self.jumpers = 'lv';
+            %% Registers
             %
-            % Registers
+            % Registers - general
             %
-            self.topReg = DeviceRegister('40',self.conn);
             self.trigReg = DeviceRegister('0',self.conn);
-            self.outputReg = DeviceRegister('4',self.conn);
-            self.filterReg = DeviceRegister('8',self.conn);
-            self.adcReg = DeviceRegister('C',self.conn,true);
-            self.inputReg = DeviceRegister('10',self.conn,true);
-            self.ddsPhaseIncReg = DeviceRegister('14',self.conn);
-            self.ddsPhaseOffsetReg = DeviceRegister('18',self.conn);
-            self.dds2PhaseOffsetReg = DeviceRegister('20',self.conn);
-            self.ddsPhaseCorrectionReg = DeviceRegister('30',self.conn);
-            self.dacReg = DeviceRegister('60',self.conn);
-            self.pwmRegs = DeviceRegister.empty;
-            for nn = 1:self.NUM_PWM
-                self.pwmRegs(nn) = DeviceRegister(hex2dec('50') + (nn - 1)*4,self.conn);
-            end
-
-            self.phaseControlReg = DeviceRegister('200',self.conn);
-            self.phaseGainReg = DeviceRegister('204',self.conn);
-
-            self.numSamplesReg = DeviceRegister('100000',self.conn);
+            self.topReg = DeviceRegister('4',self.conn);
+            self.outputReg = DeviceRegister('8',self.conn);
+            self.filterReg = DeviceRegister('C',self.conn);
+            self.ddsPhaseIncReg = DeviceRegister('10',self.conn);
+            self.ddsPhaseOffsetReg = DeviceRegister('14',self.conn);
+            self.dds2PhaseOffsetReg = DeviceRegister('18',self.conn);
+            self.ddsPhaseCorrectionReg = DeviceRegister('1C',self.conn);
+            self.dacReg = DeviceRegister('20',self.conn);
             %
-            % PID registers: there are 3 PIDs with IQBiasPID.NUM_REGS registers
-            % each, starting at address 0x000100
+            % Registers - PWM subsystem
+            %
+            self.pwmRegs = DeviceRegister.empty;
+            self.pwmLimitRegs = DeviceRegister.empty;
+            for nn = 1:self.NUM_PWM
+                self.pwmRegs(nn) = DeviceRegister(hex2dec('100') + (nn - 1)*4,self.conn);
+                self.pwmLimitRegs(nn,1) = DeviceRegister(hex2dec('110') + (nn - 1)*4,self.conn);
+            end
+            %
+            % Registers - bias control subsystem
             %
             self.controlRegs = DeviceRegister.empty;
             self.gainRegs = DeviceRegister.empty;
-            self.pwmLimitRegs = DeviceRegister.empty;
             for nn = 1:IQBiasController.NUM_CONTROL_REGS
-                self.controlRegs(nn,1) = DeviceRegister(hex2dec('100') + (nn - 1)*4,self.conn);
+                self.controlRegs(nn,1) = DeviceRegister(hex2dec('200') + (nn - 1)*4,self.conn);
             end
             for nn = 1:IQBiasController.NUM_GAIN_REGS
-                self.gainRegs(nn,1) = DeviceRegister(hex2dec('108') + (nn - 1)*4,self.conn);
-            end
-            for nn = 1:DeviceControl.NUM_PWM
-                self.pwmLimitRegs(nn,1) = DeviceRegister(hex2dec('120') + (nn - 1)*4,self.conn);
+                self.gainRegs(nn,1) = DeviceRegister(hex2dec('208') + (nn - 1)*4,self.conn);
             end
             %
-            % Auxiliary register for all and sundry
+            % Registers - phase control subsystem
             %
-            self.auxReg = DeviceRegister('100004',self.conn);
+            self.phaseControlReg = DeviceRegister('300',self.conn);
+            self.phaseGainReg = DeviceRegister('304',self.conn);
+            %
+            % Registers - memory system
+            %
+            self.numSamplesReg = DeviceRegister('200000',self.conn);
+            self.memResetReg = DeviceRegister('2000004',self.conn);
+            %
+            % Registers - read only registers
+            %
+            self.adcReg = DeviceRegister('300000',self.conn,true);
+            self.inputReg = DeviceRegister('300000',self.conn,true);
+            %% Parameters
             %
             % Digital and LED input/output parameters
             %
@@ -221,7 +228,7 @@ classdef DeviceControl < handle
             %
             self.fifo_route = DeviceParameter.empty;
             for nn = 1:4
-                self.fifo_route(nn) = DeviceParameter((16 + (nn - 1))*[1,1],self.outputReg,'uint32')...
+                self.fifo_route(nn) = DeviceParameter((16 + (nn - 1))*[1,1],self.topReg,'uint32')...
                     .setLimits('lower',0,'upper',1);
             end
         end
@@ -230,7 +237,6 @@ classdef DeviceControl < handle
             %SETDEFAULTS Sets parameter values to their defaults
             %
             %   SELF = SETDEFAULTS(SELF) sets default values for SELF
-            self.adc_select.set(0);
             self.ext_o.set(0);
             self.led_o.set(0);
             self.phase_inc.set(4e6); 
@@ -433,7 +439,7 @@ classdef DeviceControl < handle
             end
         end
 
-        function self = getPhaseData(self,numSamples,saveType)
+        function self = getPhaseData(self,numSamples,saveFactor,saveType)
             %GETDEMODULATEDDATA Fetches phase data from the device
             %
             %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of phase data
@@ -441,10 +447,10 @@ classdef DeviceControl < handle
             %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
             %   users only: see the readme
             numSamples = round(numSamples);
-            if nargin < 3
+            if nargin < 4
                 saveType = 1;
             end
-            write_arg = {'./savePhaseData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType)};
+            write_arg = {'./savePhaseData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',round(saveFactor))};
             if self.auto_retry
                 for jj = 1:10
                     try
@@ -591,20 +597,13 @@ classdef DeviceControl < handle
             strwidth = 20;
             fprintf(1,'DeviceControl object with properties:\n');
             fprintf(1,'\t Registers\n');
-            self.topReg.print('topReg',strwidth);
-            self.outputReg.print('outputReg',strwidth);
-            self.inputReg.print('inputReg',strwidth);
-            self.filterReg.print('filterReg',strwidth);
-            self.adcReg.print('adcReg',strwidth);
-            self.ddsPhaseIncReg.print('phaseIncReg',strwidth);
-            self.ddsPhaseOffsetReg.print('phaseOffsetReg',strwidth);
-            self.dds2PhaseOffsetReg.print('dds2phaseOffsetReg',strwidth);
-            self.ddsPhaseCorrectionReg.print('ddsPhaseCorrectionReg',strwidth);
-            self.pwmRegs.print('pwmReg',strwidth);
-            self.controlRegs.print('controlRegs',strwidth);
-            self.gainRegs.print('gainRegs',strwidth);
-            self.pwmLimitRegs.print('pwmLimitRegs',strwidth);
-            self.dacReg.print('dacReg',strwidth);
+            p = properties(self);
+            for nn = 1:numel(p)
+                r = self.(p{nn});
+                if isa(r,'DeviceRegister')
+                    r.print(p{nn},strwidth);
+                end
+            end
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Parameters\n')
             
@@ -648,7 +647,7 @@ classdef DeviceControl < handle
             
             p = properties(self);
             for nn = 1:numel(p)
-                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController')
+                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController') || isa(self.(p{nn}),'IQPhaseControl')
                     s.(p{nn}) = self.(p{nn}).struct;
                 end
             end
@@ -673,7 +672,7 @@ classdef DeviceControl < handle
             p = properties(self);
             for nn = 1:numel(p)
                 if isfield(s,p{nn})
-                    if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController')
+                    if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController') || isa(self.(p{nn}),'IQPhaseControl')
                         try
                             self.(p{nn}).loadstruct(s.(p{nn}));
                         catch

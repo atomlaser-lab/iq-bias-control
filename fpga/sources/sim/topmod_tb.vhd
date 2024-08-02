@@ -250,7 +250,7 @@ DDS2_inst : DDS1
     m_axis_data_tdata        => dds2_o
 );
 
-dds_phase_inc_reg <= axi_data(6);
+dds_phase_inc_reg <= axi_data(4);
 
 dds_phase_i <= std_logic_vector(dds_phase_off_test) & dds_phase_inc_reg;
 dds2_phase_i <= std_logic_vector(dds2_phase_off_test) & std_logic_vector(shift_left(unsigned(dds_phase_inc_reg),1));
@@ -263,8 +263,8 @@ bus_s.resp <= resp_o;
 
 
              
-adc_data <= resize(signed(dds1_o(9 downto 0)),16) + resize(signed(dds2_o(25 downto 16)),16);
-adcData_i <= std_logic_vector(resize(signed(dds2_o(25 downto 16)),16)) & std_logic_vector(adc_data);
+adc_data <= shift_left(resize(signed(dds1_o(9 downto 0)),16),0);-- + resize(signed(dds2_o(25 downto 16)),16);
+adcData_i <= std_logic_vector(shift_left(resize(signed(dds2_o(25 downto 16)),16),0)) & std_logic_vector(adc_data);
 --adcData_i <= m_axis_tdata;
 
 
@@ -317,53 +317,61 @@ begin
 --    wait until bus_s.resp(0) = '1';
 --    start_single_i <= "00";
 --    wait for 500 ns;
+    --
+    -- Change the DDS2 phase
+    --
+--    wait for 50 us;
+--    dds2_phase_off_test <= to_unsigned(1073741824,dds2_phase_off_test'length);
     
-    wait until rising_edge(sysclk);
-    axi_addr_single <= X"0000_0080";
-    axi_data_single <= X"0000_0002";
-    start_single_i <= "01";
-    wait until bus_s.resp(0) = '1';
-    start_single_i <= "00";
-    wait for 500 ns;
-    wait until rising_edge(sysclk);
-    axi_addr_single <= X"0000_0080";
-    axi_data_single <= X"0000_0001";
-    start_single_i <= "01";
-    wait until bus_s.resp(0) = '1';
-    start_single_i <= "00";
-    wait for 500 ns;
+    --
+    -- These commands test the FIFO read out
+    --
+--    wait until rising_edge(sysclk);
+--    axi_addr_single <= X"0000_0080";
+--    axi_data_single <= X"0000_0002";
+--    start_single_i <= "01";
+--    wait until bus_s.resp(0) = '1';
+--    start_single_i <= "00";
+--    wait for 500 ns;
+--    wait until rising_edge(sysclk);
+--    axi_addr_single <= X"0000_0080";
+--    axi_data_single <= X"0000_0001";
+--    start_single_i <= "01";
+--    wait until bus_s.resp(0) = '1';
+--    start_single_i <= "00";
+--    wait for 500 ns;
     
-    wait until rising_edge(sysclk);
-    axi_addr_single <= X"0000_0094";
-    axi_data_single <= X"0000_0000";
-    start_single_i <= "10";
-    wait until bus_s.resp(0) = '1';
-    start_single_i <= "00";
-    wait for 500 ns;
+--    wait until rising_edge(sysclk);
+--    axi_addr_single <= X"0000_0094";
+--    axi_data_single <= X"0000_0000";
+--    start_single_i <= "10";
+--    wait until bus_s.resp(0) = '1';
+--    start_single_i <= "00";
+--    wait for 500 ns;
     
-    wait until rising_edge(sysclk);
-    axi_addr_single <= X"0000_0094";
-    axi_data_single <= X"0000_0000";
-    start_single_i <= "10";
-    wait until bus_s.resp(0) = '1';
-    start_single_i <= "00";
-    wait for 500 ns;
+--    wait until rising_edge(sysclk);
+--    axi_addr_single <= X"0000_0094";
+--    axi_data_single <= X"0000_0000";
+--    start_single_i <= "10";
+--    wait until bus_s.resp(0) = '1';
+--    start_single_i <= "00";
+--    wait for 500 ns;
     
-    wait until rising_edge(sysclk);
-    axi_addr_single <= X"0000_0094";
-    axi_data_single <= X"0000_0000";
-    start_single_i <= "10";
-    wait until bus_s.resp(0) = '1';
-    start_single_i <= "00";
-    wait for 500 ns;
+--    wait until rising_edge(sysclk);
+--    axi_addr_single <= X"0000_0094";
+--    axi_data_single <= X"0000_0000";
+--    start_single_i <= "10";
+--    wait until bus_s.resp(0) = '1';
+--    start_single_i <= "00";
+--    wait for 500 ns;
     
-    wait until rising_edge(sysclk);
-    axi_addr_single <= X"0000_0094";
-    axi_data_single <= X"0000_0000";
-    start_single_i <= "10";
-    wait until bus_s.resp(0) = '1';
-    start_single_i <= "00";
-    wait for 500 ns;
+--    wait until rising_edge(sysclk);
+--    axi_addr_single <= X"0000_0094";
+--    axi_data_single <= X"0000_0000";
+--    start_single_i <= "10";
+--    wait until bus_s.resp(0) = '1';
+--    start_single_i <= "00";
+--    wait for 500 ns;
     
 
     wait;

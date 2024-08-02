@@ -69,8 +69,15 @@ end record t_dds_combined_slv;
 -- Phase calculation types
 --
 constant PHASE_WIDTH    :   natural :=  16;
+constant IQ_WIDTH       :   natural :=  24;
 subtype t_phase is signed(PHASE_WIDTH - 1 downto 0);
+subtype t_iq is signed(IQ_WIDTH - 1 downto 0);
 type t_phase_array is array(natural range <>) of t_phase;
+type t_iq_combined is record
+    I       :   t_iq;
+    Q       :   t_iq;
+    valid   :   std_logic;
+end record t_iq_combined;
 
 --
 -- Defines filter related types
