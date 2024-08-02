@@ -13,7 +13,6 @@ classdef DeviceControl < handle
         %
         triggers                %Triggers -- currently unused
         ext_o                   %External output signals -- currently unused
-        adc_select              %Select which ADC to use
         adc                     %Read-only for getting current ADC values
         ext_i                   %Read-only for getting current digital input values
         led_o                   %LED control
@@ -21,6 +20,7 @@ classdef DeviceControl < handle
         phase_correction        %Correction to output phase to match high-frequency signal [deg]
         phase_offset            %Phase offset for demodulation of fundamental [deg]
         dds2_phase_offset       %Phase offset for demodulation at 2nd harmonic [deg]
+        link_dac_gate           %Turns the DAC off when the control hold is enabled
         log2_rate               %Log2(CIC filter rate)
         cic_shift               %Log2(Additional digital gain after filter)
         numSamples              %Number of samples to collect from recording raw ADC signals
@@ -144,9 +144,6 @@ classdef DeviceControl < handle
             %
             self.auxReg = DeviceRegister('100004',self.conn);
             %
-            % ADC Selector
-            self.adc_select = DeviceParameter([0,0],self.topReg);
-            %
             % Digital and LED input/output parameters
             %
             self.ext_o = DeviceParameter([0,7],self.outputReg)...
@@ -179,6 +176,8 @@ classdef DeviceControl < handle
             self.output_scale = DeviceParameter([16,23],self.filterReg,'uint32')...
                 .setLimits('lower',0,'upper',1)...
                 .setFunctions('to',@(x) x*(2^8 - 1),'from',@(x) x/(2^8 - 1));
+            self.link_dac_gate = DeviceParameter([1,1],self.topReg)...
+                .setLimits('lower',0,'upper',1);
             %
             % Filter settings
             %
@@ -198,7 +197,7 @@ classdef DeviceControl < handle
             %
             % Auxiliary DAC setting
             %
-            self.spi_period = DeviceParameter([1,8],self.topReg)...
+            self.spi_period = DeviceParameter([8,15],self.topReg)...
                 .setLimits('lower',50e-9,'upper',255/self.CLK)...
                 .setFunctions('to',@(x) ceil(x*self.CLK),'from',@(x) x/self.CLK);
             self.dac = DeviceParameter([0,self.AUX_DAC_WIDTH + 1],self.dacReg,'uint32')...
@@ -238,7 +237,8 @@ classdef DeviceControl < handle
             self.phase_correction.set(0);
             self.phase_offset.set(154.8); 
             self.dds2_phase_offset.set(161);
-            self.pwm.set([0.2865,0.6272,0.8446]);
+            self.link_dac_gate.set(0);
+            self.pwm.set([0.2865,0.6272,0.8446,0]);
             self.spi_period.set(100e-9);
             self.dac.set(0);
             self.log2_rate.set(13);
@@ -608,7 +608,6 @@ classdef DeviceControl < handle
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Parameters\n')
             
-            self.adc_select.print('ADC select',strwidth,'%.0f');
             self.led_o.print('LEDs',strwidth,'%02x');
             self.ext_o.print('External output',strwidth,'%02x');
             self.ext_i.print('External input',strwidth,'%02x');
@@ -618,6 +617,7 @@ classdef DeviceControl < handle
             self.phase_correction.print('Phase Correction',strwidth,'%.3f');
             self.phase_offset.print('Phase Offset',strwidth,'%.3f');
             self.dds2_phase_offset.print('dds2 Phase Offset',strwidth,'%.3f');
+            self.link_dac_gate.print('Link DAC gate',strwidth,'%d');
             for nn = 1:numel(self.pwm)
                 self.pwm(nn).print(sprintf('PWM %d',nn),strwidth,'%.3f');
             end

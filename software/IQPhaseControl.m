@@ -103,6 +103,10 @@ classdef IQPhaseControl < DeviceControlSubModule
             Ki = self.Ki.value*2^(-self.divisor.value)/self.parent.dt();
             Kd = self.Kd.value*2^(-self.divisor.value)*self.parent.dt();
         end
+
+        function r = dt(self)
+            r = 2^self.log2_rate.value/self.parent.CLK;
+        end
         
         function ss = print(self,width)
             %PRINT Prints a string representing the object
