@@ -9,25 +9,21 @@
 #include <math.h>
 #include <time.h>
 
-#define MAP_SIZE  262144UL
-#define MEM_LOC   0x40000000
-#define DATA_LOC 0x00000084
-#define FIFO_LOC  0x00000080
-#define PWM_LOC   0x00000050
+#include "iq_bias_control.h"
 
 int start_fifo(void *cfg) {
   //Disable FIFO
-  *((uint32_t *)(cfg + FIFO_LOC)) = 0;
+  *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = 0;
   //Reset FIFO
   *((uint32_t *)(cfg + 0)) = (1 << 2);
   usleep(1);
   //Enable FIFO
-  *((uint32_t *)(cfg + FIFO_LOC)) = 1;
+  *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = 1;
   return 0;
 }
 
 int stop_fifo(void *cfg) {
-  *((uint32_t *)(cfg + FIFO_LOC)) = 0;
+  *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = 0;
   return 0;
 }
 
@@ -148,7 +144,7 @@ int main(int argc, char **argv)
         
     }
     for (incr = 0;incr < saveFactor;incr++) {
-        *(data + i + incr) = *((uint32_t *)(cfg + DATA_LOC + (incr << 2)));
+        *(data + i + incr) = *((uint32_t *)(cfg + FIFO_BIAS_DATA_START_LOC + (incr << 2)));
     }
   }
   stop_fifo(cfg);

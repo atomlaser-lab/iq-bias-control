@@ -143,7 +143,7 @@ classdef DeviceControl < handle
             % Registers - memory system
             %
             self.numSamplesReg = DeviceRegister('200000',self.conn);
-            self.memResetReg = DeviceRegister('2000004',self.conn);
+            self.memResetReg = DeviceRegister('200004',self.conn);
             %
             % Registers - read only registers
             %
@@ -447,6 +447,9 @@ classdef DeviceControl < handle
             %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
             %   users only: see the readme
             numSamples = round(numSamples);
+            if nargin < 3
+                saveFactor = 5;
+            end
             if nargin < 4
                 saveType = 1;
             end
@@ -456,7 +459,7 @@ classdef DeviceControl < handle
                     try
                         self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                         raw = typecast(self.conn.recvMessage,'uint8');
-                        d = self.convertPhaseData(raw);
+                        d = self.convertPhaseData(raw,saveFactor);
                         self.data = d;
                         self.t = self.dt()*(0:(numSamples-1));
                         break;
@@ -471,7 +474,7 @@ classdef DeviceControl < handle
                     {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)},...
                     'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
-                d = self.convertPhaseData(raw);
+                d = self.convertPhaseData(raw,saveFactor);
                 self.data = d;
                 self.t = self.dt()*(0:(numSamples-1));
             end
@@ -710,10 +713,10 @@ classdef DeviceControl < handle
             d = double(d);
         end
 
-        function d = convertPhaseData(raw)
+        function d = convertPhaseData(raw,numStreams)
             raw = raw(:);
             Nraw = numel(raw);
-            numStreams = 3;
+%             numStreams = 3;
             d = zeros(Nraw/(numStreams*4),numStreams,'int32');
             
             raw = reshape(raw,4*numStreams,Nraw/(4*numStreams));
@@ -721,8 +724,12 @@ classdef DeviceControl < handle
                 d(:,nn) = typecast(uint8(reshape(raw((nn-1)*4 + (1:4),:),4*size(d,1),1)),'int32');
             end
             d = double(d);
-            d(:,1:2) = d(:,1:2)*DeviceControl.CONV_PHASE;
-            d(:,3) = d(:,3)*DeviceControl.CONV_PWM;
+            c = [DeviceControl.CONV_PHASE,DeviceControl.CONV_PHASE,DeviceControl.CONV_PWM,1,1];
+            for nn = 1:numStreams
+                d(:,nn) = d(:,nn)*c(nn);
+            end
+%             d(:,1:2) = d(:,1:2)*DeviceControl.CONV_PHASE;
+%             d(:,3) = d(:,3)*DeviceControl.CONV_PWM;
         end
 
         function v = convertADCData(raw,c)
