@@ -9,39 +9,7 @@
 #include <math.h>
 #include <time.h>
 
-#define MAP_SIZE  262144UL
-#define MEM_LOC   0x40000000
-#define FIFO_LOC  0x00000080
-
-#define DATA_LOC1 0x00000084
-#define DATA_LOC2 0x00000088
-#define DATA_LOC3 0x0000008C
-#define DATA_LOC4 0x00000090
-
-#define PWM_LOC   0x00000050
-
-int start_fifo(void *cfg) {
-  //Disable FIFO
-  *((uint32_t *)(cfg + FIFO_LOC)) = 0;
-  //Reset FIFO
-  *((uint32_t *)(cfg + 0)) = (1 << 2);
-  usleep(1);
-  //Enable FIFO
-  *((uint32_t *)(cfg + FIFO_LOC)) = 1;
-  return 0;
-}
-
-int stop_fifo(void *cfg) {
-  *((uint32_t *)(cfg + FIFO_LOC)) = 0;
-  return 0;
-}
-
-int write_to_pwm(void *cfg,uint16_t V1,uint16_t V2,uint16_t V3) {
-  *((uint32_t *)(cfg + PWM_LOC)) = (uint32_t) V1;
-  *((uint32_t *)(cfg + PWM_LOC + 4)) = (uint32_t) V2;
-  *((uint32_t *)(cfg + PWM_LOC + 8)) = (uint32_t) V3;
-  return 0;
-}
+#include "iq_bias_control.h"
  
 int main(int argc, char **argv)
 {
@@ -145,11 +113,9 @@ int main(int argc, char **argv)
         // Record raw data
         start_fifo(cfg);
         for (i = 0;i < raw_data_size;i += saveFactor) {
-          incr = 0;
-          *(raw_data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC1));
-          *(raw_data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC2));
-          *(raw_data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC3));
-          *(raw_data + i + incr++) = *((uint32_t *)(cfg + DATA_LOC4));
+          for (incr = 0;incr < saveFactor;incr++) {
+            *(raw_data + i + incr) = *((uint32_t *)(cfg + FIFO_BIAS_DATA_START_LOC + incr*4));
+          }
         }
         stop_fifo(cfg);
         // Average raw data

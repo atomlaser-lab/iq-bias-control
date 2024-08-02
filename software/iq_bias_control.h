@@ -10,4 +10,8 @@
 
 #define PWM_LOC                     0x00000100
 
+int start_fifo(void *cfg);
+int stop_fifo(void *cfg);
+int write_to_pwm(void *cfg,uint16_t V1,uint16_t V2,uint16_t V3);
+
 #endif

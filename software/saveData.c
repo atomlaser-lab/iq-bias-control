@@ -85,17 +85,7 @@ int main(int argc, char **argv)
   /*mmap maps the memory location 0x40000000 to the pointer cfg, which "points" to that location in memory.*/
 //  cfg = mmap(0,MAP_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,MEM_LOC);
   cfg = mmap(0,MAP_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,MEM_LOC);
-//  printf("Starting at %08x...\n",FIFO_CONTROL_LOC);
-  //Disable FIFO
-  *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = 0;
-//  printf("FIFO Disabled!\n");
-  //Reset FIFO
-  *((uint32_t *)(cfg + 0)) = (1 << 2);
-//  printf("FIFO Reset!\n");
-  usleep(1000);
-  //Enable FIFO
-  *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = 1;
-//  printf("FIFO Enabled!\n");
+  start_fifo(cfg);
   //Record data
   if (saveType == 1 | saveType == 2) {
     start = clock();
@@ -120,7 +110,7 @@ int main(int argc, char **argv)
   }
   
   //Disable FIFO
-  *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = 0;
+  stop_fifo(cfg);
   // Print debugging information
   if ((saveType == 1 | saveType == 2) & debugFlag) {
     stop = clock();
