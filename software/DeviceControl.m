@@ -437,6 +437,9 @@ classdef DeviceControl < handle
                 self.data = d;
                 self.t = self.dt()*(0:(numSamples-1));
             end
+            if self.conn.header.err
+                error('Connection returned error: %s',self.conn.header.errMsg);
+            end
         end
 
         function self = getPhaseData(self,numSamples,saveFactor,saveType)
@@ -477,6 +480,9 @@ classdef DeviceControl < handle
                 d = self.convertPhaseData(raw,saveFactor);
                 self.data = d;
                 self.t = self.dt()*(0:(numSamples-1));
+            end
+            if self.conn.header.err
+                error('Connection returned error: %s',self.conn.header.errMsg);
             end
         end
         
@@ -533,6 +539,9 @@ classdef DeviceControl < handle
                 self.data = d;
                 self.t = self.dt()*(0:(numSamples-1));
             end
+            if self.conn.header.err
+                error('Connection returned error: %s',self.conn.header.errMsg);
+            end
         end
 
         function self = getRAM(self,numSamples)
@@ -550,6 +559,9 @@ classdef DeviceControl < handle
             self.conn.write(0,'mode','command','cmd',...
                 {'./fetchRAM',sprintf('%d',numSamples)},...
                 'return_mode','file');
+            if self.conn.header.err
+                error('Connection returned error: %s',self.conn.header.errMsg);
+            end
             raw = typecast(self.conn.recvMessage,'uint8');
             if strcmpi(self.jumpers,'hv')
                 c = self.CONV_ADC_HV;
