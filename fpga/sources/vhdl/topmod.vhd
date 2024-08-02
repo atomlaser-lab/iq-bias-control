@@ -698,6 +698,7 @@ begin
                             when X"100018" => fifoRead(bus_m,bus_s,comState,fifo_bus(5).m,fifo_bus(5).s);
                             when X"10001C" => fifoRead(bus_m,bus_s,comState,fifo_bus(6).m,fifo_bus(6).s);
                             when X"100020" => fifoRead(bus_m,bus_s,comState,fifo_bus(7).m,fifo_bus(7).s);
+                            when X"100024" => fifoRead(bus_m,bus_s,comState,fifo_bus(8).m,fifo_bus(8).s);
                             --
                             -- Memory signals
                             --
