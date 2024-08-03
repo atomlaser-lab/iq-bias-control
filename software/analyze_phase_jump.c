@@ -17,15 +17,13 @@ int main(int argc, char **argv)
   int num_samples;      //Number of samples to acquire
   void *cfg;		    //A pointer to a memory location.  The * indicates that it is a pointer - it points to a location in memory
   char *name = "/dev/mem";	//Name of the memory resource
-  uint16_t Vx = 320;
-  uint16_t Vy = 320;
-  uint16_t Vz = 320;
+  uint16_t V = 320;
   uint16_t Vjump = 64;
   uint8_t jump_index = 0;
 
   uint32_t i, incr = 0;
   uint8_t saveType = 2;
-  uint32_t saveFactor = 4;
+  uint32_t saveFactor = 5;
   uint8_t allow_jump = 1;
   uint32_t tmp;
   uint32_t *data;
@@ -38,7 +36,7 @@ int main(int argc, char **argv)
    * Parse the input arguments
    */
   int c;
-  while ((c = getopt(argc,argv,"s:j:n:x:y:z:i:f")) != -1) {
+  while ((c = getopt(argc,argv,"s:j:n:v:f")) != -1) {
     switch (c) {
         case 's':
             saveFactor = atoi(optarg);
@@ -46,20 +44,11 @@ int main(int argc, char **argv)
         case 'j':
             Vjump = atoi(optarg);
             break;
-        case 'i':
-            jump_index = atoi(optarg);
-            break;
         case 'n':
             num_samples = atoi(optarg);
             break;
-        case 'x':
-            Vx = atoi(optarg);
-            break;
-        case 'y':
-            Vy = atoi(optarg);
-            break;
-        case 'z':
-            Vz = atoi(optarg);
+        case 'v':
+            V = atoi(optarg);
             break;
         case 'f':
             debugFlag = 1;
@@ -98,34 +87,21 @@ int main(int argc, char **argv)
   cfg = mmap(0,MAP_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,MEM_LOC);
  
   // Set voltages
-  write_to_bias_pwm(cfg,Vx,Vy,Vz);
+  write_to_phase_pwm(cfg,V);
   sleep(1);
   // Record data
   start_fifo(cfg);
   for (i = 0;i < data_size;i += saveFactor) {
     if ((i >= (data_size >> 2)) & (allow_jump == 1)) {
         allow_jump = 0;
-        switch (jump_index) {
-            case 1:
-                write_to_bias_pwm(cfg,Vx + Vjump,Vy,Vz);
-                break;
-            case 2:
-                write_to_bias_pwm(cfg,Vx,Vy + Vjump,Vz);
-                break;
-            case 3:
-                write_to_bias_pwm(cfg,Vx,Vy,Vz + Vjump);
-                break;
-            default:
-                break;
-        }
-        
+        write_to_phase_pwm(cfg,V + Vjump);
     }
     for (incr = 0;incr < saveFactor;incr++) {
-        *(data + i + incr) = *((uint32_t *)(cfg + FIFO_BIAS_DATA_START_LOC + (incr << 2)));
+        *(data + i + incr) = *((uint32_t *)(cfg + FIFO_PHASE_DATA_START_LOC + (incr << 2)));
     }
   }
   stop_fifo(cfg);
-  write_to_bias_pwm(cfg,Vx,Vy,Vz);
+  write_to_phase_pwm(cfg,V);
 
   ptr = fopen("SavedData.bin","wb");
   fwrite(data,4,(size_t)(data_size),ptr);

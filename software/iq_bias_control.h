@@ -12,6 +12,6 @@
 
 int start_fifo(void *cfg);
 int stop_fifo(void *cfg);
-int write_to_pwm(void *cfg,uint16_t V1,uint16_t V2,uint16_t V3);
-
+int write_to_bias_pwm(void *cfg,uint16_t V1,uint16_t V2,uint16_t V3);
+int write_to_phase_pwm(void *cfg,uint16_t V);
 #endif

@@ -102,7 +102,7 @@ int main(int argc, char **argv)
       for (int zz = 0;zz < numVoltages; zz++) {
         Vz = zz*(Vmax/numVoltages);
         // Set PWM values
-        write_to_pwm(cfg,Vx,Vy,Vz);
+        write_to_bias_pwm(cfg,Vx,Vy,Vz);
 /*        if ((xx == 0) || (yy == 0) || (zz == 0)) {
           sleep(1);
         } else {

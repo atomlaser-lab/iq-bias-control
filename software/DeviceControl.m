@@ -464,7 +464,7 @@ classdef DeviceControl < handle
                         raw = typecast(self.conn.recvMessage,'uint8');
                         d = self.convertPhaseData(raw,saveFactor);
                         self.data = d;
-                        self.t = self.dt()*(0:(numSamples-1));
+                        self.t = self.phase_lock.dt()*(0:(numSamples-1));
                         break;
                     catch e
                         if jj == 10
@@ -479,7 +479,7 @@ classdef DeviceControl < handle
                 raw = typecast(self.conn.recvMessage,'uint8');
                 d = self.convertPhaseData(raw,saveFactor);
                 self.data = d;
-                self.t = self.dt()*(0:(numSamples-1));
+                self.t = self.phase_lock.dt()*(0:(numSamples-1));
             end
             if self.conn.header.err
                 error('Connection returned error: %s',self.conn.header.errMsg);
@@ -538,6 +538,101 @@ classdef DeviceControl < handle
                 d = self.convertData(raw);
                 self.data = d;
                 self.t = self.dt()*(0:(numSamples-1));
+            end
+            if self.conn.header.err
+                error('Connection returned error: %s',self.conn.header.errMsg);
+            end
+        end
+
+        function self = getPhaseJumpResponse(self,numSamples,jump_amount,saveFactor)
+            %GETDEMODULATEDDATA Fetches phase data from the device
+            %
+            %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of phase data
+            %
+            %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
+            %   users only: see the readme
+            numSamples = round(numSamples);
+            if nargin < 4
+                saveFactor = 5;
+            end
+            saveType = 1;
+            jump_amount = round(jump_amount/self.CONV_PWM);
+            self.pwm(4).get;
+            V = round(self.pwm(4).intValue);
+            write_arg = {'./analyze_phase_jump','-n',sprintf('%d',numSamples),...
+                '-s',sprintf('%d',round(saveFactor)),'-j',sprintf('%d',jump_amount),'v',sprintf('%d',V)};
+            if self.auto_retry
+                for jj = 1:10
+                    try
+                        self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
+                        raw = typecast(self.conn.recvMessage,'uint8');
+                        d = self.convertPhaseData(raw,saveFactor);
+                        self.data = d;
+                        self.t = self.phase_lock.dt()*(0:(numSamples-1));
+                        break;
+                    catch e
+                        if jj == 10
+                            rethrow(e);
+                        end
+                    end
+                end
+            else
+                self.conn.write(0,'mode','command','cmd',...
+                    {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)},...
+                    'return_mode','file');
+                raw = typecast(self.conn.recvMessage,'uint8');
+                d = self.convertPhaseData(raw,saveFactor);
+                self.data = d;
+                self.t = self.phase_lock.dt()*(0:(numSamples-1));
+            end
+            if self.conn.header.err
+                error('Connection returned error: %s',self.conn.header.errMsg);
+            end
+        end
+
+        function self = getPhaseLockResponse(self,numSamples,change_sample,saveFactor)
+            %GETDEMODULATEDDATA Fetches phase data from the device
+            %
+            %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of phase data
+            %
+            %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
+            %   users only: see the readme
+            numSamples = round(numSamples);
+            if nargin < 4
+                saveFactor = 5;
+            end
+            if nargin < 3
+                change_sample = floor(0.25*numSamples);
+            elseif change_sample > 0 && change_sample < 1
+                change_sample = floor(change_sample*numSamples);
+            elseif ~(change_sample >= 1 && change_sample < numSamples)
+                error('Change sample cannot be longer than numSamples or a negative number');
+            end
+            saveType = 1;
+            write_arg = {'./analyze_phase_lock','-n',sprintf('%d',numSamples),'-s',sprintf('%d',round(saveFactor)),'-c',sprintf('%d',round(change_sample))};
+            if self.auto_retry
+                for jj = 1:10
+                    try
+                        self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
+                        raw = typecast(self.conn.recvMessage,'uint8');
+                        d = self.convertPhaseData(raw,saveFactor);
+                        self.data = d;
+                        self.t = self.phase_lock.dt()*(0:(numSamples-1));
+                        break;
+                    catch e
+                        if jj == 10
+                            rethrow(e);
+                        end
+                    end
+                end
+            else
+                self.conn.write(0,'mode','command','cmd',...
+                    {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)},...
+                    'return_mode','file');
+                raw = typecast(self.conn.recvMessage,'uint8');
+                d = self.convertPhaseData(raw,saveFactor);
+                self.data = d;
+                self.t = self.phase_lock.dt()*(0:(numSamples-1));
             end
             if self.conn.header.err
                 error('Connection returned error: %s',self.conn.header.errMsg);
