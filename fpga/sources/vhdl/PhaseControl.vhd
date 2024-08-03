@@ -123,6 +123,7 @@ signal phase            :   t_phase;
 signal valid_phase      :   std_logic;
 signal unwrapped_phase  :   t_phase;
 signal unwrapped_valid  :   std_logic;
+signal valid_act        :   std_logic;
 
 
 begin
@@ -133,7 +134,7 @@ enable <= control_reg_i(31) or pid_enable_i;
 polarity <= control_reg_i(30);
 hold <= control_reg_i(29) or pid_hold_i;
 
-control <= signed(control_reg_i(27 downto 12));
+control <= shift_left(resize(signed(control_reg_i(27 downto 12)),control'length),control'length - 16);
 --
 -- Calculate phase
 --
@@ -179,8 +180,10 @@ port map(
     polarity_i      =>  polarity,
     hold_i          =>  hold,
     gains           =>  gain_reg_i,
-    valid_o         =>  valid_act_o,
+    valid_o         =>  valid_act,
     data_o          =>  actuator_o
 );
+
+valid_act_o <= valid_act when enable = '1' else unwrapped_valid;
 
 end Behavioral;

@@ -109,7 +109,7 @@ signal validPhase_i         :   std_logic;
 -- Phase calculation signals
 --
 signal tdataPhase   :   std_logic_vector(47 downto 0);
-signal phase        :   std_logic_vector(PHASE_WIDTH - 1 downto 0);
+signal phase        :   std_logic_vector(CORDIC_WIDTH - 1 downto 0);
 signal validPhase   :   std_logic;
 
 

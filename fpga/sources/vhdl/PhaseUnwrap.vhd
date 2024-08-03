@@ -28,7 +28,7 @@ end PhaseUnwrap;
 
 architecture Behavioral of PhaseUnwrap is
 
-constant PHASE_POS_PI       :   t_phase     :=  shift_left(to_signed(1,PHASE_WIDTH),PHASE_WIDTH - 3);
+constant PHASE_POS_PI       :   t_phase     :=  shift_left(to_signed(1,PHASE_WIDTH),CORDIC_WIDTH - 3);
 
 signal phaseNew, phaseOld   :   t_phase;    -- These are used for detecting phase jumps
 signal phaseDiff            :   t_phase;    -- This is used for measuring the difference between adjacent phase measurements

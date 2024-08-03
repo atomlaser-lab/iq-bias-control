@@ -105,47 +105,47 @@ signal bus_s                    :   t_axi_bus_slave;
 --
 -- AXI data
 --
-constant axi_addresses   :   t_axi_addr_array(25 downto 0) := (0  =>  X"00000040",
+constant axi_addresses   :   t_axi_addr_array(25 downto 0) := (0  =>  X"00000004",
                                                                1  =>  X"00000000",
-                                                               2  =>  X"00000004",
-                                                               3  =>  X"00000008",
-                                                               4  =>  X"00000014",
-                                                               5  =>  X"00000030",
-                                                               6  =>  X"00000018",
-                                                               7  =>  X"00000020",
-                                                               8  =>  X"00100000",
-                                                               9  =>  X"00000050",
-                                                               10  =>  X"00000054",
-                                                               11  =>  X"00000058",
-                                                               12  =>  X"0000005c",
-                                                               13  =>  X"00100004",
-                                                               14  =>  X"00000100",
-                                                               15  =>  X"00000104",
-                                                               16  =>  X"00000108",
-                                                               17  =>  X"0000010c",
-                                                               18  =>  X"00000110",
-                                                               19  =>  X"00000120",
-                                                               20  =>  X"00000124",
-                                                               21  =>  X"00000128",
-                                                               22  =>  X"0000012c",
-                                                               23  =>  X"00000060",
-                                                               24  =>  X"00000200",
-                                                               25  =>  X"00000204");
+                                                               2  =>  X"00000008",
+                                                               3  =>  X"0000000c",
+                                                               4  =>  X"00000010",
+                                                               5  =>  X"0000001c",
+                                                               6  =>  X"00000014",
+                                                               7  =>  X"00000018",
+                                                               8  =>  X"00200000",
+                                                               9  =>  X"00200004",
+                                                               10  =>  X"00000100",
+                                                               11  =>  X"00000104",
+                                                               12  =>  X"00000108",
+                                                               13  =>  X"0000010c",
+                                                               14  =>  X"00000200",
+                                                               15  =>  X"00000204",
+                                                               16  =>  X"00000208",
+                                                               17  =>  X"0000020c",
+                                                               18  =>  X"00000210",
+                                                               19  =>  X"00000110",
+                                                               20  =>  X"00000114",
+                                                               21  =>  X"00000118",
+                                                               22  =>  X"0000011c",
+                                                               23  =>  X"00000020",
+                                                               24  =>  X"00000300",
+                                                               25  =>  X"00000304");
                                                      
 
-constant axi_data   :   t_axi_data_array(25 downto 0) := (0  =>  X"0000001a",
+constant axi_data   :   t_axi_data_array(25 downto 0) := (0  =>  X"00000d00",
                                                           1  =>  X"00000000",
                                                           2  =>  X"00000000",
-                                                          3  =>  X"00ff0fdd",
+                                                          3  =>  X"00ff0fd8",
                                                           4  =>  X"083126e9",
                                                           5  =>  X"00000000",
                                                           6  =>  X"6e147ae1",
                                                           7  =>  X"727d27d2",
                                                           8  =>  X"00000fa0",
-                                                          9  =>  X"000000b7",
-                                                          10  =>  X"00000191",
-                                                          11  =>  X"0000021c",
-                                                          12  =>  X"00000000",
+                                                          9  =>  X"00000000",
+                                                          10  =>  X"000000b7",
+                                                          11  =>  X"00000191",
+                                                          12  =>  X"0000021c",
                                                           13  =>  X"00000000",
                                                           14  =>  X"00000000",
                                                           15  =>  X"00000000",
@@ -157,7 +157,7 @@ constant axi_data   :   t_axi_data_array(25 downto 0) := (0  =>  X"0000001a",
                                                           21  =>  X"000ffc00",
                                                           22  =>  X"03bf0000",
                                                           23  =>  X"00000000",
-                                                          24  =>  X"0000000a",
+                                                          24  =>  X"00000008",
                                                           25  =>  X"08000000");
                                                                
 signal dds_phase_inc_reg            :   t_param_reg;
@@ -326,52 +326,52 @@ begin
     --
     -- These commands test the FIFO read out
     --
---    wait until rising_edge(sysclk);
---    axi_addr_single <= X"0000_0080";
---    axi_data_single <= X"0000_0002";
---    start_single_i <= "01";
---    wait until bus_s.resp(0) = '1';
---    start_single_i <= "00";
---    wait for 500 ns;
---    wait until rising_edge(sysclk);
---    axi_addr_single <= X"0000_0080";
---    axi_data_single <= X"0000_0001";
---    start_single_i <= "01";
---    wait until bus_s.resp(0) = '1';
---    start_single_i <= "00";
---    wait for 500 ns;
+    wait until rising_edge(sysclk);
+    axi_addr_single <= X"0010_0000";
+    axi_data_single <= X"0000_0002";
+    start_single_i <= "01";
+    wait until bus_s.resp(0) = '1';
+    start_single_i <= "00";
+    wait for 500 ns;
+    wait until rising_edge(sysclk);
+    axi_addr_single <= X"0010_0000";
+    axi_data_single <= X"0000_0001";
+    start_single_i <= "01";
+    wait until bus_s.resp(0) = '1';
+    start_single_i <= "00";
+    wait for 500 ns;
     
---    wait until rising_edge(sysclk);
---    axi_addr_single <= X"0000_0094";
---    axi_data_single <= X"0000_0000";
---    start_single_i <= "10";
---    wait until bus_s.resp(0) = '1';
---    start_single_i <= "00";
---    wait for 500 ns;
+    wait until rising_edge(sysclk);
+    axi_addr_single <= X"0010_0014";
+    axi_data_single <= X"0000_0000";
+    start_single_i <= "10";
+    wait until bus_s.resp(0) = '1';
+    start_single_i <= "00";
+    wait for 500 ns;
     
---    wait until rising_edge(sysclk);
---    axi_addr_single <= X"0000_0094";
---    axi_data_single <= X"0000_0000";
---    start_single_i <= "10";
---    wait until bus_s.resp(0) = '1';
---    start_single_i <= "00";
---    wait for 500 ns;
+    wait until rising_edge(sysclk);
+    axi_addr_single <= X"0010_0014";
+    axi_data_single <= X"0000_0000";
+    start_single_i <= "10";
+    wait until bus_s.resp(0) = '1';
+    start_single_i <= "00";
+    wait for 500 ns;
     
---    wait until rising_edge(sysclk);
---    axi_addr_single <= X"0000_0094";
---    axi_data_single <= X"0000_0000";
---    start_single_i <= "10";
---    wait until bus_s.resp(0) = '1';
---    start_single_i <= "00";
---    wait for 500 ns;
+    wait until rising_edge(sysclk);
+    axi_addr_single <= X"0010_0014";
+    axi_data_single <= X"0000_0000";
+    start_single_i <= "10";
+    wait until bus_s.resp(0) = '1';
+    start_single_i <= "00";
+    wait for 500 ns;
     
---    wait until rising_edge(sysclk);
---    axi_addr_single <= X"0000_0094";
---    axi_data_single <= X"0000_0000";
---    start_single_i <= "10";
---    wait until bus_s.resp(0) = '1';
---    start_single_i <= "00";
---    wait for 500 ns;
+    wait until rising_edge(sysclk);
+    axi_addr_single <= X"0010_0014";
+    axi_data_single <= X"0000_0000";
+    start_single_i <= "10";
+    wait until bus_s.resp(0) = '1';
+    start_single_i <= "00";
+    wait for 500 ns;
     
 
     wait;

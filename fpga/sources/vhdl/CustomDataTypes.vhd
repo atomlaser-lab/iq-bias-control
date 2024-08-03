@@ -68,7 +68,8 @@ end record t_dds_combined_slv;
 --
 -- Phase calculation types
 --
-constant PHASE_WIDTH    :   natural :=  16;
+constant CORDIC_WIDTH   :   natural :=  16;
+constant PHASE_WIDTH    :   natural :=  24;
 constant IQ_WIDTH       :   natural :=  24;
 subtype t_phase is signed(PHASE_WIDTH - 1 downto 0);
 subtype t_iq is signed(IQ_WIDTH - 1 downto 0);
