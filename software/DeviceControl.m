@@ -102,6 +102,7 @@ classdef DeviceControl < handle
             % Set jumper values
             %
             self.jumpers = 'lv';
+            self.auto_retry = true;
             %% Registers
             %
             % Registers - general
@@ -484,9 +485,7 @@ classdef DeviceControl < handle
                     end
                 end
             else
-                self.conn.write(0,'mode','command','cmd',...
-                    {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)},...
-                    'return_mode','file');
+                self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
                 d = self.convertPhaseData(raw,saveFactor);
                 self.data = d;
@@ -588,9 +587,7 @@ classdef DeviceControl < handle
                     end
                 end
             else
-                self.conn.write(0,'mode','command','cmd',...
-                    {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)},...
-                    'return_mode','file');
+                self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
                 d = self.convertPhaseData(raw,saveFactor);
                 self.data = d;
@@ -637,9 +634,7 @@ classdef DeviceControl < handle
                     end
                 end
             else
-                self.conn.write(0,'mode','command','cmd',...
-                    {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)},...
-                    'return_mode','file');
+                self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
                 d = self.convertPhaseData(raw,saveFactor);
                 self.data = d;

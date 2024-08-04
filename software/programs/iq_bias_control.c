@@ -9,16 +9,19 @@ int start_fifo(void *cfg) {
   //Disable FIFO
   *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = 0;
   //Reset FIFO
-  *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = (1 << 2);
-  usleep(100);
+  usleep(1);
+  *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = (1 << 1);
+  usleep(1);
   *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = 0;
-  usleep(100);
+  usleep(1);
   //Enable FIFO
   *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = 1;
   return 0;
 }
 
 int stop_fifo(void *cfg) {
+  *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = (1 << 1);
+  usleep(1);
   *((uint32_t *)(cfg + FIFO_CONTROL_LOC)) = 0;
   return 0;
 }
