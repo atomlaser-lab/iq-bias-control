@@ -259,7 +259,10 @@ constant NUM_PHASE_FIFOS    :   natural :=  5;
 constant NUM_FIFOS          :   natural :=  NUM_BIAS_FIFOS + NUM_PHASE_FIFOS;
 type t_fifo_data_array is array(natural range <>) of std_logic_vector(FIFO_WIDTH - 1 downto 0);
 
-signal fifo_bus             :   t_fifo_bus_array(NUM_FIFOS - 1 downto 0)  :=  (others => INIT_FIFO_BUS);
+--signal fifo_bus             :   t_fifo_bus_array(NUM_FIFOS - 1 downto 0);
+signal fifo_bus_master      :   t_fifo_bus_master_array(NUM_FIFOS - 1 downto 0);
+signal fifo_bus_slave       :   t_fifo_bus_slave_array(NUM_FIFOS - 1 downto 0);
+
 signal enableFIFO           :   std_logic;
 signal fifoReset            :   std_logic;
 
@@ -540,8 +543,8 @@ BIAS_FIFO_GEN: for I in 0 to NUM_BIAS_FIFOS - 1 generate
         data_i      =>  bias_fifo_data(I),
         valid_i     =>  bias_fifo_valid(I),
         fifoReset   =>  fifoReset,
-        bus_m       =>  fifo_bus(I).m,
-        bus_s       =>  fifo_bus(I).s
+        bus_m       =>  fifo_bus_master(I),
+        bus_s       =>  fifo_bus_slave(I)
   );
 end generate BIAS_FIFO_GEN;
 --
@@ -567,8 +570,8 @@ PHASE_FIFO_GEN: for I in 0 to NUM_PHASE_FIFOS - 1 generate
         data_i      =>  phase_fifo_data(I),
         valid_i     =>  phase_fifo_valid(I),
         fifoReset   =>  fifoReset,
-        bus_m       =>  fifo_bus(I + NUM_BIAS_FIFOS).m,
-        bus_s       =>  fifo_bus(I + NUM_BIAS_FIFOS).s
+        bus_m       =>  fifo_bus_master(I + NUM_BIAS_FIFOS),
+        bus_s       =>  fifo_bus_slave(I + NUM_BIAS_FIFOS)
   );
 end generate PHASE_FIFO_GEN;
 --
@@ -625,7 +628,7 @@ begin
         --
         fifoReg <= (others => '0');
         for I in 0 to NUM_FIFOS - 1 loop
-            fifo_bus(I).m.status <= idle;
+            fifo_bus_master(I) <= INIT_FIFO_BUS_MASTER;
         end loop;
         --
         -- Memory signals
@@ -690,15 +693,15 @@ begin
                             -- FIFO control and data retrieval
                             --
                             when X"100000" => rw(bus_m,bus_s,comState,fifoReg);
-                            when X"100004" => fifoRead(bus_m,bus_s,comState,fifo_bus(0).m,fifo_bus(0).s);
-                            when X"100008" => fifoRead(bus_m,bus_s,comState,fifo_bus(1).m,fifo_bus(1).s);
-                            when X"10000C" => fifoRead(bus_m,bus_s,comState,fifo_bus(2).m,fifo_bus(2).s);
-                            when X"100010" => fifoRead(bus_m,bus_s,comState,fifo_bus(3).m,fifo_bus(3).s);
-                            when X"100014" => fifoRead(bus_m,bus_s,comState,fifo_bus(4).m,fifo_bus(4).s);
-                            when X"100018" => fifoRead(bus_m,bus_s,comState,fifo_bus(5).m,fifo_bus(5).s);
-                            when X"10001C" => fifoRead(bus_m,bus_s,comState,fifo_bus(6).m,fifo_bus(6).s);
-                            when X"100020" => fifoRead(bus_m,bus_s,comState,fifo_bus(7).m,fifo_bus(7).s);
-                            when X"100024" => fifoRead(bus_m,bus_s,comState,fifo_bus(8).m,fifo_bus(8).s);
+                            when X"100004" => fifoRead(bus_m,bus_s,comState,fifo_bus_master(0),fifo_bus_slave(0));
+                            when X"100008" => fifoRead(bus_m,bus_s,comState,fifo_bus_master(1),fifo_bus_slave(1));
+                            when X"10000C" => fifoRead(bus_m,bus_s,comState,fifo_bus_master(2),fifo_bus_slave(2));
+                            when X"100010" => fifoRead(bus_m,bus_s,comState,fifo_bus_master(3),fifo_bus_slave(3));
+                            when X"100014" => fifoRead(bus_m,bus_s,comState,fifo_bus_master(4),fifo_bus_slave(4));
+                            when X"100018" => fifoRead(bus_m,bus_s,comState,fifo_bus_master(5),fifo_bus_slave(5));
+                            when X"10001C" => fifoRead(bus_m,bus_s,comState,fifo_bus_master(6),fifo_bus_slave(6));
+                            when X"100020" => fifoRead(bus_m,bus_s,comState,fifo_bus_master(7),fifo_bus_slave(7));
+                            when X"100024" => fifoRead(bus_m,bus_s,comState,fifo_bus_master(8),fifo_bus_slave(8));
                             --
                             -- Memory signals
                             --

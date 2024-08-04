@@ -341,39 +341,53 @@ begin
     start_single_i <= "00";
     wait for 500 ns;
     
+--    wait until rising_edge(sysclk);
+--    axi_addr_single <= X"0010_0014";
+--    axi_data_single <= X"0000_0000";
+--    start_single_i <= "10";
+--    wait until bus_s.resp(0) = '1';
+--    start_single_i <= "00";
+--    wait for 500 ns;
+    
+--    wait until rising_edge(sysclk);
+--    axi_addr_single <= X"0010_0014";
+--    axi_data_single <= X"0000_0000";
+--    start_single_i <= "10";
+--    wait until bus_s.resp(0) = '1';
+--    start_single_i <= "00";
+--    wait for 500 ns;
+    
+--    wait until rising_edge(sysclk);
+--    axi_addr_single <= X"0010_0014";
+--    axi_data_single <= X"0000_0000";
+--    start_single_i <= "10";
+--    wait until bus_s.resp(0) = '1';
+--    start_single_i <= "00";
+--    wait for 500 ns;
+    
+--    wait until rising_edge(sysclk);
+--    axi_addr_single <= X"0010_0014";
+--    axi_data_single <= X"0000_0000";
+--    start_single_i <= "10";
+--    wait until bus_s.resp(0) = '1';
+--    start_single_i <= "00";
+--    wait for 500 ns;
+    
+    wait for 50 us;
     wait until rising_edge(sysclk);
-    axi_addr_single <= X"0010_0014";
-    axi_data_single <= X"0000_0000";
-    start_single_i <= "10";
+    axi_addr_single <= X"0010_0000";
+    axi_data_single <= X"0000_0002";
+    start_single_i <= "01";
     wait until bus_s.resp(0) = '1';
     start_single_i <= "00";
     wait for 500 ns;
-    
     wait until rising_edge(sysclk);
-    axi_addr_single <= X"0010_0014";
+    axi_addr_single <= X"0010_0000";
     axi_data_single <= X"0000_0000";
-    start_single_i <= "10";
+    start_single_i <= "01";
     wait until bus_s.resp(0) = '1';
     start_single_i <= "00";
     wait for 500 ns;
-    
-    wait until rising_edge(sysclk);
-    axi_addr_single <= X"0010_0014";
-    axi_data_single <= X"0000_0000";
-    start_single_i <= "10";
-    wait until bus_s.resp(0) = '1';
-    start_single_i <= "00";
-    wait for 500 ns;
-    
-    wait until rising_edge(sysclk);
-    axi_addr_single <= X"0010_0014";
-    axi_data_single <= X"0000_0000";
-    start_single_i <= "10";
-    wait until bus_s.resp(0) = '1';
-    start_single_i <= "00";
-    wait for 500 ns;
-    
-
     wait;
 end process; 
 

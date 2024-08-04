@@ -163,6 +163,8 @@ type t_fifo_bus is record
 end record t_fifo_bus;
 
 type t_fifo_bus_array is array(natural range <>) of t_fifo_bus;
+type t_fifo_bus_master_array is array(natural range <>) of t_fifo_bus_master;
+type t_fifo_bus_slave_array is array(natural range <>) of t_fifo_bus_slave;
 
 constant INIT_FIFO_BUS_MASTER    :  t_fifo_bus_master :=(rd_en  =>  '0',
                                                         status =>  idle,
