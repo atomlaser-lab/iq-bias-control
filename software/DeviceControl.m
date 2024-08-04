@@ -55,6 +55,7 @@ classdef DeviceControl < handle
         dacReg                  %Register for auxiliary DAC
         phaseControlReg         %Register for control of phase measurement
         phaseGainReg            %Register for phase measurement PID gains
+        statusReg               %Register for status bits
     end
     
     properties(Constant)
@@ -148,7 +149,8 @@ classdef DeviceControl < handle
             % Registers - read only registers
             %
             self.adcReg = DeviceRegister('300000',self.conn,true);
-            self.inputReg = DeviceRegister('300000',self.conn,true);
+            self.inputReg = DeviceRegister('300004',self.conn,true);
+            self.statusReg = DeviceRegister('300008',self.conn,true);
             %% Parameters
             %
             % Digital and LED input/output parameters
@@ -399,6 +401,15 @@ classdef DeviceControl < handle
             new_pwm = mean(self.data,1)*self.CONV_PWM;
             self.pwm.set(new_pwm).write;
             self.fifo_route.set(old_route).write;
+        end
+
+        function r = getStatus(self)
+            self.statusReg.read;
+            if nargout == 0
+                fprintf('%08x\n',self.statusReg.value);
+            else
+                r = dec2hex(self.statusReg.value,8);
+            end
         end
 
         function self = getDemodulatedData(self,numSamples,saveType)

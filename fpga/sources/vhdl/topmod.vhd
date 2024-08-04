@@ -237,6 +237,8 @@ signal dac_reg              :   t_param_reg;
 -- Phase lock registers
 signal phaseControlReg      :   t_param_reg;
 signal phaseGainReg         :   t_param_reg;
+--Status registers
+signal statusReg            :   t_param_reg;
 --
 -- DDS signals
 --
@@ -370,7 +372,10 @@ end generate PWM_reg_gen;
 -- FIFO registers
 enableFIFO <= fifoReg(0);
 fifoReset <= fifoReg(1);
-
+-- Status registers
+STATUS_REG_GEN: for I in 0 to fifo_bus_master'length - 1 generate
+    statusReg(I) <= fifo_bus_slave(I).empty;
+end generate STATUS_REG_GEN;
 
 --
 -- Parse inputs
@@ -715,6 +720,7 @@ begin
                             --
                             when X"300000" => readOnly(bus_m,bus_s,comState,adcData_i);
                             when X"300004" => readOnly(bus_m,bus_s,comState,ext_i);
+                            when X"300008" => readOnly(bus_m,bus_s,comState,statusReg);
                            
                             when others => 
                                 comState <= finishing;
