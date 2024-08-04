@@ -55,15 +55,17 @@ begin
             when idle =>
                 valid_o <= '0';
                 if valid_i = '1' then
-                    if enable_i = '0' then
-                        phaseOld <= (others => '0');
-                        phaseNew <= (others => '0');
-                        phaseDiff <= (others => '0');
-                        phaseSum <= (others => '0');
-                    else
-                        phaseOld <= phaseNew;
-                        phaseNew <= resize(phase_i,phaseNew'length);
-                    end if;
+--                    if enable_i = '0' then
+--                        phaseOld <= (others => '0');
+--                        phaseNew <= (others => '0');
+--                        phaseDiff <= (others => '0');
+--                        phaseSum <= (others => '0');
+--                    else
+--                        phaseOld <= phaseNew;
+--                        phaseNew <= resize(phase_i,phaseNew'length);
+--                    end if;
+                    phaseOld <= phaseNew;
+                    phaseNew <= resize(phase_i,phaseNew'length);
                     state <= wrapping;
                 end if;
                 
