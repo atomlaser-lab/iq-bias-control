@@ -227,7 +227,7 @@ classdef DeviceControl < handle
             %
             % Phase lock settings
             %
-            self.phase_lock = IQPhaseControl(self,self.phaseControlReg,self.phaseGainReg,self.phaseDivisorReg,self.pwmLimitRegs(4));
+            self.phase_lock = IQPhaseControl(self,self.topReg,self.phaseControlReg,self.phaseGainReg,self.phaseDivisorReg,self.pwmLimitRegs(4));
             %
             % FIFO routing
             %
