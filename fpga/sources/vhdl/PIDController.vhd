@@ -25,6 +25,7 @@ entity PIDController is
         polarity_i  :   in  std_logic;
         hold_i      :   in  std_logic;
         gains       :   in  t_param_reg;
+        divisors    :   in  t_param_reg;
         --
         -- Outputs
         --
@@ -39,15 +40,15 @@ COMPONENT PIDmultipliers
   PORT (
     CLK : IN STD_LOGIC;
     A : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
-    B : IN STD_LOGIC_VECTOR(15 DOWNTO 0);
-    P : OUT STD_LOGIC_VECTOR(23 DOWNTO 0)
+    B : IN STD_LOGIC_VECTOR(23 DOWNTO 0);
+    P : OUT STD_LOGIC_VECTOR(31 DOWNTO 0)
   );
 END COMPONENT;
 --
 -- Constants
 --
 constant MULT_LATENCY   :   natural :=  3;
-constant MEAS_WIDTH     :   natural :=  16;
+constant MEAS_WIDTH     :   natural :=  24;
 constant GAIN_WIDTH     :   natural :=  8;
 constant MULT_WIDTH     :   natural :=  MEAS_WIDTH + GAIN_WIDTH;
 constant ACCUM_WIDTH    :   natural :=  32;
@@ -56,6 +57,7 @@ constant ACCUM_WIDTH    :   natural :=  32;
 --
 subtype t_input_local       is signed(MEAS_WIDTH - 1 downto 0);
 subtype t_gain_local        is std_logic_vector(GAIN_WIDTH - 1 downto 0);
+subtype t_divisor_local     is integer range -128 to 127;
 subtype t_mult_local        is signed(MULT_WIDTH - 1 downto 0);
 subtype t_accum_local       is signed(ACCUM_WIDTH - 1 downto 0);
 type t_input_local_array    is array(natural range <>) of t_input_local;
@@ -63,7 +65,8 @@ type t_input_local_array    is array(natural range <>) of t_input_local;
 -- Parameters
 --
 signal Kp, Ki, Kd           :   t_gain_local;
-signal divisor              :   natural range 0 to 255;
+--signal divisor              :   natural range 0 to 255;
+signal Dp, Di, Dd           :   t_divisor_local :=  0;
 --
 -- Signals
 --
@@ -71,7 +74,8 @@ signal err                      :   t_input_local_array(2 downto 0);
 signal measurement, control     :   t_input_local;
 signal prop_i, int_i, deriv_i   :   t_input_local;
 signal prop_o, int_o, deriv_o   :   std_logic_vector(MULT_WIDTH - 1 downto 0);
-signal pidSum, pidAccumulate    :   t_accum_local;
+signal prop_a, int_a, deriv_a   :   t_accum_local;
+--signal pidSum, pidAccumulate    :   t_accum_local;
 
 signal valid_p                  :   std_logic_vector(7 downto 0);
 
@@ -82,7 +86,10 @@ begin
 Kp <= gains(7 downto 0);
 Ki <= gains(15 downto 8);
 Kd <= gains(23 downto 16);
-divisor <= to_integer(unsigned(gains(31 downto 24)));
+--divisor <= to_integer(unsigned(gains(31 downto 24)));
+Dp <= to_integer(signed(divisors(7 downto 0)));
+Di <= to_integer(signed(divisors(15 downto 8)));
+Dd <= to_integer(signed(divisors(23 downto 16)));
 --
 -- Resize inputs
 --
@@ -121,7 +128,7 @@ port map(
 --
 -- Sum outputs of multipliers and divide to get correct output
 --
-pidSum <= resize(signed(prop_o) + signed(int_o) + signed(deriv_o),pidSum'length);
+--pidSum <= resize(signed(prop_o) + signed(int_o) + signed(deriv_o),pidSum'length);
 --
 -- Main process
 --
@@ -131,7 +138,10 @@ begin
         err <= (others => (others => '0'));
         valid_o <= '0';
         valid_p <= (others => '0');
-        pidAccumulate <= (others => '0');
+--        pidAccumulate <= (others => '0');
+        prop_a <= (others => '0');
+        int_a <= (others => '0');
+        deriv_a <= (others => '0');
         data_o <= (others => '0');
     elsif rising_edge(clk) then
         if enable_i = '1' then
@@ -164,20 +174,27 @@ begin
             -- Sum new values
             --
             if valid_p(MULT_LATENCY) = '1' and hold_i = '0' then
-                pidAccumulate <= pidAccumulate + pidSum;
+--                pidAccumulate <= pidAccumulate + pidSum;
+                prop_a <= prop_a + resize(signed(prop_o),ACCUM_WIDTH);
+                int_a <= int_a + resize(signed(int_o),ACCUM_WIDTH);
+                deriv_a <= deriv_a + resize(signed(deriv_o),ACCUM_WIDTH);
             end if;
             valid_p(1 + MULT_LATENCY) <= valid_p(MULT_LATENCY);
             --
             -- Produce output
             --
             if valid_p(1 + MULT_LATENCY) = '1' then
-                data_o <= resize(shift_right(pidAccumulate,divisor),data_o'length);
+--                data_o <= resize(shift_right(pidAccumulate,divisor),data_o'length);
+                data_o <= resize(shift_right(prop_a,Dp) + shift_right(int_a,Di) + shift_right(deriv_a,Dd),data_o'length);
             end if;
             valid_o <= valid_p(1 + MULT_LATENCY);
         else
             err <= (others => (others => '0'));
             valid_p <= (others => '0');
-            pidAccumulate <= (others => '0');
+--            pidAccumulate <= (others => '0');
+            prop_a <= (others => '0');
+            int_a <= (others => '0');
+            deriv_a <= (others => '0');
             data_o <= (others => '0');
             valid_o <= '0';
         end if;

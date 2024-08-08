@@ -55,6 +55,7 @@ classdef DeviceControl < handle
         dacReg                  %Register for auxiliary DAC
         phaseControlReg         %Register for control of phase measurement
         phaseGainReg            %Register for phase measurement PID gains
+        phaseDivisorReg         %Register for phase measurement PID divisors
         statusReg               %Register for status bits
     end
     
@@ -141,6 +142,7 @@ classdef DeviceControl < handle
             %
             self.phaseControlReg = DeviceRegister('300',self.conn);
             self.phaseGainReg = DeviceRegister('304',self.conn);
+            self.phaseDivisorReg = DeviceRegister('308',self.conn);
             %
             % Registers - memory system
             %
@@ -225,7 +227,7 @@ classdef DeviceControl < handle
             %
             % Phase lock settings
             %
-            self.phase_lock = IQPhaseControl(self,self.phaseControlReg,self.phaseGainReg,self.pwmLimitRegs(4));
+            self.phase_lock = IQPhaseControl(self,self.phaseControlReg,self.phaseGainReg,self.phaseDivisorReg,self.pwmLimitRegs(4));
             %
             % FIFO routing
             %

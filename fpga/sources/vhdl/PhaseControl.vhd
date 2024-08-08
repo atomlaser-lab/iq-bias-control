@@ -22,6 +22,7 @@ entity PhaseControl is
         --
         control_reg_i   :   in  t_param_reg;
         gain_reg_i      :   in  t_param_reg;
+        divisor_reg_i   :   in  t_param_reg;
         --
         -- Control signals
         --
@@ -104,6 +105,7 @@ component PIDController is
         polarity_i  :   in  std_logic;
         hold_i      :   in  std_logic;
         gains       :   in  t_param_reg;
+        divisors    :   in  t_param_reg;
         --
         -- Outputs
         --
@@ -112,19 +114,23 @@ component PIDController is
     );
 end component;
 
-signal enable       :   std_logic;          -- PID enable
-signal polarity     :   std_logic;
-signal hold         :   std_logic;
+signal enable               :   std_logic;          -- PID enable
+signal polarity             :   std_logic;
+signal hold                 :   std_logic;
+signal measurement_switch   :   std_logic;
 
-constant ZERO_PHASE     :   t_phase     :=  (others => '0');
+constant ZERO_PHASE         :   t_phase     :=  (others => '0');
 
-signal control          :   t_phase;
-signal phase            :   t_phase;
-signal valid_phase      :   std_logic;
-signal unwrapped_phase  :   t_phase;
-signal unwrapped_valid  :   std_logic;
-signal valid_act        :   std_logic;
+signal control              :   t_phase;
+signal phase                :   t_phase;
+signal iq                   :   t_iq_combined;
+signal valid_phase          :   std_logic;
+signal unwrapped_phase      :   t_phase;
+signal unwrapped_valid      :   std_logic;
+signal valid_act            :   std_logic;
 
+signal meas_pid_i           :   signed(PHASE_WIDTH - 1 downto 0);
+signal valid_pid_i          :   std_logic;
 
 begin
 --
@@ -133,6 +139,7 @@ begin
 enable <= control_reg_i(31) or pid_enable_i;
 polarity <= control_reg_i(30);
 hold <= control_reg_i(29) or pid_hold_i;
+measurement_switch <= control_reg_i(28);
 
 control <= shift_left(resize(signed(control_reg_i(27 downto 12)),control'length),control'length - 16);
 --
@@ -146,11 +153,12 @@ port map(
     dds_i           =>  dds_i,
     filter_reg_i    =>  control_reg_i,
     phase_o         =>  phase,
-    iq_o            =>  iq_o,
+    iq_o            =>  iq,
     valid_o         =>  valid_phase
 );
 phase_o <= phase;
 valid_phase_o <= valid_phase;
+iq_o <= iq;
 --
 -- Unwrap phase
 --
@@ -169,21 +177,25 @@ valid_unwrap_o <= unwrapped_valid;
 --
 -- Control
 --
+meas_pid_i <= unwrapped_phase when measurement_switch = '0' else iq.Q;
+valid_pid_i <= unwrapped_valid when measurement_switch = '0' else iq.valid;
+
 PhasePID: PIDController
 port map(
     clk             =>  clk,
     aresetn         =>  aresetn,
-    meas_i          =>  unwrapped_phase,
+    meas_i          =>  meas_pid_i,
     control_i       =>  control,
-    valid_i         =>  unwrapped_valid,
+    valid_i         =>  valid_pid_i,
     enable_i        =>  enable,
     polarity_i      =>  polarity,
     hold_i          =>  hold,
     gains           =>  gain_reg_i,
+    divisors        =>  divisor_reg_i,
     valid_o         =>  valid_act,
     data_o          =>  actuator_o
 );
 
-valid_act_o <= valid_act when enable = '1' else unwrapped_valid;
+valid_act_o <= valid_act when enable = '1' else valid_pid_i;
 
 end Behavioral;
