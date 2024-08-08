@@ -247,7 +247,7 @@ classdef DeviceControl < handle
             self.phase_offset.set(154.8); 
             self.dds2_phase_offset.set(161);
             self.link_dac_gate.set(0);
-            self.pwm.set([0.2865,0.6272,0.8446,0]);
+            self.pwm.set([0.2865,0.6272,0.8446,0.8]);
             self.spi_period.set(100e-9);
             self.dac.set(0);
             self.log2_rate.set(13);
@@ -570,7 +570,7 @@ classdef DeviceControl < handle
             self.pwm(4).get;
             V = round(self.pwm(4).intValue);
             write_arg = {'./analyze_phase_jump','-n',sprintf('%d',numSamples),...
-                '-s',sprintf('%d',round(saveFactor)),'-j',sprintf('%d',jump_amount),'v',sprintf('%d',V)};
+                '-s',sprintf('%d',round(saveFactor)),'-j',sprintf('%d',jump_amount),'-v',sprintf('%d',V)};
             if self.auto_retry
                 for jj = 1:10
                     try
