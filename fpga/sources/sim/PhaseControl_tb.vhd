@@ -30,6 +30,7 @@ component PhaseControl is
         --
         control_reg_i   :   in  t_param_reg;
         gain_reg_i      :   in  t_param_reg;
+        divisor_reg_i   :   in  t_param_reg;
         --
         -- Control signals
         --
@@ -79,6 +80,7 @@ signal dds_phase                :   t_dds_phase;
 --
 signal control_reg      :   t_param_reg;
 signal gain_reg         :   t_param_reg;
+signal divisor_reg      :   t_param_reg;
 signal dds_phase_adc_i, dds_phase_mix_i  :   std_logic_vector(63 downto 0);
 signal pid_enable, pid_hold     :   std_logic;
 
@@ -90,6 +92,7 @@ signal valid_phase                  :   std_logic;
 signal valid_unwrap, valid_act      :   std_logic;
 signal actuator                     :   signed(DDS_PHASE_WIDTH - 1 downto 0);
 
+signal test_signal  :   signed(15 downto 0);
 
 begin
 
@@ -138,6 +141,7 @@ port map(
     dds_i           =>  dds,
     control_reg_i   =>  control_reg,
     gain_reg_i      =>  gain_reg,
+    divisor_reg_i   =>  divisor_reg,
     pid_enable_i    =>  pid_enable,
     pid_hold_i      =>  pid_hold,
     phase_o         =>  phase_o,
@@ -147,6 +151,8 @@ port map(
     actuator_o      =>  actuator,
     valid_act_o     =>  valid_act
 );
+
+test_signal <= shift_right(to_signed(8,test_signal'length),-3);
 
 main: process is
 begin
@@ -158,6 +164,10 @@ begin
     control_reg(29) <= '0';
     control_reg(28 downto 12) <= (others => '0');
     gain_reg <= X"04000a0a";
+    divisor_reg(7 downto 0) <= std_logic_vector(to_signed(4,8));
+    divisor_reg(15 downto 8) <= std_logic_vector(to_signed(-4,8));
+    divisor_reg(23 downto 16) <= std_logic_vector(to_signed(4,8));
+    divisor_reg(31 downto 24) <= std_logic_vector(to_signed(0,8));
     dds_phase_mod <= (others => '0');
     pid_enable <= '0';
     pid_hold <= '0';
@@ -171,9 +181,11 @@ begin
     wait until rising_edge(clk);
     pid_enable <= '1';
     
-    wait for 100 us;
+    wait for 20 us;
     wait until rising_edge(clk);
     dds_phase_mod <= to_unsigned(536870912,32);
+    wait for 100 us;
+    divisor_reg(15 downto 8) <= std_logic_vector(to_signed(4,8));
     wait;
 end process;
 

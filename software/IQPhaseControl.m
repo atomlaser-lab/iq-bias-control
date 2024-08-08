@@ -3,12 +3,15 @@ classdef IQPhaseControl < DeviceControlSubModule
     %in the bias control design
     
     properties(SetAccess = immutable)
+        meas_switch     %Switch between phase stabilisation and Q stabilisation
         log2_rate       %Log2(CIC filter rate)
         cic_shift       %Log2(Additional digital gain after filter)
         Kp              %Proportional gain value
         Ki              %Integral gain value
         Kd              %Derivative gain value
-        divisor         %Overall divisor for gain values to convert to fractions
+        Dp              %Proportional divisor value
+        Di              %Integral divisor value
+        Dd              %Derivative divisor value
         polarity        %Polarity of PID module
         enable          %Enable/disable PID module
         hold            %Software enabled hold
@@ -22,7 +25,7 @@ classdef IQPhaseControl < DeviceControlSubModule
     end
     
     methods
-        function self = IQPhaseControl(parent,control_reg,gain_reg,limit_reg)
+        function self = IQPhaseControl(parent,control_reg,gain_reg,divisor_reg,limit_reg)
             %IQPHASECONTROL Creates an instance of the class
             %
             %   SELF = IQPHASECONTROL(PARENT,CONTROL_REG,GAIN_REG,LIMIT_REG) Creates
@@ -45,6 +48,8 @@ classdef IQPhaseControl < DeviceControlSubModule
             self.control = DeviceParameter([12,27],control_reg,'int16')...
                 .setLimits('lower',-2^15,'upper',2^15)...
                 .setFunctions('to',@(x) x/self.parent.CONV_PHASE,'from',@(x) x*self.parent.CONV_PHASE);
+            self.meas_switch = DeviceParameter([28,28],control_reg)...
+                .setLimits('lower',0,'upper',1);
 
             self.Kp = DeviceParameter([0,7],gain_reg)...
                 .setLimits('lower',0,'upper',2^8-1);
@@ -52,8 +57,13 @@ classdef IQPhaseControl < DeviceControlSubModule
                 .setLimits('lower',0,'upper',2^8-1);
             self.Kd = DeviceParameter([16,23],gain_reg)...
                 .setLimits('lower',0,'upper',2^8-1);
-            self.divisor = DeviceParameter([24,31],gain_reg)...
-                .setLimits('lower',0,'upper',2^8-1);
+            self.Dp = DeviceParameter([0,7],divisor_reg,'int8')...
+                .setLimits('lower',-2^7,'upper',2^7-1);
+            self.Di = DeviceParameter([8,15],divisor_reg,'int8')...
+                .setLimits('lower',-2^7,'upper',2^7-1);
+            self.Dd = DeviceParameter([16,23],divisor_reg,'int8')...
+                .setLimits('lower',-2^7,'upper',2^7-1);
+
 
             self.lower_limit = DeviceParameter([0,15],limit_reg,'uint32')...
                 .setLimits('lower',0,'upper',1.6)...
@@ -81,11 +91,14 @@ classdef IQPhaseControl < DeviceControlSubModule
                 self.polarity.set(0);
                 self.hold.set(0);
                 self.control.set(0);
+                self.meas_switch.set(0);
 
                 self.Kp.set(0);
                 self.Ki.set(0);
                 self.Kd.set(0);
-                self.divisor.set(8);
+                self.Dp.set(8);
+                self.Di.set(8);
+                self.Dd.set(8);
                 self.lower_limit.set(0);
                 self.upper_limit.set(1.5);
             end
@@ -99,9 +112,39 @@ classdef IQPhaseControl < DeviceControlSubModule
             %   gains Kp, Ki, and Kd using the set DIVISOR value and the
             %   parent object's sampling interval
             
-            Kp = self.Kp.value*2^(-self.divisor.value);
-            Ki = self.Ki.value*2^(-self.divisor.value)/self.parent.dt();
-            Kd = self.Kd.value*2^(-self.divisor.value)*self.parent.dt();
+            Kp = self.Kp.value*2^(-self.Dp.value)/self.parent.CONV_PWM*self.parent.CONV_PHASE;
+            Ki = self.Ki.value*2^(-self.Di.value)/self.dt()/self.parent.CONV_PWM*self.parent.CONV_PHASE;
+            Kd = self.Kd.value*2^(-self.Dd.value)*self.dt()/self.parent.CONV_PWM*self.parent.CONV_PHASE;
+        end
+
+        function self = setRealGains(self,Kp,Ki,Kd)
+            Kp_int = Kp*self.parent.CONV_PWM/self.parent.CONV_PHASE;
+            Ki_int = Ki*self.dt*self.parent.CONV_PWM/self.parent.CONV_PHASE;
+            Kd_int = Kd/self.dt*self.parent.CONV_PWM/self.parent.CONV_PHASE;
+
+            if Kp_int ~= 0
+                Dp_int = min(max(floor(self.Dp.numbits() - log2(Kp_int)),self.Dp.lowerLimit),self.Dp.upperLimit);
+            else
+                Dp_int = 0;
+            end
+            self.Dp.set(Dp_int);
+            self.Kp.set(round(Kp_int*2^self.Dp.value));
+
+            if Ki_int ~= 0
+                Di_int = min(max(floor(self.Di.numbits() - log2(Ki_int)),self.Di.lowerLimit),self.Di.upperLimit);
+            else
+                Di_int = 0;
+            end
+            self.Di.set(Di_int);
+            self.Ki.set(round(Ki_int*2^self.Di.value));
+
+            if Kd_int ~= 0
+                Dd_int = min(max(floor(self.Dd.numbits() - log2(Kd_int)),self.Dd.lowerLimit),self.Dd.upperLimit);
+            else
+                Dd_int = 0;
+            end
+            self.Dd.set(Dd_int);
+            self.Kd.set(round(Kd_int*2^self.Dd.value));
         end
 
         function r = dt(self)
@@ -120,12 +163,15 @@ classdef IQPhaseControl < DeviceControlSubModule
             s{4} = self.polarity.print('Polarity',width,'%d');
             s{5} = self.hold.print('Hold',width,'%d');
             s{6} = self.control.print('Control',width,'%.3f','rad');
-            s{7} = self.Kp.print('Kp',width,'%d');
-            s{8} = self.Ki.print('Ki',width,'%d');
-            s{9} = self.Kd.print('Kd',width,'%d');
-            s{10} = self.divisor.print('Divisor',width,'%d');
-            s{11} = self.lower_limit.print('Lower Limit',width,'%.3f','V');
-            s{12} = self.upper_limit.print('Upper Limit',width,'%.3f','V');
+            s{7} = self.meas_switch.print('Measurement switch',width,'%d');
+            s{8} = self.Kp.print('Kp',width,'%d');
+            s{9} = self.Ki.print('Ki',width,'%d');
+            s{10} = self.Kd.print('Kd',width,'%d');
+            s{11} = self.Dp.print('Dp',width,'%d');
+            s{12} = self.Di.print('Di',width,'%d');
+            s{13} = self.Dd.print('Dd',width,'%d');
+            s{14} = self.lower_limit.print('Lower Limit',width,'%.3f','V');
+            s{15} = self.upper_limit.print('Upper Limit',width,'%.3f','V');
             
             ss = '';
             for nn = 1:numel(s)

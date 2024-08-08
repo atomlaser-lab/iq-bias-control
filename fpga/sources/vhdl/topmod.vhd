@@ -186,6 +186,7 @@ component PhaseControl is
         --
         control_reg_i   :   in  t_param_reg;
         gain_reg_i      :   in  t_param_reg;
+        divisor_reg_i   :   in  t_param_reg;
         --
         -- Control signals
         --
@@ -237,6 +238,7 @@ signal dac_reg              :   t_param_reg;
 -- Phase lock registers
 signal phaseControlReg      :   t_param_reg;
 signal phaseGainReg         :   t_param_reg;
+signal phaseDivisorReg      :   t_param_reg;
 --Status registers
 signal statusReg            :   t_param_reg;
 --
@@ -513,6 +515,7 @@ port map(
     dds_i           =>  dds_x2,
     control_reg_i   =>  phaseControlReg,
     gain_reg_i      =>  phaseGainReg,
+    divisor_reg_i   =>  phaseDivisorReg,
     pid_enable_i    =>  phase_pid_enable,
     pid_hold_i      =>  phase_pid_hold,
     phase_o         =>  phase,
@@ -640,6 +643,12 @@ begin
         --
         numSamples <= to_unsigned(4000,numSamples'length);
         mem_bus.m <= INIT_MEM_BUS_MASTER; 
+        --
+        -- Phase registers
+        --
+        phaseControlReg <= (others => '0');
+        phaseGainReg <= (others => '0');
+        phaseDivisorReg <= (others => '0');
 
     elsif rising_edge(sysClk) then
         FSM: case(comState) is
@@ -694,6 +703,7 @@ begin
                             --
                             when X"000300" => rw(bus_m,bus_s,comState,phaseControlReg);
                             when X"000304" => rw(bus_m,bus_s,comState,phaseGainReg);
+                            when X"000308" => rw(bus_m,bus_s,comState,phaseDivisorReg);
                             --
                             -- FIFO control and data retrieval
                             --
