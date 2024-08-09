@@ -86,15 +86,20 @@ end record t_iq_combined;
 subtype t_meas is signed(23 downto 0);
 type t_meas_array is array(natural range <>) of t_meas;
 --
--- Defines AXI address and data widths
+-- Defines auxiliary DAC related types
+--
+constant AUX_DAC_WIDTH  :   natural :=  14;
+subtype t_aux_dac is signed(AUX_DAC_WIDTH - 1 downto 0);
+--
+-- Defines block memory related types
 --
 constant MEM_ADDR_WIDTH :   natural :=  12;
 constant MEM_DATA_WIDTH :   natural :=  32;
 --
 -- Defines MEM address and data signals
 --
-subtype t_mem_addr is unsigned(MEM_ADDR_WIDTH-1 downto 0);
-subtype t_mem_data is std_logic_vector(MEM_DATA_WIDTH-1 downto 0);
+subtype t_mem_addr is unsigned(MEM_ADDR_WIDTH - 1 downto 0);
+subtype t_mem_data is std_logic_vector(MEM_DATA_WIDTH - 1 downto 0);
 --
 -- Defines a generic status type
 --

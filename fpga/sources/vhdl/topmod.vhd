@@ -308,26 +308,29 @@ constant SPI_NUM_BITS   :   integer                 :=  16;
 constant SPI_SYNC_DELAY :   unsigned(7 downto 0)    :=  to_unsigned(4,8);
 signal spi              :   t_spi_master;
 signal spi_trig         :   std_logic;
+signal spi_trig_manual  :   std_logic;
 signal spi_period       :   unsigned(7 downto 0);
 signal spi_enable       :   std_logic;
 signal spi_busy         :   std_logic;
-signal spi_data, spi_data_old         :   std_logic_vector(SPI_NUM_BITS - 1 downto 0);
+signal spi_data_manual  :   t_aux_dac;
+signal spi_data         :   t_aux_dac;
+signal spi_data_slv     :   std_logic_vector(SPI_NUM_BITS - 1 downto 0);
 --
 -- Phase lock signals
 --
-subtype t_phase_actuator is signed(15 downto 0);
-signal dds_x2               :   t_dds_combined;
-signal phase_pid_enable     :   std_logic;
-signal phase_pid_hold       :   std_logic;
-signal phase, phase_unwrap  :   t_phase;
-signal iq                   :   t_iq_combined;
-signal valid_phase          :   std_logic;
-signal valid_unwrap         :   std_logic;
-signal phase_actuator       :   t_pwm_exp;
-signal valid_phase_actuator :   std_logic;
+signal dds_x2                   :   t_dds_combined;
+signal phase_pid_enable         :   std_logic;
+signal phase_pid_hold           :   std_logic;
+signal phase, phase_unwrap      :   t_phase;
+signal iq                       :   t_iq_combined;
+signal valid_phase              :   std_logic;
+signal valid_unwrap             :   std_logic;
+signal phase_actuator           :   signed(31 downto 0);
+signal valid_phase_actuator     :   std_logic;
+signal phase_lock_output_select :   std_logic;
 
-signal phase_fifo_data      :   t_fifo_data_array(NUM_PHASE_FIFOS - 1 downto 0);
-signal phase_fifo_valid     :   std_logic_vector(NUM_PHASE_FIFOS - 1 downto 0);
+signal phase_fifo_data          :   t_fifo_data_array(NUM_PHASE_FIFOS - 1 downto 0);
+signal phase_fifo_valid         :   std_logic_vector(NUM_PHASE_FIFOS - 1 downto 0);
 
 
 begin
@@ -337,11 +340,12 @@ begin
 --
 -- triggers
 memTrig <= triggers(0);
-spi_trig <= triggers(1);
+spi_trig_manual <= triggers(1);
 
 -- topReg
 adc_select <= topReg(0);
 link_dac_gate <= topReg(1);
+phase_lock_output_select <= topReg(2);
 spi_period <= unsigned(topReg(15 downto 8));
 bias_fifo_route <= topReg(19 downto 16);
 
@@ -361,7 +365,7 @@ bias_controls(1) <= resize(signed(pid_regs(1)(15 downto 0)),t_meas'length);
 bias_controls(2) <= resize(signed(pid_regs(1)(31 downto 16)),t_meas'length);
 
 -- Aux DAC register
-spi_data <= dac_reg(SPI_NUM_BITS - 1 downto 0);
+spi_data_manual <= signed(dac_reg(AUX_DAC_WIDTH - 1 downto 0));
 
 -- PWM registers
 PWM_reg_gen: for I in 0 to 3 generate
@@ -418,6 +422,10 @@ port map(
 -- SPI control
 --
 ext_o(2 downto 0) <= (0 => spi.SYNC, 1 => spi.SCLK, 2 => spi.SD);
+spi_data <= spi_data_manual + resize(phase_actuator,AUX_DAC_WIDTH) when phase_lock_output_select = '0' else spi_data_manual;
+
+spi_trig <= spi_trig_manual or (valid_phase_actuator and not(phase_lock_output_select));
+spi_data_slv <= std_logic_vector(shift_left(resize(spi_data,SPI_NUM_BITS),2));
 
 Aux_DAC: SPI_Driver
 generic map(
@@ -438,7 +446,7 @@ port map(
     syncDelay       =>  SPI_SYNC_DELAY,
     dataReceived    =>  open,
     dataReady       =>  open,
-    dataToSend      =>  spi_data,
+    dataToSend      =>  spi_data_slv,
     trigIn          =>  spi_trig,
     enable          =>  '1',
     busy            =>  spi_busy,
@@ -530,7 +538,7 @@ port map(
 -- Expand manual data to a signed 11 bit value
 pwm_data_exp(3) <= signed(std_logic_vector(resize(pwm_data(3),PWM_EXP_WIDTH)));
 -- Sum expanded manual data and control data
-pwm_sum(3) <= pwm_data_exp(3) + resize(phase_actuator,PWM_EXP_WIDTH);
+pwm_sum(3) <= pwm_data_exp(3) + resize(phase_actuator,PWM_EXP_WIDTH) when phase_lock_output_select = '1' else pwm_data_exp(3);
 -- Limit the summed manual and control values to their max/min limits
 pwm_limit(3) <= pwm_sum(3) when pwm_sum(3) < pwm_max(3) and pwm_sum(3) > pwm_min(3) else
                 pwm_max(3) when pwm_sum(3) >= pwm_max(3) else

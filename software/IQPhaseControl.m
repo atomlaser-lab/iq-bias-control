@@ -4,6 +4,7 @@ classdef IQPhaseControl < DeviceControlSubModule
     
     properties(SetAccess = immutable)
         meas_switch     %Switch between phase stabilisation and Q stabilisation
+        output_switch   %Output switch
         log2_rate       %Log2(CIC filter rate)
         cic_shift       %Log2(Additional digital gain after filter)
         Kp              %Proportional gain value
@@ -25,7 +26,7 @@ classdef IQPhaseControl < DeviceControlSubModule
     end
     
     methods
-        function self = IQPhaseControl(parent,control_reg,gain_reg,divisor_reg,limit_reg)
+        function self = IQPhaseControl(parent,top_reg,control_reg,gain_reg,divisor_reg,limit_reg)
             %IQPHASECONTROL Creates an instance of the class
             %
             %   SELF = IQPHASECONTROL(PARENT,CONTROL_REG,GAIN_REG,LIMIT_REG) Creates
@@ -50,6 +51,8 @@ classdef IQPhaseControl < DeviceControlSubModule
                 .setFunctions('to',@(x) x/self.parent.CONV_PHASE,'from',@(x) x*self.parent.CONV_PHASE);
             self.meas_switch = DeviceParameter([28,28],control_reg)...
                 .setLimits('lower',0,'upper',1);
+            self.output_switch = DeviceParameter([2,2],top_reg)...
+                .setLimit('lower',0,'upper',1);
 
             self.Kp = DeviceParameter([0,7],gain_reg)...
                 .setLimits('lower',0,'upper',2^8-1);
@@ -92,6 +95,7 @@ classdef IQPhaseControl < DeviceControlSubModule
                 self.hold.set(0);
                 self.control.set(0);
                 self.meas_switch.set(0);
+                self.output_switch.set(0);
 
                 self.Kp.set(0);
                 self.Ki.set(0);
