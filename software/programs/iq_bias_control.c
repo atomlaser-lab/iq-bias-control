@@ -36,3 +36,7 @@ int write_to_bias_pwm(void *cfg,uint16_t V1,uint16_t V2,uint16_t V3) {
 int write_to_phase_pwm(void *cfg,uint16_t V) {
   *((uint32_t *)(cfg + PWM_LOC + 0xC)) = (uint32_t) V;
 }
+
+int write_to_aux_dac(void *cfg,uint16_t V) {
+  *((uint32_t *)(cfg + DAC_LOC)) = (uint32_t) V;
+}

@@ -87,21 +87,22 @@ int main(int argc, char **argv)
   cfg = mmap(0,MAP_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,MEM_LOC);
  
   // Set voltages
-  write_to_phase_pwm(cfg,V);
+//  write_to_phase_pwm(cfg,V);
+  write_to_aux_dac(cfg,V);
   sleep(1);
   // Record data
   start_fifo(cfg);
   for (i = 0;i < data_size;i += saveFactor) {
     if ((i >= (data_size >> 2)) & (allow_jump == 1)) {
         allow_jump = 0;
-        write_to_phase_pwm(cfg,V + Vjump);
+        write_to_aux_dac(cfg,V + Vjump);
     }
     for (incr = 0;incr < saveFactor;incr++) {
         *(data + i + incr) = *((uint32_t *)(cfg + FIFO_PHASE_DATA_START_LOC + (incr << 2)));
     }
   }
   stop_fifo(cfg);
-  write_to_phase_pwm(cfg,V);
+  write_to_aux_dac(cfg,V);
 
   ptr = fopen("SavedData.bin","wb");
   fwrite(data,4,(size_t)(data_size),ptr);

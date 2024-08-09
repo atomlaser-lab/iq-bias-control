@@ -52,7 +52,7 @@ classdef IQPhaseControl < DeviceControlSubModule
             self.meas_switch = DeviceParameter([28,28],control_reg)...
                 .setLimits('lower',0,'upper',1);
             self.output_switch = DeviceParameter([2,2],top_reg)...
-                .setLimit('lower',0,'upper',1);
+                .setLimits('lower',0,'upper',1);
 
             self.Kp = DeviceParameter([0,7],gain_reg)...
                 .setLimits('lower',0,'upper',2^8-1);
@@ -116,15 +116,15 @@ classdef IQPhaseControl < DeviceControlSubModule
             %   gains Kp, Ki, and Kd using the set DIVISOR value and the
             %   parent object's sampling interval
             
-            Kp = self.Kp.value*2^(-self.Dp.value)*self.parent.CONV_PWM/self.parent.CONV_PHASE;
-            Ki = self.Ki.value*2^(-self.Di.value)/self.dt()*self.parent.CONV_PWM/self.parent.CONV_PHASE;
-            Kd = self.Kd.value*2^(-self.Dd.value)*self.dt()*self.parent.CONV_PWM/self.parent.CONV_PHASE;
+            Kp = self.Kp.value*2^(-self.Dp.value)*self.parent.CONV_AUX_DAC/self.parent.CONV_PHASE;
+            Ki = self.Ki.value*2^(-self.Di.value)/self.dt()*self.parent.CONV_AUX_DAC/self.parent.CONV_PHASE;
+            Kd = self.Kd.value*2^(-self.Dd.value)*self.dt()*self.parent.CONV_AUX_DAC/self.parent.CONV_PHASE;
         end
 
         function self = setRealGains(self,Kp,Ki,Kd)
-            Kp_int = Kp/self.parent.CONV_PWM*self.parent.CONV_PHASE;
-            Ki_int = Ki*self.dt/self.parent.CONV_PWM*self.parent.CONV_PHASE;
-            Kd_int = Kd/self.dt/self.parent.CONV_PWM*self.parent.CONV_PHASE;
+            Kp_int = Kp/self.parent.CONV_AUX_DAC*self.parent.CONV_PHASE;
+            Ki_int = Ki*self.dt/self.parent.CONV_AUX_DAC*self.parent.CONV_PHASE;
+            Kd_int = Kd/self.dt/self.parent.CONV_AUX_DAC*self.parent.CONV_PHASE;
 
             if Kp_int ~= 0
                 Dp_int = min(max(floor(self.Dp.numbits() - log2(Kp_int)),self.Dp.lowerLimit),self.Dp.upperLimit);

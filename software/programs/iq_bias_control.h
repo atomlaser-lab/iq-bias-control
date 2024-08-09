@@ -9,9 +9,11 @@
 #define RAM_DATA_LOC                0x41000000
 
 #define PWM_LOC                     0x00000100
+#define DAC_LOC                     0x00000020
 
 int start_fifo(void *cfg);
 int stop_fifo(void *cfg);
 int write_to_bias_pwm(void *cfg,uint16_t V1,uint16_t V2,uint16_t V3);
 int write_to_phase_pwm(void *cfg,uint16_t V);
+int write_to_aux_dac(void *cfg,uint16_t V);
 #endif

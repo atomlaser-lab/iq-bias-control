@@ -214,7 +214,7 @@ classdef DeviceControl < handle
                 .setFunctions('to',@(x) ceil(x*self.CLK),'from',@(x) x/self.CLK);
             self.dac = DeviceParameter([0,self.AUX_DAC_WIDTH + 1],self.dacReg,'uint32')...
                 .setLimits('lower',0,'upper',2.5)...
-                .setFunctions('to',@(x) 4*x/self.CONV_AUX_DAC,'from',@(x) x/4*self.CONV_AUX_DAC);
+                .setFunctions('to',@(x) x/self.CONV_AUX_DAC,'from',@(x) x/self.CONV_AUX_DAC);
             %
             % Number of samples for reading raw ADC data
             %
@@ -568,9 +568,9 @@ classdef DeviceControl < handle
                 saveFactor = 5;
             end
             saveType = 1;
-            jump_amount = round(jump_amount/self.CONV_PWM);
-            self.pwm(4).get;
-            V = round(self.pwm(4).intValue);
+            jump_amount = round(jump_amount/self.CONV_AUX_DAC);
+            self.dac.get;
+            V = round(self.dac.intValue);
             write_arg = {'./analyze_phase_jump','-n',sprintf('%d',numSamples),...
                 '-s',sprintf('%d',round(saveFactor)),'-j',sprintf('%d',jump_amount),'-v',sprintf('%d',V)};
             if self.auto_retry
