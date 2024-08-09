@@ -250,7 +250,7 @@ classdef DeviceControl < handle
             self.dds2_phase_offset.set(161);
             self.link_dac_gate.set(0);
             self.pwm.set([0.2865,0.6272,0.8446,0.8]);
-            self.spi_period.set(100e-9);
+            self.spi_period.set(400e-9);
             self.dac.set(0);
             self.log2_rate.set(13);
             self.cic_shift.set(-3);
@@ -402,7 +402,7 @@ classdef DeviceControl < handle
             self.fifo_route.set(ones(size(old_route))).write;
             self.getDemodulatedData(100e-3/self.dt());
             new_pwm = mean(self.data,1)*self.CONV_PWM;
-            self.pwm.set(new_pwm).write;
+            self.pwm.set(new_pwm(1:3)).write;
             self.fifo_route.set(old_route).write;
         end
 
@@ -470,13 +470,17 @@ classdef DeviceControl < handle
             if nargin < 4
                 saveType = 1;
             end
+            c = [DeviceControl.CONV_PHASE,DeviceControl.CONV_PHASE,DeviceControl.CONV_AUX_DAC,1,1];
+            if self.phase_lock.output_switch.value
+                c(3) = DeviceControl.CONV_PWM;
+            end
             write_arg = {'./savePhaseData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',round(saveFactor))};
             if self.auto_retry
                 for jj = 1:10
                     try
                         self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                         raw = typecast(self.conn.recvMessage,'uint8');
-                        d = self.convertPhaseData(raw,saveFactor);
+                        d = self.convertPhaseData(raw,saveFactor,c);
                         self.data = d;
                         self.t = self.phase_lock.dt()*(0:(numSamples-1));
                         break;
@@ -489,7 +493,7 @@ classdef DeviceControl < handle
             else
                 self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
-                d = self.convertPhaseData(raw,saveFactor);
+                d = self.convertPhaseData(raw,saveFactor,c);
                 self.data = d;
                 self.t = self.phase_lock.dt()*(0:(numSamples-1));
             end
@@ -572,13 +576,18 @@ classdef DeviceControl < handle
             self.dac.get;
             V = round(self.dac.intValue);
             write_arg = {'./analyze_phase_jump','-n',sprintf('%d',numSamples),...
-                '-s',sprintf('%d',round(saveFactor)),'-j',sprintf('%d',jump_amount),'-v',sprintf('%d',V)};
+                '-s',sprintf('%d',round(saveFactor)),'-j',sprintf('%d',jump_amount),'-v',sprintf('%d',V),...
+                '-t',sprintf('%d',round(self.phase_lock.output_switch.value))};
+            c = [DeviceControl.CONV_PHASE,DeviceControl.CONV_PHASE,DeviceControl.CONV_AUX_DAC,1,1];
+            if self.phase_lock.output_switch.value
+                c(3) = DeviceControl.CONV_PWM;
+            end
             if self.auto_retry
                 for jj = 1:10
                     try
                         self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                         raw = typecast(self.conn.recvMessage,'uint8');
-                        d = self.convertPhaseData(raw,saveFactor);
+                        d = self.convertPhaseData(raw,saveFactor,c);
                         self.data = d;
                         self.t = self.phase_lock.dt()*(0:(numSamples-1));
                         break;
@@ -591,7 +600,7 @@ classdef DeviceControl < handle
             else
                 self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
-                d = self.convertPhaseData(raw,saveFactor);
+                d = self.convertPhaseData(raw,saveFactor,c);
                 self.data = d;
                 self.t = self.phase_lock.dt()*(0:(numSamples-1));
             end
@@ -620,12 +629,16 @@ classdef DeviceControl < handle
             end
             saveType = 1;
             write_arg = {'./analyze_phase_lock','-n',sprintf('%d',numSamples),'-s',sprintf('%d',round(saveFactor)),'-c',sprintf('%d',round(change_sample))};
+            c = [DeviceControl.CONV_PHASE,DeviceControl.CONV_PHASE,DeviceControl.CONV_AUX_DAC,1,1];
+            if self.phase_lock.output_switch.value
+                c(3) = DeviceControl.CONV_PWM;
+            end
             if self.auto_retry
                 for jj = 1:10
                     try
                         self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                         raw = typecast(self.conn.recvMessage,'uint8');
-                        d = self.convertPhaseData(raw,saveFactor);
+                        d = self.convertPhaseData(raw,saveFactor,c);
                         self.data = d;
                         self.t = self.phase_lock.dt()*(0:(numSamples-1));
                         break;
@@ -638,7 +651,7 @@ classdef DeviceControl < handle
             else
                 self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
-                d = self.convertPhaseData(raw,saveFactor);
+                d = self.convertPhaseData(raw,saveFactor,c);
                 self.data = d;
                 self.t = self.phase_lock.dt()*(0:(numSamples-1));
             end
@@ -828,7 +841,7 @@ classdef DeviceControl < handle
             d = double(d);
         end
 
-        function d = convertPhaseData(raw,numStreams)
+        function d = convertPhaseData(raw,numStreams,c)
             raw = raw(:);
             Nraw = numel(raw);
 %             numStreams = 3;
@@ -839,7 +852,6 @@ classdef DeviceControl < handle
                 d(:,nn) = typecast(uint8(reshape(raw((nn-1)*4 + (1:4),:),4*size(d,1),1)),'int32');
             end
             d = double(d);
-            c = [DeviceControl.CONV_PHASE,DeviceControl.CONV_PHASE,DeviceControl.CONV_PWM,1,1];
             for nn = 1:numStreams
                 d(:,nn) = d(:,nn)*c(nn);
             end

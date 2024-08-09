@@ -570,7 +570,7 @@ phase_fifo_data(0)  <= std_logic_vector(resize(phase,FIFO_WIDTH));
 phase_fifo_valid(0) <= valid_phase and enableFIFO;
 phase_fifo_data(1)  <= std_logic_vector(resize(phase_unwrap,FIFO_WIDTH));
 phase_fifo_valid(1) <= valid_unwrap and enableFIFO;
-phase_fifo_data(2)  <= std_logic_vector(resize(pwm_limit(3),FIFO_WIDTH));
+phase_fifo_data(2)  <= std_logic_vector(resize(pwm_limit(3),FIFO_WIDTH)) when phase_lock_output_select = '1' else std_logic_vector(resize(spi_data,FIFO_WIDTH));
 phase_fifo_valid(2) <= valid_phase_actuator and enableFIFO;
 phase_fifo_data(3)  <= std_logic_vector(resize(iq.I,FIFO_WIDTH));
 phase_fifo_valid(3) <= iq.valid and enableFIFO;

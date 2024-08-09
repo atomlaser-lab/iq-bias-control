@@ -25,6 +25,7 @@ int main(int argc, char **argv)
   uint8_t saveType = 2;
   uint32_t saveFactor = 5;
   uint8_t allow_jump = 1;
+  uint8_t jump_type = 0;
   uint32_t tmp;
   uint32_t *data;
   uint8_t debugFlag = 0;
@@ -36,7 +37,7 @@ int main(int argc, char **argv)
    * Parse the input arguments
    */
   int c;
-  while ((c = getopt(argc,argv,"s:j:n:v:f")) != -1) {
+  while ((c = getopt(argc,argv,"s:j:n:v:t:f")) != -1) {
     switch (c) {
         case 's':
             saveFactor = atoi(optarg);
@@ -49,6 +50,9 @@ int main(int argc, char **argv)
             break;
         case 'v':
             V = atoi(optarg);
+            break;
+        case 't':
+            jump_type = atoi(optarg);
             break;
         case 'f':
             debugFlag = 1;
@@ -87,22 +91,34 @@ int main(int argc, char **argv)
   cfg = mmap(0,MAP_SIZE,PROT_READ|PROT_WRITE,MAP_SHARED,fd,MEM_LOC);
  
   // Set voltages
-//  write_to_phase_pwm(cfg,V);
-  write_to_aux_dac(cfg,V);
+  if (jump_type == 1) {
+    write_to_phase_pwm(cfg,V);
+  } else {
+    write_to_aux_dac(cfg,V);
+  }
+  
   sleep(1);
   // Record data
   start_fifo(cfg);
   for (i = 0;i < data_size;i += saveFactor) {
     if ((i >= (data_size >> 2)) & (allow_jump == 1)) {
         allow_jump = 0;
-        write_to_aux_dac(cfg,V + Vjump);
+        if (jump_type == 1) {
+          write_to_phase_pwm(cfg,V + Vjump);
+        } else {
+          write_to_aux_dac(cfg,V + Vjump);
+        }
     }
     for (incr = 0;incr < saveFactor;incr++) {
         *(data + i + incr) = *((uint32_t *)(cfg + FIFO_PHASE_DATA_START_LOC + (incr << 2)));
     }
   }
   stop_fifo(cfg);
-  write_to_aux_dac(cfg,V);
+  if (jump_type == 1) {
+    write_to_phase_pwm(cfg,V);
+  } else {
+    write_to_aux_dac(cfg,V);
+  }
 
   ptr = fopen("SavedData.bin","wb");
   fwrite(data,4,(size_t)(data_size),ptr);
