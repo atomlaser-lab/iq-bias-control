@@ -304,8 +304,9 @@ signal control_valid            :   std_logic;
 --
 -- SPI signals
 --
-constant SPI_NUM_BITS   :   integer                 :=  16;
 constant SPI_SYNC_DELAY :   unsigned(7 downto 0)    :=  to_unsigned(4,8);
+constant AUX_DAC_MAX    :   t_aux_dac   :=  (t_aux_dac'left => '0',others => '1');
+constant AUX_DAC_MIN    :   t_aux_dac   :=  (others => '0');
 signal spi              :   t_spi_master;
 signal spi_trig         :   std_logic;
 signal spi_trig_manual  :   std_logic;
@@ -314,6 +315,7 @@ signal spi_enable       :   std_logic;
 signal spi_busy         :   std_logic;
 signal spi_data_manual  :   t_aux_dac;
 signal spi_data         :   t_aux_dac;
+signal spi_data_limit   :   unsigned(AUX_DAC_WIDTH - 1 downto 0);
 signal spi_data_slv     :   std_logic_vector(SPI_NUM_BITS - 1 downto 0);
 --
 -- Phase lock signals
@@ -365,7 +367,7 @@ bias_controls(1) <= resize(signed(pid_regs(1)(15 downto 0)),t_meas'length);
 bias_controls(2) <= resize(signed(pid_regs(1)(31 downto 16)),t_meas'length);
 
 -- Aux DAC register
-spi_data_manual <= signed(dac_reg(AUX_DAC_WIDTH - 1 downto 0));
+spi_data_manual <= signed(resize(unsigned(dac_reg(AUX_DAC_WIDTH - 1 downto 0)),t_aux_dac'length));
 
 -- PWM registers
 PWM_reg_gen: for I in 0 to 3 generate
@@ -422,7 +424,8 @@ port map(
 -- SPI control
 --
 ext_o(2 downto 0) <= (0 => spi.SYNC, 1 => spi.SCLK, 2 => spi.SD);
-spi_data <= spi_data_manual + resize(phase_actuator,AUX_DAC_WIDTH) when phase_lock_output_select = '0' else spi_data_manual;
+spi_data <= spi_data_manual + resize(phase_actuator,t_aux_dac'length) when phase_lock_output_select = '0' else spi_data_manual;
+spi_data_limit <= resize(unsigned(std_logic_vector(spi_data)),AUX_DAC_WIDTH) when spi_data >= 0 else to_unsigned(0,AUX_DAC_WIDTH);
 
 spi_trig <= spi_trig_manual or (valid_phase_actuator and not(phase_lock_output_select));
 spi_data_slv <= std_logic_vector(shift_left(resize(spi_data,SPI_NUM_BITS),2));
@@ -570,7 +573,7 @@ phase_fifo_data(0)  <= std_logic_vector(resize(phase,FIFO_WIDTH));
 phase_fifo_valid(0) <= valid_phase and enableFIFO;
 phase_fifo_data(1)  <= std_logic_vector(resize(phase_unwrap,FIFO_WIDTH));
 phase_fifo_valid(1) <= valid_unwrap and enableFIFO;
-phase_fifo_data(2)  <= std_logic_vector(resize(pwm_limit(3),FIFO_WIDTH)) when phase_lock_output_select = '1' else std_logic_vector(resize(spi_data,FIFO_WIDTH));
+phase_fifo_data(2)  <= std_logic_vector(resize(pwm_limit(3),FIFO_WIDTH)) when phase_lock_output_select = '1' else std_logic_vector(resize(spi_data_limit,FIFO_WIDTH));
 phase_fifo_valid(2) <= valid_phase_actuator and enableFIFO;
 phase_fifo_data(3)  <= std_logic_vector(resize(iq.I,FIFO_WIDTH));
 phase_fifo_valid(3) <= iq.valid and enableFIFO;

@@ -88,8 +88,10 @@ type t_meas_array is array(natural range <>) of t_meas;
 --
 -- Defines auxiliary DAC related types
 --
+constant SPI_NUM_BITS   :   integer :=  16;
 constant AUX_DAC_WIDTH  :   natural :=  14;
-subtype t_aux_dac is signed(AUX_DAC_WIDTH - 1 downto 0);
+subtype t_aux_dac is signed(AUX_DAC_WIDTH downto 0);
+--subtype t_aux_dac_s is signed(AUX_DAC_WIDTH downto 0);
 --
 -- Defines block memory related types
 --
