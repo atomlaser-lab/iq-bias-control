@@ -42,7 +42,7 @@ obj.UserData.d.getDemodulatedData(1e3);
 obj.UserData.rp_signals(obj.UserData.sample,:) = mean(obj.UserData.d.data(:,1:3),1);
 d.fifo_route.set([1,1,1,1]).write;
 obj.UserData.d.getDemodulatedData(1e3);
-obj.UserData.bias_voltages(obj.UserData.sample,:) = mean(obj.UserData.d.data(:,1:3),1)*DeviceControl.CONV_PWM;
+obj.UserData.bias_voltages(obj.UserData.sample,:) = mean(obj.UserData.d.data(:,1:3),1)*IQBiasControl.CONV_PWM;
 
 obj.UserData.sideband_power(obj.UserData.sample,:) = get_sideband_power(obj.UserData.sa,...
     obj.UserData.modulation_frequency,obj.UserData.aom_frequency,obj.UserData.rp_modulation_frequency,obj.UserData.rbw);
@@ -75,7 +75,7 @@ fprintf('Data acquisition completed\n');
 end
 
 function check_app
-    app = DeviceControl.get_running_app_instance();
+    app = IQBiasControl.get_running_app_instance();
     app.set_timer('off');
 end
 

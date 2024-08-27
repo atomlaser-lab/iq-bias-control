@@ -1,9 +1,9 @@
-classdef DeviceControl < handle
+classdef IQBiasControl < handle
     properties
-        jumpers
-        t
-        data
-        auto_retry
+        jumpers                 %Jumper settings, either 'lv' or 'hv'
+        t                       %Recorded time
+        data                    %Recorded data
+        auto_retry              %Set to true to allow for automated retries of data fetching
     end
     
     properties(SetAccess = immutable)
@@ -20,7 +20,7 @@ classdef DeviceControl < handle
         phase_correction        %Correction to output phase to match high-frequency signal [deg]
         phase_offset            %Phase offset for demodulation of fundamental [deg]
         dds2_phase_offset       %Phase offset for demodulation at 2nd harmonic [deg]
-        link_dac_gate           %Turns the DAC off when the control hold is enabled
+        disable_dac_on_hold           %Turns the DAC off when the control hold is enabled
         log2_rate               %Log2(CIC filter rate)
         cic_shift               %Log2(Additional digital gain after filter)
         numSamples              %Number of samples to collect from recording raw ADC signals
@@ -48,7 +48,6 @@ classdef DeviceControl < handle
         numSamplesReg           %Register for storing number of samples of ADC data to fetch
         memResetReg             %Memory reset register
         pwmRegs                 %Registers for PWM signals
-        auxReg                  %Auxiliary register
         controlRegs             %Registers for control
         gainRegs                %Registers for gain values
         pwmLimitRegs            %Registers for limiting PWM outputs
@@ -60,53 +59,53 @@ classdef DeviceControl < handle
     end
     
     properties(Constant)
-        CLK = 125e6;
+        CLK = 125e6;            %Primary clock frequency
         DEFAULT_HOST = 'rp-f06a54.local';
-        DAC_WIDTH = 14;
-        ADC_WIDTH = 14;
-        DDS_WIDTH = 32;
-        AUX_DAC_WIDTH = 14;
-        PHASE_WIDTH = 16;
-        PARAM_WIDTH = 32;
-        PWM_WIDTH = 10;
-        NUM_PWM = 4;
-        NUM_MEAS = 4;
+        DAC_WIDTH = 14;         %Bit width of RF DACs
+        ADC_WIDTH = 14;         %Bit width of RF ADCs
+        DDS_WIDTH = 32;         %Width of DDS phase and frequency fields
+        AUX_DAC_WIDTH = 14;     %Bit width of auxiliary DAC on shield
+        PHASE_WIDTH = 16;       %Bit width of measured phase for phase lock
+        PARAM_WIDTH = 32;       %Width of parameters
+        PWM_WIDTH = 10;         %Bit width of PWM outputs
+        NUM_PWM = 4;            %Number of PWM outputs
+        NUM_MEAS = 4;           %Number of measurements
         %
         % Conversion values going from integer values to volts
         %
-        CONV_ADC_LV = 1.1851/2^(DeviceControl.ADC_WIDTH - 1);
-        CONV_ADC_HV = 29.3570/2^(DeviceControl.ADC_WIDTH - 1);
-        CONV_PWM = 1.6/(2^DeviceControl.PWM_WIDTH - 1);
-        CONV_AUX_DAC = 2.5/(2^DeviceControl.AUX_DAC_WIDTH - 1);
-        CONV_PHASE = pi/2^(DeviceControl.PHASE_WIDTH - 3);
+        CONV_ADC_LV = 1.1851/2^(IQBiasControl.ADC_WIDTH - 1);
+        CONV_ADC_HV = 29.3570/2^(IQBiasControl.ADC_WIDTH - 1);
+        CONV_PWM = 1.6/(2^IQBiasControl.PWM_WIDTH - 1);
+        CONV_AUX_DAC = 2.5/(2^IQBiasControl.AUX_DAC_WIDTH - 1);
+        CONV_PHASE = pi/2^(IQBiasControl.PHASE_WIDTH - 3);
     end
     
     methods
-        function self = DeviceControl(varargin)
-            %DEVICECONTROL Creates an instance of a DEVICECONTROL object.  Sets
-            %up the registers and parameters as instances of the correct
-            %classes with the necessary
+        function self = IQBiasControl(varargin)
+            %IQBiasControl Creates an instance of a IQBiasControl object.
+            %Sets up the registers and parameters as instances of the
+            %correct classes with the necessary
             %addressses/registers/limits/functions
             %
-            %   SELF = DEVICECONTROL() creates an instance with default host
+            %   SELF = IQBiasControl() creates an instance with default host
             %   and port
             %
-            %   SELF = DEVICECONTROL(HOST) creates an instance with socket
+            %   SELF = IQBiasControl(HOST) creates an instance with socket
             %   server host address HOST
 
-            if numel(varargin)==1
+            if numel(varargin) == 1
                 self.conn = ConnectionClient(varargin{1});
             else
                 self.conn = ConnectionClient(self.DEFAULT_HOST);
             end
             %
-            % Set jumper values
+            % Set jumper values and auto retry
             %
             self.jumpers = 'lv';
             self.auto_retry = true;
             %% Registers
             %
-            % Registers - general
+            % Registers - general and acquisition
             %
             self.trigReg = DeviceRegister('0',self.conn);
             self.topReg = DeviceRegister('4',self.conn);
@@ -188,7 +187,7 @@ classdef DeviceControl < handle
             self.output_scale = DeviceParameter([16,23],self.filterReg,'uint32')...
                 .setLimits('lower',0,'upper',1)...
                 .setFunctions('to',@(x) x*(2^8 - 1),'from',@(x) x/(2^8 - 1));
-            self.link_dac_gate = DeviceParameter([1,1],self.topReg)...
+            self.disable_dac_on_hold = DeviceParameter([1,1],self.topReg)...
                 .setLimits('lower',0,'upper',1);
             %
             % Filter settings
@@ -248,7 +247,7 @@ classdef DeviceControl < handle
             self.phase_correction.set(0);
             self.phase_offset.set(154.8); 
             self.dds2_phase_offset.set(161);
-            self.link_dac_gate.set(0);
+            self.disable_dac_on_hold.set(0);
             self.pwm.set([0.2865,0.6272,0.8446,0.8]);
             self.spi_period.set(400e-9);
             self.dac.set(0);
@@ -269,7 +268,7 @@ classdef DeviceControl < handle
             %DT Returns the current sampling time based on the filter
             %settings
             %
-            %   R = DT(SELF) returns sampling time R for DEVICECONTROL object
+            %   R = DT(SELF) returns sampling time R for IQBIASCONTROL object
             %   SELF
             r = 2^(self.log2_rate.value)/self.CLK;
         end
@@ -367,19 +366,23 @@ classdef DeviceControl < handle
             %
             p = properties(self);
             for nn = 1:numel(p)
-                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'DeviceControlSubModule')
+                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasControlSubModule')
                     self.(p{nn}).get;
                 end
             end
         end
 
         function self = memoryReset(self)
-            %MEMORYRESET Resets the two block memories
-            self.auxReg.addr = '100004';
-            self.auxReg.write;
+            %MEMORYRESET Resets the block memory
+            auxReg = DeviceRegister('100004',self.conn);
+            auxReg.write;
         end
         
         function r = convert2volts(self,x)
+            %CONVERT2VOLTS Converts input data from integer value to volts
+            %
+            %   V = CONVERT2VOLTS(SELF,X) converts input integer data X to
+            %   voltage V according to IQBIASCONTROL object SELF
             if strcmpi(self.jumpers,'hv')
                 c = self.CONV_ADC_HV;
             elseif strcmpi(self.jumpers,'lv')
@@ -389,6 +392,10 @@ classdef DeviceControl < handle
         end
         
         function r = convert2int(self,x)
+            %CONVERT2INT Converts input data from volts to an integer value
+            %
+            %   X = CONVERT2INT(SELF,V) converts input voltage data V to
+            %   interger X according to IQBIASCONTROL object SELF
             if strcmpi(self.jumpers,'hv')
                 c = self.CONV_ADC_HV;
             elseif strcmpi(self.jumpers,'lv')
@@ -398,15 +405,26 @@ classdef DeviceControl < handle
         end
         
         function correct_pwm(self)
+            %CORRECT_PWM Measures current PWM values and updates the manual
+            %controls
+            %
+            %   CORRECT_PWM(SELF) Measures the current PWM values, which
+            %   may be changing due to feedback, and updates the manual
+            %   values to be the same.
             old_route = self.fifo_route.get;
             self.fifo_route.set(ones(size(old_route))).write;
-            self.getDemodulatedData(100e-3/self.dt());
+            self.getBiasData(100e-3/self.dt());
             new_pwm = mean(self.data,1)*self.CONV_PWM;
             self.pwm.set(new_pwm(1:3)).write;
             self.fifo_route.set(old_route).write;
         end
 
         function r = getStatus(self)
+            %GETSTATUS Retrieves and displays the current status register.
+            %
+            %   R = GETSTATUS(SELF) Returns a hexadecimal representation of
+            %   the current status register, which is currently only the
+            %   FIFO empty bits
             self.statusReg.read;
             if nargout == 0
                 fprintf('%08x\n',self.statusReg.value);
@@ -415,18 +433,18 @@ classdef DeviceControl < handle
             end
         end
 
-        function self = getDemodulatedData(self,numSamples,saveType)
-            %GETDEMODULATEDDATA Fetches demodulated data from the device
+        function self = getBiasData(self,numSamples,saveType)
+            %GETBIASDATA Fetches bias stabilisation data from the device
             %
-            %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of demodulated data
+            %   SELF = GETBIASDATA(NUMSAMPLES) Acquires NUMSAMPLES of demodulated data
             %
-            %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
+            %   SELF = GETBIASDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
             %   users only: see the readme
             numSamples = round(numSamples);
             if nargin < 3
                 saveType = 1;
             end
-            write_arg = {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)};
+            write_arg = {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',IQBiasControl.NUM_MEAS)};
             if self.auto_retry
                 for jj = 1:10
                     try
@@ -443,72 +461,27 @@ classdef DeviceControl < handle
                     end
                 end
             else
-                self.conn.write(0,'mode','command','cmd',...
-                    {'./saveData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',DeviceControl.NUM_MEAS)},...
-                    'return_mode','file');
+                self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
                 raw = typecast(self.conn.recvMessage,'uint8');
                 d = self.convertData(raw);
                 self.data = d;
                 self.t = self.dt()*(0:(numSamples-1));
             end
+
             if self.conn.header.err
                 error('Connection returned error: %s',self.conn.header.errMsg);
             end
         end
 
-        function self = getPhaseData(self,numSamples,saveFactor,saveType)
-            %GETDEMODULATEDDATA Fetches phase data from the device
-            %
-            %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of phase data
-            %
-            %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
-            %   users only: see the readme
-            numSamples = round(numSamples);
-            if nargin < 3
-                saveFactor = 5;
-            end
-            if nargin < 4
-                saveType = 1;
-            end
-            c = [DeviceControl.CONV_PHASE,DeviceControl.CONV_PHASE,DeviceControl.CONV_AUX_DAC,1,1];
-            if self.phase_lock.output_switch.value
-                c(3) = DeviceControl.CONV_PWM;
-            end
-            write_arg = {'./savePhaseData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',round(saveFactor))};
-            if self.auto_retry
-                for jj = 1:10
-                    try
-                        self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
-                        raw = typecast(self.conn.recvMessage,'uint8');
-                        d = self.convertPhaseData(raw,saveFactor,c);
-                        self.data = d;
-                        self.t = self.phase_lock.dt()*(0:(numSamples-1));
-                        break;
-                    catch e
-                        if jj == 10
-                            rethrow(e);
-                        end
-                    end
-                end
-            else
-                self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
-                raw = typecast(self.conn.recvMessage,'uint8');
-                d = self.convertPhaseData(raw,saveFactor,c);
-                self.data = d;
-                self.t = self.phase_lock.dt()*(0:(numSamples-1));
-            end
-            if self.conn.header.err
-                error('Connection returned error: %s',self.conn.header.errMsg);
-            end
-        end
-        
         function self = getVoltageStepResponse(self,numSamples,jump_index,jump_amount)
-            %GETDEMODULATEDDATA Fetches demodulated data from the device
+            %GETVOLTAGESTEPRESPONSE Fetches bias stabilisation data
+            %after a voltage step is applied to the PWM outputs
             %
-            %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of demodulated data
+            %   SELF = GETVOLTAGESTEPRESPONSE(NUMSAMPLES,JUMP_INDEX,JUMP_AMOUNT) 
+            %   Acquires NUMSAMPLES of bias stabilisation data when the
+            %   bias voltage corresponding to JUMP_INDEX (X,Y,Z or 1,2,3)
+            %   is changed by JUMP_AMOUNT in volts
             %
-            %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
-            %   users only: see the readme
             if ischar(jump_index) || isstring(jump_index)
                 if strcmpi(jump_index,'x')
                     jump_index = 1;
@@ -531,7 +504,7 @@ classdef DeviceControl < handle
             Vy = self.pwm(2).intValue;
             Vz = self.pwm(3).intValue;
             write_arg = {'./analyze_jump_response','-n',sprintf('%d',numSamples),'-j',sprintf('%d',round(jump_amount)),...
-                            '-i',sprintf('%d',round(jump_index)),'-x',sprintf('%d',round(Vx)),'-s',sprintf('%d',DeviceControl.NUM_MEAS),...
+                            '-i',sprintf('%d',round(jump_index)),'-x',sprintf('%d',round(Vx)),'-s',sprintf('%d',IQBiasControl.NUM_MEAS),...
                             '-y',sprintf('%d',round(Vy)),'-z',sprintf('%d',round(Vz))};
             if self.auto_retry
                 for jj = 1:10
@@ -560,27 +533,74 @@ classdef DeviceControl < handle
             end
         end
 
+        function self = getPhaseData(self,numSamples,saveFactor,saveType)
+            %GETPHASEDATA Fetches phase data from the device
+            %
+            %   SELF = GETPHASEDATA(NUMSAMPLES) Acquires NUMSAMPLES of phase data
+            %   
+            %   SELF = GETPHASEDATA(__,SAVEFACTOR) Retrieves up to
+            %   SAVEFACTOR (<= 5) different types of phase data
+            numSamples = round(numSamples);
+            if nargin < 3
+                saveFactor = 5;
+            end
+            if nargin < 4
+                saveType = 1;
+            end
+            c = [IQBiasControl.CONV_PHASE,IQBiasControl.CONV_PHASE,IQBiasControl.CONV_AUX_DAC,1,1];
+            if self.phase_lock.output_switch.value
+                c(3) = IQBiasControl.CONV_PWM;
+            end
+            write_arg = {'./savePhaseData','-n',sprintf('%d',numSamples),'-t',sprintf('%d',saveType),'-s',sprintf('%d',round(saveFactor))};
+            if self.auto_retry
+                for jj = 1:10
+                    try
+                        self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
+                        raw = typecast(self.conn.recvMessage,'uint8');
+                        d = self.convertPhaseData(raw,saveFactor,c);
+                        self.data = d;
+                        self.t = self.phase_lock.dt()*(0:(numSamples-1));
+                        break;
+                    catch e
+                        if jj == 10
+                            rethrow(e);
+                        end
+                    end
+                end
+            else
+                self.conn.write(0,'mode','command','cmd',write_arg,'return_mode','file');
+                raw = typecast(self.conn.recvMessage,'uint8');
+                d = self.convertPhaseData(raw,saveFactor,c);
+                self.data = d;
+                self.t = self.phase_lock.dt()*(0:(numSamples-1));
+            end
+            if self.conn.header.err
+                error('Connection returned error: %s',self.conn.header.errMsg);
+            end
+        end
+
         function self = getPhaseJumpResponse(self,numSamples,jump_amount,saveFactor)
-            %GETDEMODULATEDDATA Fetches phase data from the device
+            %GETPHASEJUMPRESPONSE Fetches phase data from the device after
+            %a phase jump
             %
-            %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of phase data
+            %   SELF = GETPHASEJUMPRESPONSE(NUMSAMPLES,JUMP_AMOUNT)
+            %   Acquires NUMSAMPLES of phase data with phase jump
+            %   JUMP_AMOUNT
             %
-            %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
-            %   users only: see the readme
             numSamples = round(numSamples);
             if nargin < 4
                 saveFactor = 5;
             end
-            saveType = 1;
+
             jump_amount = round(jump_amount/self.CONV_AUX_DAC);
             self.dac.get;
             V = round(self.dac.intValue);
             write_arg = {'./analyze_phase_jump','-n',sprintf('%d',numSamples),...
                 '-s',sprintf('%d',round(saveFactor)),'-j',sprintf('%d',jump_amount),'-v',sprintf('%d',V),...
                 '-t',sprintf('%d',round(self.phase_lock.output_switch.value))};
-            c = [DeviceControl.CONV_PHASE,DeviceControl.CONV_PHASE,DeviceControl.CONV_AUX_DAC,1,1];
+            c = [IQBiasControl.CONV_PHASE,IQBiasControl.CONV_PHASE,IQBiasControl.CONV_AUX_DAC,1,1];
             if self.phase_lock.output_switch.value
-                c(3) = DeviceControl.CONV_PWM;
+                c(3) = IQBiasControl.CONV_PWM;
             end
             if self.auto_retry
                 for jj = 1:10
@@ -610,12 +630,14 @@ classdef DeviceControl < handle
         end
 
         function self = getPhaseLockResponse(self,numSamples,change_sample,saveFactor)
-            %GETDEMODULATEDDATA Fetches phase data from the device
+            %GETPHASELOCKRESPONSE Fetches phase data from the device
             %
-            %   SELF = GETDEMODULATEDDATA(NUMSAMPLES) Acquires NUMSAMPLES of phase data
+            %   SELF = GETPHASELOCKRESPONSE(NUMSAMPLES) Acquires NUMSAMPLES
+            %   of phase data when the phase lock is engaged 1/4 of the way
+            %   through the record
             %
-            %   SELF = GETDEMODULATEDDATA(__,SAVETYPE) uses SAVETYPE for saving data.  For advanced
-            %   users only: see the readme
+            %   SELF = GETPHASELOCKRESPONSE(__,CHANGE_SAMPLE) engages the
+            %   phase lock at CHANGE_SAMPLE
             numSamples = round(numSamples);
             if nargin < 4
                 saveFactor = 5;
@@ -627,11 +649,11 @@ classdef DeviceControl < handle
             elseif ~(change_sample >= 1 && change_sample < numSamples)
                 error('Change sample cannot be longer than numSamples or a negative number');
             end
-            saveType = 1;
+
             write_arg = {'./analyze_phase_lock','-n',sprintf('%d',numSamples),'-s',sprintf('%d',round(saveFactor)),'-c',sprintf('%d',round(change_sample))};
-            c = [DeviceControl.CONV_PHASE,DeviceControl.CONV_PHASE,DeviceControl.CONV_AUX_DAC,1,1];
+            c = [IQBiasControl.CONV_PHASE,IQBiasControl.CONV_PHASE,IQBiasControl.CONV_AUX_DAC,1,1];
             if self.phase_lock.output_switch.value
-                c(3) = DeviceControl.CONV_PWM;
+                c(3) = IQBiasControl.CONV_PWM;
             end
             if self.auto_retry
                 for jj = 1:10
@@ -725,8 +747,9 @@ classdef DeviceControl < handle
         end
         
         function disp(self)
+            %DISP Displays the current device settings
             strwidth = 20;
-            fprintf(1,'DeviceControl object with properties:\n');
+            fprintf(1,'IQBiasControl object with properties:\n');
             fprintf(1,'\t Registers\n');
             p = properties(self);
             for nn = 1:numel(p)
@@ -747,7 +770,7 @@ classdef DeviceControl < handle
             self.phase_correction.print('Phase Correction',strwidth,'%.3f');
             self.phase_offset.print('Phase Offset',strwidth,'%.3f');
             self.dds2_phase_offset.print('dds2 Phase Offset',strwidth,'%.3f');
-            self.link_dac_gate.print('Link DAC gate',strwidth,'%d');
+            self.disable_dac_on_hold.print('Link DAC gate',strwidth,'%d');
             for nn = 1:numel(self.pwm)
                 self.pwm(nn).print(sprintf('PWM %d',nn),strwidth,'%.3f');
             end
@@ -778,7 +801,7 @@ classdef DeviceControl < handle
             
             p = properties(self);
             for nn = 1:numel(p)
-                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController') || isa(self.(p{nn}),'IQPhaseControl')
+                if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasControlSubModule')
                     s.(p{nn}) = self.(p{nn}).struct;
                 end
             end
@@ -803,7 +826,7 @@ classdef DeviceControl < handle
             p = properties(self);
             for nn = 1:numel(p)
                 if isfield(s,p{nn})
-                    if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasController') || isa(self.(p{nn}),'IQPhaseControl')
+                    if isa(self.(p{nn}),'DeviceParameter') || isa(self.(p{nn}),'IQBiasControlSubModule')
                         try
                             self.(p{nn}).loadstruct(s.(p{nn}));
                         catch
@@ -821,17 +844,19 @@ classdef DeviceControl < handle
             %LOADOBJ Creates a DEVIECCONTROL object using input structure
             %
             %   SELF = LOADOBJ(S) uses structure S to create new
-            %   DEVICECONTROL object SELF
-            self = DeviceControl(s.conn.host,s.conn.port);
+            %   IQBiasControl object SELF
+            self = IQBiasControl(s.conn.host,s.conn.port);
             self.setDefaults;
             self.loadstruct(s);
         end
         
         
         function d = convertData(raw)
+            %CONVERTDATA Converts raw bias stabilisation data to proper
+            %integer format
             raw = raw(:);
             Nraw = numel(raw);
-            numStreams = DeviceControl.NUM_MEAS;
+            numStreams = IQBiasControl.NUM_MEAS;
             d = zeros(Nraw/(numStreams*4),numStreams,'int32');
             
             raw = reshape(raw,4*numStreams,Nraw/(4*numStreams));
@@ -842,9 +867,11 @@ classdef DeviceControl < handle
         end
 
         function d = convertPhaseData(raw,numStreams,c)
+            %CONVERTPHASEDATA converts raw data from the device into useful
+            %phase data
             raw = raw(:);
             Nraw = numel(raw);
-%             numStreams = 3;
+
             d = zeros(Nraw/(numStreams*4),numStreams,'int32');
             
             raw = reshape(raw,4*numStreams,Nraw/(4*numStreams));
@@ -855,8 +882,6 @@ classdef DeviceControl < handle
             for nn = 1:numStreams
                 d(:,nn) = d(:,nn)*c(nn);
             end
-%             d(:,1:2) = d(:,1:2)*DeviceControl.CONV_PHASE;
-%             d(:,3) = d(:,3)*DeviceControl.CONV_PWM;
         end
 
         function v = convertADCData(raw,c)
@@ -899,7 +924,6 @@ classdef DeviceControl < handle
             fclose(fid);
             
             %Process data
-%             raw = typecast(x,'int32');
             raw = x;
             D = zeros([numVoltages*[1,1,1],4]);
             for nn = 1:size(D,4)

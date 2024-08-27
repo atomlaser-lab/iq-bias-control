@@ -1,4 +1,6 @@
 function [tc,G,c,res] = get_voltage_step_response(d,num_samples,jump_amount,jump_index)
+%GET_VOLTAGE_STEP_RESPONSE Measures the response of the system to a sudden
+%change in the bias voltages.
 
 num_samples = round(num_samples);
 if nargin < 4

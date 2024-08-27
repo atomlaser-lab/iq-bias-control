@@ -1,4 +1,6 @@
 function [G,zero_voltages,data_lin] = get_linear_response(d,zero_voltages,V,Npoints)
+%GET_LINEAR_RESPONSE Measures the hopefully linear response of the system
+%to small changes in the bias voltages
 NUM_PWM = 3;
 if nargin < 4
     Npoints = 1000;

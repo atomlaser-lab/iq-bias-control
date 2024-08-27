@@ -1,4 +1,5 @@
-classdef(Abstract) DeviceControlSubModule < handle
+classdef(Abstract) IQBiasControlSubModule < handle
+    %IQBIASCONTROLSUBMODULE Abstract class to define common functions
     properties(SetAccess=protected)
         parent
     end

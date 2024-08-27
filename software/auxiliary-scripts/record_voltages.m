@@ -28,7 +28,7 @@ else
     obj.UserData.date(obj.UserData.sample) = datetime;
 end
 obj.UserData.d.getDemodulatedData(1e3);
-obj.UserData.v(obj.UserData.sample,:) = mean(obj.UserData.d.data(:,1:3),1)*DeviceControl.CONV_PWM;
+obj.UserData.v(obj.UserData.sample,:) = mean(obj.UserData.d.data(:,1:3),1)*IQBiasControl.CONV_PWM;
 
 if numel(obj.UserData.date) > 1
     figure(1442);clf;

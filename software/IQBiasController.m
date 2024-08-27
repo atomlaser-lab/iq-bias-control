@@ -1,6 +1,6 @@
-classdef IQBiasController < DeviceControlSubModule
-    %IQBIASCONTROLLER Defines a class for handling the PID modules in the
-    %IQ bias controller
+classdef IQBiasController < IQBiasControlSubModule
+    %IQBIASCONTROLLER Defines a class for handling the multidimensional
+    %integral controller
     
     properties(SetAccess = immutable)
         gains           %3x3 integral gain matrix
@@ -57,10 +57,10 @@ classdef IQBiasController < DeviceControlSubModule
             self.lower_limits = DeviceParameter.empty;
             self.upper_limits = DeviceParameter.empty;
             for nn = 1:3
-                self.lower_limits(nn) = DeviceParameter([0,DeviceControl.PWM_WIDTH - 1],pwm_limit_regs(nn),'uint32')...
+                self.lower_limits(nn) = DeviceParameter([0,IQBiasControl.PWM_WIDTH - 1],pwm_limit_regs(nn),'uint32')...
                     .setLimits('lower',0,'upper',1.6)...
                     .setFunctions('to',@(x) x/self.parent.CONV_PWM,'from',@(x) x*self.parent.CONV_PWM);
-                self.upper_limits(nn) = DeviceParameter(DeviceControl.PWM_WIDTH + [0,DeviceControl.PWM_WIDTH - 1],pwm_limit_regs(nn),'uint32')...
+                self.upper_limits(nn) = DeviceParameter(IQBiasControl.PWM_WIDTH + [0,IQBiasControl.PWM_WIDTH - 1],pwm_limit_regs(nn),'uint32')...
                     .setLimits('lower',0,'upper',1.6)...
                     .setFunctions('to',@(x) x/self.parent.CONV_PWM,'from',@(x) x*self.parent.CONV_PWM);
             end

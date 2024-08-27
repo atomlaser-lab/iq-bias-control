@@ -240,7 +240,7 @@ fprintf('Finished measuring dynamic responses in %.1f s\n',t);
 %
 % target_low_pass_freqs = 0.5*[2,2,0.5];
 target_low_pass_freqs = 0.5*response_freqs;
-Ki_target = 2*pi*target_low_pass_freqs*d.dt()/DeviceControl.CONV_PWM;
+Ki_target = 2*pi*target_low_pass_freqs*d.dt()/IQBiasControl.CONV_PWM;
 
 K_target = diag(Ki_target);
 Ktmp = G\K_target;
@@ -289,12 +289,12 @@ function r = get_zero_crossing_voltages(nlf,x0)
 end
 
 function check_app
-    app = DeviceControl.get_running_app_instance();
+    app = IQBiasControl.get_running_app_instance();
     app.set_timer('off');
 end
 
 function update_app_display
-    app = DeviceControl.get_running_app_instance();
+    app = IQBiasControl.get_running_app_instance();
     app.updateDisplay;
 end
 

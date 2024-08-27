@@ -1,4 +1,4 @@
-classdef IQPhaseControl < DeviceControlSubModule
+classdef IQPhaseControl < IQBiasControlSubModule
     %IQPHASECONTROL Defines a class for handling the phase control module
     %in the bias control design
     
@@ -122,6 +122,12 @@ classdef IQPhaseControl < DeviceControlSubModule
         end
 
         function self = setRealGains(self,Kp,Ki,Kd)
+            %SETREALGAINS Sets the gains of the phase control module
+            %according to their continuous values
+            %
+            %   SELF = SETREALGAINS(Kp,Ki,Kd) sets the phase control PID
+            %   proportional gain Kp, integral gain Ki, and derivative gain
+            %   Kd
             Kp_int = Kp/self.parent.CONV_AUX_DAC*self.parent.CONV_PHASE;
             Ki_int = Ki*self.dt/self.parent.CONV_AUX_DAC*self.parent.CONV_PHASE;
             Kd_int = Kd/self.dt/self.parent.CONV_AUX_DAC*self.parent.CONV_PHASE;
@@ -152,6 +158,7 @@ classdef IQPhaseControl < DeviceControlSubModule
         end
 
         function r = dt(self)
+            %DT Returns the sample interval for the phase control module
             r = 2^self.log2_rate.value/self.parent.CLK;
         end
         

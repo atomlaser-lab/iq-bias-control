@@ -7,7 +7,7 @@ CONV_PHASE = pi/2^13;
 f = logspace(0,6,1e4);
 w = 2*pi*f;
 Tclk = 8e-9;
-R = 2^10;
+R = 2^6;
 Ts = Tclk*R;
 
 zclk = exp(-1i*w*Tclk);
@@ -15,18 +15,24 @@ zs = exp(-1i*w*Ts);
 
 %% Actuator gain
 actuator_corner_freq = 1/1.7e-3;  %[rad/s]
+% actuator_corner_freq = 2*pi*500e3;
+actuator_delay = 16*100e-9*0;
 G0 = 20;    %[rad/V]
-G = G0./(1 + 1i*w./actuator_corner_freq);
+G = G0./(1 + 1i*w./actuator_corner_freq).*exp(-1i*w*actuator_delay);
 
 %% Feedback
-Kp_int = 400;
-Ki_int = 100;
-Kd_int = 0e3;
-divisor = 11;
+% Kp_int = 200;
+% Ki_int = 200;
+% Kd_int = 0e3;
+% divisor = 11;
+% 
+% Kp = Kp_int/2^divisor*CONV_PWM/CONV_PHASE;
+% Ki = Ki_int/2^divisor/Ts*CONV_PWM/CONV_PHASE;
+% Kd = Kd_int/2^divisor*Ts*CONV_PWM/CONV_PHASE;
 
-Kp = Kp_int/2^divisor*CONV_PWM/CONV_PHASE;
-Ki = Ki_int/2^divisor/Ts*CONV_PWM/CONV_PHASE;
-Kd = Kd_int/2^divisor*Ts*CONV_PWM/CONV_PHASE;
+Kp = 1;
+Ki = 1e3;
+Kd = 0e-5;
 
 K = (Kp.*(1 - zs) + Ki*Ts.*(1 + zs)/2 + Kd/Ts*(1 - 2*zs + zs.^2))./(1 - zs);
 %% Measurement
