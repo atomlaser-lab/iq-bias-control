@@ -10,7 +10,8 @@ arguments
     NamedArgs.mode = 'diff';
 end
 
-mod_depth = [10.^(0.1*-23),2];        %radians
+mod_depth = [10.^(0.1*-23),1e-1];        %radians
+mod_depth(2,:) = 1*mod_depth(1,:);
 mod_freq = 2*pi*[4e6,100e6];    %1/s
 
 %% Generate fast time signals
@@ -36,15 +37,15 @@ else
     error('Unrecognized mode options');
 end
 ph_err = 00e-3;
-Terr = 0.2;
-ph_diff = pi/4;
+Terr = [0.01,0.02,0.015,0.005];
+ph_diff = 0*pi/180;
 
 mod_signal = @(f,ph,T) 1./(2*1i).*((1 + T).*exp(1i*(f*t + ph)) - (1 - T).*exp(-1i*(f*t + ph)));
 
-E1 = 0.5*exp(1i*mod_depth(1)*mod_signal(mod_freq(1),0,0) + 1i*mod_depth(2)*mod_signal(mod_freq(2),0 + ph_diff,Terr) + 1i*ph1);
-E2 = 0.5*exp(1i*mod_depth(1)*mod_signal(mod_freq(1),pi,0) + 1i*mod_depth(2)*mod_signal(mod_freq(2),pi + ph_diff,Terr) + 1i*ph2);
-E3 = 0.5*exp(1i*mod_depth(1)*mod_signal(mod_freq(1),pi/2,0) + 1i*mod_depth(2)*mod_signal(mod_freq(2),pi/2 + ph_diff + ph_err,Terr) + 1i*ph3);
-E4 = 0.5*exp(1i*mod_depth(1)*mod_signal(mod_freq(1),3*pi/2,0) + 1i*mod_depth(2)*mod_signal(mod_freq(2),3*pi/2 + ph_diff + ph_err,Terr) + 1i*ph4);
+E1 = 0.5*exp(1i*mod_depth(1,1)*mod_signal(mod_freq(1),0,Terr(1)) + 1i*mod_depth(1,2)*mod_signal(mod_freq(2),0,Terr(1)) + 1i*ph1);
+E2 = 0.5*exp(1i*mod_depth(1,1)*mod_signal(mod_freq(1),pi,Terr(2)) + 1i*mod_depth(1,2)*mod_signal(mod_freq(2),pi,Terr(2)) + 1i*ph2);
+E3 = 0.5*exp(1i*mod_depth(2,1)*mod_signal(mod_freq(1),pi/2,Terr(3)) + 1i*mod_depth(2,2)*mod_signal(mod_freq(2),pi/2 + ph_diff + ph_err,Terr(3)) + 1i*ph3);
+E4 = 0.5*exp(1i*mod_depth(2,1)*mod_signal(mod_freq(1),3*pi/2,Terr(4)) + 1i*mod_depth(2,2)*mod_signal(mod_freq(2),3*pi/2 + ph_diff + ph_err,Terr(4)) + 1i*ph4);
 
 EA = 1/sqrt(2)*(E1 + E2);
 EB = 1/sqrt(2)*(E3 + E4);
@@ -69,7 +70,8 @@ S3 = cicfilter(t,raw3,R,3);
 Y = fftshift(fft(Ep));
 f = 1./(2*dt)*linspace(-1,1,numel(Y));
 YP = abs(Y/numel(f)).^2;
-idx = (2*pi*f) == mod_freq(2);
+% idx = find((2*pi*f) >= mod_freq(1),1,'first');
+[~,idx] = min((2*pi*f - mod_freq(1)).^2);
 YP = YP/YP(idx);
 if nargout == 0
     figure(1);clf;
@@ -83,14 +85,14 @@ if nargout == 0
     plot(f/1e6,10*log10(YP));
     xlim(mod_freq(2)/(2*pi*1e6)*4*[-1,1])
     grid on;
-    ylim([-100,0]);
+    ylim([-100,Inf]);
 else
     D = mean([S1,S2,S3],1);
-    [~,idx] = min((f + mod_freq/(2*pi)).^2);
+    [~,idx] = min((f + mod_freq(2)/(2*pi)).^2);
     P = YP(idx);
     [~,idx] = min((f).^2);
     P(2) = YP(idx);
-    [~,idx] = min((f - mod_freq/(2*pi)).^2);
+    [~,idx] = min((f - mod_freq(2)/(2*pi)).^2);
     P(3) = YP(idx);
 
     varargout{1} = D;
